@@ -1,0 +1,8 @@
+<resources>
+    <!-- Launcher theme: transparent window so the system wallpaper shows through. -->
+    <style name="Theme.HALauncher" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowShowWallpaper">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsTranslucent">false</item>
+    </style>
+</resources>
