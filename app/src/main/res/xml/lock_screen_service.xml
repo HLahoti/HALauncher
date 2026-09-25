@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Configuration for LockScreenService. It watches nothing (no event types, no window content
+    retrieval), so it can only perform global actions like locking the screen — it can't read the
+    screen. The description is shown to the user on the service's page in Accessibility settings.
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:canRetrieveWindowContent="false"
+    android:description="@string/lock_service_description"
+    android:notificationTimeout="0" />

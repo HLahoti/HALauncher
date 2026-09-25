@@ -11,6 +11,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -97,6 +98,9 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     val pinnedApps by viewModel.pinnedApps.collectAsStateWithLifecycle()
     val pinnedPackages by viewModel.pinnedPackages.collectAsStateWithLifecycle()
     val isPinPickerOpen by viewModel.isPinPickerOpen.collectAsStateWithLifecycle()
+    val isSettingsOpen by viewModel.isSettingsOpen.collectAsStateWithLifecycle()
+    val doubleTapToLock by viewModel.doubleTapToLock.collectAsStateWithLifecycle()
+    val reduceIndexSize by viewModel.reduceIndexSize.collectAsStateWithLifecycle()
     val moneyApp by viewModel.moneyApp.collectAsStateWithLifecycle()
     val searchPurpose by viewModel.searchPurpose.collectAsStateWithLifecycle()
     val moneySymbol = remember { localCurrencySymbol() }
@@ -131,25 +135,37 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
 
     BackHandler(enabled = isSearchOpen) { viewModel.closeSearch() }
     BackHandler(enabled = isPinPickerOpen) { viewModel.closePinPicker() }
+    BackHandler(enabled = isSettingsOpen) { viewModel.closeSettings() }
 
     // Frosts the home content behind an overlay (Android 12+; a no-op before that), deepening
     // as search comes in. Once the overlay is fully in, the blurred content is frozen: it isn't
     // re-recorded, and the blur isn't changed, so it's neither redrawn nor blurred again until
     // the overlay starts to leave.
-    val overlayOpen = isSearchOpen || isPinPickerOpen
+    val overlayOpen = isSearchOpen || isPinPickerOpen || isSettingsOpen
     val pinPickerBlur = animateFloatAsState(if (isPinPickerOpen) 1f else 0f, label = "pinPickerBlur")
+    val settingsBlur = animateFloatAsState(if (isSettingsOpen) 1f else 0f, label = "settingsBlur")
     val currentOverlayOpen by rememberUpdatedState(overlayOpen)
     val homeLayer = rememberGraphicsLayer()
     val homeBlur = remember { HomeBlur() }
 
+    // Double-tapping the empty home screen locks the phone (via the accessibility service), when
+    // that setting is on; long-pressing it opens the settings panel with a haptic tick.
+    val lock = rememberDoubleTapLock()
+    val currentDoubleTapToLock by rememberUpdatedState(doubleTapToLock)
+    val haptics = remember(context) { Haptics(context) }
+
     val searchLabel = stringResource(R.string.search_apps)
+    val settingsLabel = stringResource(R.string.open_launcher_settings)
     Box(
         modifier = Modifier
             .fillMaxSize()
-            // Screen readers can't easily swipe, so search is offered as an action too.
+            // Screen readers can't easily swipe or long-press, so search and settings are offered as actions too.
             .semantics {
                 if (!overlayOpen) {
-                    customActions = listOf(CustomAccessibilityAction(searchLabel) { viewModel.openSearch(); true })
+                    customActions = listOf(
+                        CustomAccessibilityAction(searchLabel) { viewModel.openSearch(); true },
+                        CustomAccessibilityAction(settingsLabel) { viewModel.openSettings(); true },
+                    )
                 }
             }
             // Swiping up anywhere on the bare home screen pulls search in with the finger; on
@@ -174,6 +190,21 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                     onDragEnd = { if (active) searchReveal.settle(tracker.calculateVelocity().y) },
                     onDragCancel = { if (active) searchReveal.settle(0f) },
                 )
+            }
+            // A double-tap on empty space locks the phone (when enabled); a long-press opens
+            // settings with a haptic tick. Taps on the quick actions, sphere and clock are consumed
+            // there first, so these only fire on the bare home screen; and they're held back while
+            // an overlay is open, matching the swipe-to-search guard above.
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onDoubleTap = { if (!currentOverlayOpen && currentDoubleTapToLock) lock() },
+                    onLongPress = {
+                        if (!currentOverlayOpen) {
+                            haptics.tick()
+                            viewModel.openSettings()
+                        }
+                    },
+                )
             },
     ) {
         Column(
@@ -181,7 +212,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 .fillMaxSize()
                 // Read in the draw phase, not in composition, so a swipe redraws without recomposing.
                 .drawWithContent {
-                    val coverage = max(pinPickerBlur.value, searchReveal.value)
+                    val coverage = max(max(pinPickerBlur.value, settingsBlur.value), searchReveal.value)
                     val frozen = coverage >= 1f && homeBlur.recorded && homeLayer.size == size.toIntSize()
                     if (!frozen) {
                         homeLayer.record { this@drawWithContent.drawContent() }
@@ -236,7 +267,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
 
         // Hidden under overlays once they're fully in, so its touch area (and its exclusion from
         // the back gesture) can't intercept theirs.
-        if (!isPinPickerOpen && !(isSearchOpen && searchFullyIn)) {
+        if (!isPinPickerOpen && !isSettingsOpen && !(isSearchOpen && searchFullyIn)) {
             PinnedAppsSphere(
                 apps = pinnedApps,
                 onAppOpened = viewModel::onEntryOpened,
@@ -255,6 +286,16 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 onToggle = viewModel::togglePinned,
                 onReorder = viewModel::reorderPinned,
                 onDone = viewModel::closePinPicker,
+            )
+        }
+
+        AnimatedVisibility(visible = isSettingsOpen, enter = fadeIn(), exit = fadeOut()) {
+            SettingsPanel(
+                doubleTapToLock = doubleTapToLock,
+                reduceIndexSize = reduceIndexSize,
+                onDoubleTapToLockChange = viewModel::setDoubleTapToLock,
+                onReduceIndexSizeChange = viewModel::setReduceIndexSize,
+                onDone = viewModel::closeSettings,
             )
         }
 

@@ -18,6 +18,7 @@ import com.example.halauncher.config.SearchLayersConfig
 import com.example.halauncher.data.AppRepository
 import com.example.halauncher.data.ContactProvider
 import com.example.halauncher.data.FileSearchProvider
+import com.example.halauncher.data.LauncherSettingsStore
 import com.example.halauncher.data.PinnedAppsStore
 import com.example.halauncher.data.QuickActionAppStore
 import com.example.halauncher.model.AppInfo
@@ -85,7 +86,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private val appRepository = AppRepository(application)
     private val contactProvider = ContactProvider(application)
-    private val fileProvider = FileSearchProvider(application)
+    private val settingsStore = LauncherSettingsStore(application)
+    private val fileProvider = FileSearchProvider(application) { settingsStore.reduceIndexSize }
 
     private val searchEngine = run {
         val database = SearchDatabase(application)
@@ -147,6 +149,18 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _isPinPickerOpen = MutableStateFlow(false)
     val isPinPickerOpen: StateFlow<Boolean> = _isPinPickerOpen.asStateFlow()
+
+    private val _isSettingsOpen = MutableStateFlow(false)
+    /** Whether the long-press settings panel is showing. */
+    val isSettingsOpen: StateFlow<Boolean> = _isSettingsOpen.asStateFlow()
+
+    private val _doubleTapToLock = MutableStateFlow(settingsStore.doubleTapToLock)
+    /** Whether a double-tap on the empty home screen locks the phone. */
+    val doubleTapToLock: StateFlow<Boolean> = _doubleTapToLock.asStateFlow()
+
+    private val _reduceIndexSize = MutableStateFlow(settingsStore.reduceIndexSize)
+    /** Whether the file index leaves out denylisted folders to stay small. */
+    val reduceIndexSize: StateFlow<Boolean> = _reduceIndexSize.asStateFlow()
 
     /**
      * The in-memory frequent layer. The published trie is only read and changed on the main
@@ -393,6 +407,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun openSearch() {
         _isPinPickerOpen.value = false
+        _isSettingsOpen.value = false
         _searchPurpose.value = SearchPurpose.FIND
         _categoryFilter.value = DEFAULT_CATEGORY
         _isSearchOpen.value = true
@@ -404,6 +419,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     /** Opens search limited to apps, so the user can choose the money button's app. */
     fun openMoneyAppPicker() {
         _isPinPickerOpen.value = false
+        _isSettingsOpen.value = false
         _searchPurpose.value = SearchPurpose.PICK_MONEY_APP
         _categoryFilter.value = SearchCategory.APP
         _isSearchOpen.value = true
@@ -426,11 +442,39 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun openPinPicker() {
         closeSearch()
+        _isSettingsOpen.value = false
         _isPinPickerOpen.value = true
     }
 
     fun closePinPicker() {
         _isPinPickerOpen.value = false
+    }
+
+    /** Opens the settings panel (from a home-screen long-press), closing any other overlay. */
+    fun openSettings() {
+        closeSearch()
+        _isPinPickerOpen.value = false
+        _isSettingsOpen.value = true
+    }
+
+    fun closeSettings() {
+        _isSettingsOpen.value = false
+    }
+
+    fun setDoubleTapToLock(enabled: Boolean) {
+        settingsStore.doubleTapToLock = enabled
+        _doubleTapToLock.value = enabled
+    }
+
+    /**
+     * Turns the "reduce index size" setting on or off, then re-indexes files so it takes effect:
+     * turning it on drops denylisted files from the index, turning it off brings them back.
+     */
+    fun setReduceIndexSize(enabled: Boolean) {
+        if (_reduceIndexSize.value == enabled) return
+        settingsStore.reduceIndexSize = enabled
+        _reduceIndexSize.value = enabled
+        indexUpdater.requestSync(listOf(SearchCategory.FILE), urgent = true)
     }
 
     /**
@@ -458,10 +502,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         pinnedAppsStore.save(updated)
     }
 
-    /** Back to the bare home screen: closes search and the pin picker. */
+    /** Back to the bare home screen: closes search, the pin picker and the settings panel. */
     fun resetHome() {
         closeSearch()
         closePinPicker()
+        closeSettings()
     }
 
     fun onCategoryFilterChanged(category: SearchCategory?) {

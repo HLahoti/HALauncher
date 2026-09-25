@@ -20,7 +20,24 @@ import com.example.halauncher.model.SearchEntry
  * Android 11+, which the user grants in a Settings screen; before Android 11 it's the
  * ordinary storage permission. Returns nothing without it.
  */
-class FileSearchProvider(private val context: Context) : SearchEntryProvider {
+/**
+ * Result of a targeted [FileSearchProvider.loadByIds] lookup: the [entries] to index and the ids of
+ * every requested file that still exists (denylisted ones included, so they aren't mistaken for
+ * deletions).
+ */
+data class TargetedFiles(
+    val entries: List<FileEntry>,
+    val existingIds: Set<Long>,
+)
+
+/**
+ * @param denylistEnabled whether [FilePathDenylist] folders are left out of the index right now
+ *   (the "Reduce index size" setting). Read on each load, so flipping it and re-syncing takes effect.
+ */
+class FileSearchProvider(
+    private val context: Context,
+    private val denylistEnabled: () -> Boolean = { false },
+) : SearchEntryProvider {
 
     override val category = SearchCategory.FILE
 
@@ -36,7 +53,8 @@ class FileSearchProvider(private val context: Context) : SearchEntryProvider {
     override fun loadEntries(): List<SearchEntry> {
         if (!hasAccess()) return emptyList()
         return try {
-            queryFiles()
+            // A full sync leaves denylisted folders out from the start, when the setting is on.
+            queryFiles(excludeDenylisted = denylistEnabled())
         } catch (e: SecurityException) {
             // Access revoked between the check and the query.
             emptyList()
@@ -44,25 +62,39 @@ class FileSearchProvider(private val context: Context) : SearchEntryProvider {
     }
 
     /**
-     * Just the files with these MediaStore [ids], for targeted index updates; ids that no longer
-     * exist (deleted files) are simply absent from the result.
+     * The files with these MediaStore [ids], for targeted index updates.
+     *
+     * [TargetedFiles.entries] are the ones to index, with denylisted folders ([FilePathDenylist])
+     * removed. [TargetedFiles.existingIds] are *all* the requested ids that still exist in
+     * MediaStore, denylisted or not, so the caller can tell a denylisted file (leave it alone) from
+     * a deleted one (drop it from the index) without knowing the denylist. Ids in neither are gone.
      */
     @WorkerThread
-    fun loadByIds(ids: Collection<Long>): List<FileEntry> {
-        if (!hasAccess() || ids.isEmpty()) return emptyList()
+    fun loadByIds(ids: Collection<Long>): TargetedFiles {
+        if (!hasAccess() || ids.isEmpty()) return TargetedFiles(emptyList(), emptySet())
         return try {
-            ids.chunked(MAX_IDS_PER_QUERY).flatMap { chunk ->
+            // Query without the denylist so denylisted-but-present files still count as existing.
+            val found = ids.chunked(MAX_IDS_PER_QUERY).flatMap { chunk ->
                 queryFiles(
+                    excludeDenylisted = false,
                     extraSelection = "${MediaStore.MediaColumns._ID} IN (${chunk.joinToString(",") { "?" }})",
                     extraArgs = chunk.map(Long::toString),
                 )
             }
+            TargetedFiles(
+                entries = if (denylistEnabled()) found.filterNot { FilePathDenylist.matches(it.folder) } else found,
+                existingIds = found.mapTo(HashSet()) { it.mediaId },
+            )
         } catch (e: SecurityException) {
-            emptyList()
+            TargetedFiles(emptyList(), emptySet())
         }
     }
 
-    private fun queryFiles(extraSelection: String? = null, extraArgs: List<String> = emptyList()): List<FileEntry> {
+    private fun queryFiles(
+        excludeDenylisted: Boolean,
+        extraSelection: String? = null,
+        extraArgs: List<String> = emptyList(),
+    ): List<FileEntry> {
         val collection = MediaStore.Files.getContentUri(EXTERNAL_VOLUME)
         val hasRelativePath = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
         val projection = buildList {
@@ -74,13 +106,22 @@ class FileSearchProvider(private val context: Context) : SearchEntryProvider {
             if (hasRelativePath) add(MediaStore.MediaColumns.RELATIVE_PATH)
         }.toTypedArray()
         // Folders are rows too, but have no MIME type.
-        val selection = buildString {
-            append("${MediaStore.MediaColumns.MIME_TYPE} IS NOT NULL")
-            if (extraSelection != null) append(" AND ").append(extraSelection)
+        val selectionParts = mutableListOf("${MediaStore.MediaColumns.MIME_TYPE} IS NOT NULL")
+        val argsList = mutableListOf<String>()
+        // The denylist filters on RELATIVE_PATH, which only exists on Android Q+.
+        if (excludeDenylisted && hasRelativePath) {
+            val (clause, denyArgs) = FilePathDenylist.sqlExclusion(MediaStore.MediaColumns.RELATIVE_PATH)
+            selectionParts += clause
+            argsList += denyArgs
         }
+        if (extraSelection != null) {
+            selectionParts += extraSelection
+            argsList += extraArgs
+        }
+        val selection = selectionParts.joinToString(" AND ")
 
         val files = mutableListOf<FileEntry>()
-        val args = extraArgs.takeIf { it.isNotEmpty() }?.toTypedArray()
+        val args = argsList.takeIf { it.isNotEmpty() }?.toTypedArray()
         context.contentResolver.query(collection, projection, selection, args, null)?.use { cursor ->
             val idCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
             val nameCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DISPLAY_NAME)

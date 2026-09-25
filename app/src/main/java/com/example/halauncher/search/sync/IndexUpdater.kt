@@ -221,10 +221,14 @@ class IndexUpdater(
                 add { changes += IndexChange.ReplaceAll(SearchCategory.FILE, files.loadEntries()) }
             } else if (batch.fileIds.isNotEmpty()) add {
                 // Files that still exist are refreshed; ids MediaStore no longer has were deleted.
-                val found = files.loadByIds(batch.fileIds)
-                val foundIds = found.mapTo(HashSet()) { it.mediaId }
-                changes += IndexChange.Upsert(SearchCategory.FILE, found)
-                changes += IndexChange.Remove(SearchCategory.FILE, batch.fileIds.filter { it !in foundIds }.map(FileEntry::idFor))
+                // Denylisted files are neither indexed nor removed: they exist, so they don't count
+                // as deletions, and they're absent from entries, so they aren't upserted.
+                val targeted = files.loadByIds(batch.fileIds)
+                changes += IndexChange.Upsert(SearchCategory.FILE, targeted.entries)
+                changes += IndexChange.Remove(
+                    SearchCategory.FILE,
+                    batch.fileIds.filter { it !in targeted.existingIds }.map(FileEntry::idFor),
+                )
             }
         }
         for (load in loads) {

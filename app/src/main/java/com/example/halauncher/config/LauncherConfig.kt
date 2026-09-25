@@ -565,6 +565,30 @@ object GlassConfig {
     const val EDGE_BOTTOM_ALPHA = 0.28f
 }
 
+/** The settings panel opened by long-pressing the home screen. */
+object SettingsPanelConfig {
+    /** Corner radius of each glass setting card. */
+    val CardCornerRadius = 20.dp
+
+    /** Inner padding of a card, and the gap between its text and its switch. */
+    val CardPadding = 16.dp
+
+    /** Gap between the setting cards. */
+    val CardSpacing = 12.dp
+
+    /** Darkness of a card's glass, matched to the search field. */
+    const val GlassTint = 0.2f
+
+    /** Gap between a card's title and its description. */
+    val TitleDescriptionGap = 4.dp
+
+    /** Opacity of the explanatory description under each title. */
+    const val DESCRIPTION_ALPHA = 0.7f
+
+    /** Opacity of the switch's thumb and outline when the setting is off. */
+    const val SWITCH_OFF_ALPHA = 0.6f
+}
+
 /** Vibration used for the sphere's tick as each app reaches the front. */
 object HapticsConfig {
     /**
