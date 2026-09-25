@@ -39,6 +39,10 @@
     <string name="setting_double_tap_lock_description">Double-tap an empty part of the home screen to lock your phone. Turning this on asks you to enable HALauncher in Accessibility settings; it\'s used only to lock the screen — nothing you see or do is read.</string>
     <string name="setting_reduce_index_title">Reduce index size</string>
     <string name="setting_reduce_index_description">Leave files you\'d never open out of search — app backups, caches and the trash bin — so the index stays small and the app lighter. No extra permission: it works within the file access you\'ve already granted.</string>
+    <string name="setting_haptic_intensity_title">Vibration intensity</string>
+    <string name="setting_haptic_intensity_description">How strong the tick feels as you turn the app sphere, switch search categories and pull search in. Slide to Off for no vibration.</string>
+    <string name="setting_haptic_intensity_off">Off</string>
+    <string name="setting_percent">%1$d%%</string>
     <string name="pinned_apps">Pinned apps</string>
     <string name="pin_apps">Pin apps</string>
     <string name="edit_pinned_apps">Edit pinned apps</string>

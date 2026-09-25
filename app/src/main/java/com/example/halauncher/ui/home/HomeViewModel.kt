@@ -162,6 +162,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     /** Whether the file index leaves out denylisted folders to stay small. */
     val reduceIndexSize: StateFlow<Boolean> = _reduceIndexSize.asStateFlow()
 
+    private val _hapticIntensity = MutableStateFlow(settingsStore.hapticIntensity)
+    /** Strength of the haptic tick, 0f (off)–1f (strongest); set from the settings slider. */
+    val hapticIntensity: StateFlow<Float> = _hapticIntensity.asStateFlow()
+
     /**
      * The in-memory frequent layer. The published trie is only read and changed on the main
      * thread: per-keystroke search runs there, and opened entries are inserted there in place.
@@ -464,6 +468,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     fun setDoubleTapToLock(enabled: Boolean) {
         settingsStore.doubleTapToLock = enabled
         _doubleTapToLock.value = enabled
+    }
+
+    /** Sets the haptic tick strength (0f–1f). Haptics read it on their next buzz, so it applies at once. */
+    fun setHapticIntensity(intensity: Float) {
+        val clamped = intensity.coerceIn(0f, 1f)
+        settingsStore.hapticIntensity = clamped
+        _hapticIntensity.value = clamped
     }
 
     /**
