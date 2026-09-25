@@ -46,6 +46,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -114,6 +115,9 @@ fun PinnedAppsSphere(
     val resources = LocalResources.current
     val haptics = remember(context) { Haptics(context) }
     val scope = rememberCoroutineScope()
+    // The sphere's fixed shading (light, rim, latitude stroke) doesn't depend on the rotation, so
+    // it's built once and reused, not re-allocated on every frame of a turn.
+    val shading = remember { SphereShading() }
     val currentApps by rememberUpdatedState(apps)
     val currentOnAppOpened by rememberUpdatedState(onAppOpened)
     val currentOnEdit by rememberUpdatedState(onEdit)
@@ -189,22 +193,11 @@ fun PinnedAppsSphere(
                 .liquidGlass(CircleShape, tint = SphereConfig.GLASS_TINT)
                 .drawBehind {
                     val r = size.minDimension / 2
+                    // Rebuilds only when the sphere's pixel size changes, not on every turn frame.
+                    shading.update(size, SphereConfig.LatitudeWidth.toPx())
                     // Light from the upper left, and a darker rim, for volume.
-                    drawCircle(
-                        brush = Brush.radialGradient(
-                            listOf(Color.White.copy(alpha = SphereConfig.HIGHLIGHT_ALPHA), Color.Transparent),
-                            center = Offset(r * 0.55f, r * 0.5f),
-                            radius = r * 0.95f,
-                        ),
-                    )
-                    drawCircle(
-                        brush = Brush.radialGradient(
-                            0.7f to Color.Transparent,
-                            1f to Color.Black.copy(alpha = SphereConfig.RIM_SHADE_ALPHA),
-                            center = center,
-                            radius = r,
-                        ),
-                    )
+                    drawCircle(brush = shading.highlight)
+                    drawCircle(brush = shading.rim)
                     // Latitude lines between the app slots roll with the sphere and squash
                     // towards the poles, which is what makes it read as turning.
                     val base = floor(rotation.value)
@@ -219,7 +212,7 @@ fun PinnedAppsSphere(
                             color = Color.White.copy(alpha = SphereConfig.LATITUDE_ALPHA * depth),
                             topLeft = Offset(r - halfWidth, r + r * sin(angle) - height / 2),
                             size = Size(halfWidth * 2, height),
-                            style = Stroke(width = SphereConfig.LatitudeWidth.toPx()),
+                            style = shading.latitudeStroke,
                         )
                     }
                 }
@@ -396,6 +389,39 @@ internal fun loopOffset(index: Int, rotation: Float, count: Int): Float {
     if (count == 0) return 0f
     val half = count / 2f
     return ((index - rotation + half).mod(count.toFloat())) - half
+}
+
+/**
+ * The sphere's fixed shading: the upper-left highlight, the rim shade, and the latitude-line
+ * stroke. None of them depend on the rotation, so they're built once and rebuilt only when the
+ * sphere's pixel size changes (e.g. a density change), rather than allocated on every turn frame.
+ */
+private class SphereShading {
+    private var size: Size = Size.Unspecified
+    var highlight: Brush = SolidColor(Color.Transparent)
+        private set
+    var rim: Brush = SolidColor(Color.Transparent)
+        private set
+    var latitudeStroke: Stroke = Stroke()
+        private set
+
+    fun update(newSize: Size, latitudeWidthPx: Float) {
+        if (newSize == size) return
+        size = newSize
+        val r = newSize.minDimension / 2
+        highlight = Brush.radialGradient(
+            listOf(Color.White.copy(alpha = SphereConfig.HIGHLIGHT_ALPHA), Color.Transparent),
+            center = Offset(r * 0.55f, r * 0.5f),
+            radius = r * 0.95f,
+        )
+        rim = Brush.radialGradient(
+            0.7f to Color.Transparent,
+            1f to Color.Black.copy(alpha = SphereConfig.RIM_SHADE_ALPHA),
+            center = Offset(r, r),
+            radius = r,
+        )
+        latitudeStroke = Stroke(width = latitudeWidthPx)
+    }
 }
 
 /** Where an app sits on the rim, in the sphere box's pixels; depth 1 = front, 0 = at/behind the poles. */

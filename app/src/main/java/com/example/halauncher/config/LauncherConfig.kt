@@ -1,6 +1,7 @@
 package com.example.halauncher.config
 
 import android.os.Process
+import android.os.VibrationEffect
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.SpringSpec
 import androidx.compose.animation.core.spring
@@ -88,9 +89,19 @@ object HomeScreenConfig {
      * Blur applied to the home content (time, date, quick actions, sphere) behind the search
      * overlay and the pin picker (Android 12+ only; older versions show it unblurred). Only
      * the launcher's own content can be blurred; the wallpaper is drawn by the system and
-     * stays sharp. 0.dp turns the effect off.
+     * stays sharp. 0.dp turns the effect off. Gaussian blur cost grows with the radius, so
+     * this stays modest.
      */
-    val BlurBehindOverlay = 24.dp
+    val BlurBehindOverlay = 16.dp
+
+    /**
+     * Step the blur radius is snapped to while a swipe drives it. A finger-tracked reveal would
+     * otherwise ask the GPU for a slightly different blur every frame; rounding to this step means
+     * it re-blurs at only a handful of radii across the gesture, for the same look at less cost.
+     * A radius under half a step rounds to 0 (no effect), so a barely-open swipe isn't blurred at
+     * all. 0.dp turns snapping off (a fresh radius every frame).
+     */
+    val BlurRadiusQuantum = 3.dp
 }
 
 /** The time and date at the top of the home screen. */
@@ -592,13 +603,30 @@ object SettingsPanelConfig {
 /** Vibration used for the sphere's tick as each app reaches the front. */
 object HapticsConfig {
     /**
-     * On Android 10+ the phone's built-in "tick" effect is used and these are ignored.
-     * On older phones: the tick's length in milliseconds...
+     * The tick on Android 11+ (R), which covers most phones: one of the vibrator's own tuned
+     * haptic primitives, scaled by [TICK_SCALE]. This is the main knob for how the tick feels.
+     *
+     * [TICK_PRIMITIVE] is a `VibrationEffect.Composition.PRIMITIVE_*` value — PRIMITIVE_CLICK is
+     * a firm tick, PRIMITIVE_TICK a lighter one. [TICK_SCALE] scales its strength from 0f (off)
+     * to 1f (the primitive's full calibrated strength); values outside that range are rejected by
+     * the platform. Raise [TICK_SCALE] toward 1f for a stronger tick, lower it for a fainter one.
+     * If the device doesn't offer the chosen primitive, the tick falls back to the paths below.
      */
-    const val FALLBACK_TICK_MS = 12L
+    const val TICK_PRIMITIVE = VibrationEffect.Composition.PRIMITIVE_CLICK
+    const val TICK_SCALE = 1.0f
 
-    /** ...and its strength, from 1 to 255 (Android 8–9 only). */
-    const val FALLBACK_TICK_AMPLITUDE = 80
+    /**
+     * Fallback tick on Android 8–10, which have no scalable primitive: a one-shot buzz of this
+     * length in milliseconds...
+     */
+    const val FALLBACK_TICK_MS = 14L
+
+    /**
+     * ...and this strength, from 1 (faintest) to 255 (strongest). Only takes effect on devices
+     * with amplitude control (most do); others vibrate at a fixed strength for [FALLBACK_TICK_MS].
+     * Raise it for a stronger fallback tick.
+     */
+    const val FALLBACK_TICK_AMPLITUDE = 150
 
     /** Long-press confirmation on older phones (Android 10+ uses the built-in heavy click). */
     const val FALLBACK_LONG_PRESS_MS = 30L

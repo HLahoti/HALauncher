@@ -83,6 +83,7 @@ import com.example.halauncher.util.Haptics
 import com.example.halauncher.util.IntentFactory
 import com.example.halauncher.util.localCurrencySymbol
 import kotlin.math.max
+import kotlin.math.round
 
 @Composable
 fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
@@ -218,7 +219,11 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                         homeLayer.record { this@drawWithContent.drawContent() }
                         homeBlur.recorded = true
                     }
-                    val radius = HomeScreenConfig.BlurBehindOverlay.toPx() * coverage
+                    val rawRadius = HomeScreenConfig.BlurBehindOverlay.toPx() * coverage
+                    // Snap the finger-driven radius to a few steps, so the GPU re-blurs at a
+                    // handful of radii across the gesture rather than a fresh one every frame.
+                    val quantum = HomeScreenConfig.BlurRadiusQuantum.toPx()
+                    val radius = if (quantum > 0f) round(rawRadius / quantum) * quantum else rawRadius
                     // Setting a new effect would make the blur run again, so only when it changes.
                     if (radius != homeBlur.radius) {
                         homeBlur.radius = radius

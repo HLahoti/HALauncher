@@ -44,13 +44,24 @@ class Haptics(context: Context) {
         }
     }
 
-    /** A light, crisp tick, e.g. for each app reaching the front of the sphere. */
+    /** A crisp tick, e.g. for each app reaching the front of the sphere. Strength: [HapticsConfig]. */
     @RequiresPermission(android.Manifest.permission.VIBRATE)
     fun tick() {
         val vibrator = vibrator ?: return
         when {
+            // Android 11+: the vibrator's own tuned primitive, scaled by config, so the tick's
+            // strength is adjustable rather than the fixed EFFECT_TICK used before.
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
+                vibrator.areAllPrimitivesSupported(HapticsConfig.TICK_PRIMITIVE) ->
+                vibrator.vibrate(
+                    VibrationEffect.startComposition()
+                        .addPrimitive(HapticsConfig.TICK_PRIMITIVE, HapticsConfig.TICK_SCALE)
+                        .compose(),
+                )
+            // Android 10 (or 11+ without that primitive): the built-in, non-scalable tick.
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ->
                 vibrator.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK))
+            // Android 8–9: a one-shot whose amplitude sets the strength.
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ->
                 vibrator.vibrate(
                     VibrationEffect.createOneShot(
