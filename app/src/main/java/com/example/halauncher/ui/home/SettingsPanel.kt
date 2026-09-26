@@ -45,7 +45,7 @@ import com.example.halauncher.config.PinPickerConfig
 import com.example.halauncher.config.SearchConfig
 import com.example.halauncher.config.SettingsPanelConfig
 import com.example.halauncher.config.ThemeConfig
-import com.example.halauncher.service.LockScreenService
+import com.example.halauncher.service.DeviceLock
 import com.example.halauncher.ui.components.liquidGlass
 import com.example.halauncher.util.Haptics
 import kotlin.math.roundToInt
@@ -71,7 +71,7 @@ fun SettingsPanel(
     onDone: () -> Unit,
 ) {
     val context = LocalContext.current
-    // Turning the lock toggle on is useless until the accessibility service is enabled, so offer to.
+    // Turning the lock toggle on is useless until HALauncher is an active device admin, so offer to.
     val promptEnableLock = rememberEnableLockPrompt()
     // Plays the tick at the live slider value as it's dragged, so the strength can be felt directly.
     var previewIntensity by remember { mutableFloatStateOf(hapticIntensity) }
@@ -123,8 +123,13 @@ fun SettingsPanel(
                     checked = doubleTapToLock,
                     onCheckedChange = { enabled ->
                         onDoubleTapToLockChange(enabled)
-                        if (enabled && LockScreenService.isSupported && !LockScreenService.isEnabled(context)) {
-                            promptEnableLock()
+                        if (enabled) {
+                            // Offer to activate the device admin if it isn't already on.
+                            if (!DeviceLock.isEnabled(context)) promptEnableLock()
+                        } else {
+                            // Turning the feature off also releases device admin, so the app can be
+                            // uninstalled without first deactivating it in Settings.
+                            DeviceLock.disable(context)
                         }
                     },
                 )

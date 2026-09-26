@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Policies for LockAdminReceiver. Only force-lock is declared, so the admin can lock the screen
+    (DevicePolicyManager.lockNow) and nothing else — it can't read the screen, wipe data or set a
+    password. This is what lets HALauncher lock the phone without an accessibility service.
+-->
+<device-admin xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-policies>
+        <force-lock />
+    </uses-policies>
+</device-admin>

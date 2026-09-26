@@ -75,21 +75,24 @@
             </intent-filter>
         </activity>
 
-        <!-- Locks the screen on a double-tap of the empty home screen. Bound only by the system
-             (BIND_ACCESSIBILITY_SERVICE), after the user turns it on in Accessibility settings.
-             It watches nothing; see LockScreenService and res/xml/lock_screen_service.xml. -->
-        <service
-            android:name=".service.LockScreenService"
+        <!-- Locks the screen on a double-tap of the empty home screen, via the device-admin API
+             (DevicePolicyManager.lockNow) rather than an accessibility service, so security-sensitive
+             apps don't flag the launcher. Bound only by the system (BIND_DEVICE_ADMIN), after the user
+             activates it in the device-admin dialog. It declares only the force-lock policy; see
+             LockAdminReceiver and res/xml/device_admin.xml. -->
+        <receiver
+            android:name=".service.LockAdminReceiver"
             android:exported="true"
-            android:label="@string/lock_service_label"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
+            android:label="@string/lock_admin_label"
+            android:description="@string/lock_admin_description"
+            android:permission="android.permission.BIND_DEVICE_ADMIN">
             <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/lock_screen_service" />
-        </service>
+                android:name="android.app.device_admin"
+                android:resource="@xml/device_admin" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>
