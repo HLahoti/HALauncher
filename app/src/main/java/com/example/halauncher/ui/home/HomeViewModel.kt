@@ -166,6 +166,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     /** Strength of the haptic tick, 0f (off)–1f (strongest); set from the settings slider. */
     val hapticIntensity: StateFlow<Float> = _hapticIntensity.asStateFlow()
 
+    private val _defaultSearchCategory = MutableStateFlow(settingsStore.defaultSearchCategory)
+    /** The category search opens filtered to, or null for "All"; set from the settings panel. */
+    val defaultSearchCategory: StateFlow<SearchCategory?> = _defaultSearchCategory.asStateFlow()
+
     /**
      * The in-memory frequent layer. The published trie is only read and changed on the main
      * thread: per-keystroke search runs there, and opened entries are inserted there in place.
@@ -198,7 +202,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val _isSearchOpen = MutableStateFlow(false)
     val isSearchOpen: StateFlow<Boolean> = _isSearchOpen.asStateFlow()
 
-    private val _categoryFilter = MutableStateFlow<SearchCategory?>(DEFAULT_CATEGORY)
+    private val _categoryFilter = MutableStateFlow(_defaultSearchCategory.value)
     /** The category search is limited to, or null for all of them. */
     val categoryFilter: StateFlow<SearchCategory?> = _categoryFilter.asStateFlow()
 
@@ -383,9 +387,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private fun publishCategories() {
         val categories = searchEngine.availableCategories()
         _availableCategories.value = categories
-        // The default stays even before any apps are indexed, so it isn't lost at startup.
+        // The default stays even before its category is indexed, so it isn't lost at startup.
         val filter = _categoryFilter.value
-        if (filter !in categories && filter != DEFAULT_CATEGORY) _categoryFilter.value = null
+        if (filter !in categories && filter != _defaultSearchCategory.value) _categoryFilter.value = null
     }
 
     /**
@@ -413,7 +417,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         _isPinPickerOpen.value = false
         _isSettingsOpen.value = false
         _searchPurpose.value = SearchPurpose.FIND
-        _categoryFilter.value = DEFAULT_CATEGORY
+        _categoryFilter.value = _defaultSearchCategory.value
         _isSearchOpen.value = true
         // Whatever changed since it was last flushed is about to be searched.
         indexUpdater.flushNow()
@@ -530,12 +534,16 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         _isSearchOpen.value = false
         _searchPurpose.value = SearchPurpose.FIND
         _searchQuery.value = ""
-        _categoryFilter.value = DEFAULT_CATEGORY
+        _categoryFilter.value = _defaultSearchCategory.value
+    }
+
+    /** Sets the category search opens filtered to (null for "All"); applies the next time search opens. */
+    fun setDefaultSearchCategory(category: SearchCategory?) {
+        settingsStore.defaultSearchCategory = category
+        _defaultSearchCategory.value = category
     }
 
     private companion object {
-        /** Search starts limited to apps; the filter bar's "All" widens it. */
-        val DEFAULT_CATEGORY = SearchCategory.APP
         const val PREFS_NAME = "home"
         const val PERF_TAG = "Perf"
         const val KEY_ASKED_CONTACTS = "asked_contacts_permission"

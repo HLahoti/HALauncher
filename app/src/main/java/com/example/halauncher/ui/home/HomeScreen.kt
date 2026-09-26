@@ -103,6 +103,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     val doubleTapToLock by viewModel.doubleTapToLock.collectAsStateWithLifecycle()
     val reduceIndexSize by viewModel.reduceIndexSize.collectAsStateWithLifecycle()
     val hapticIntensity by viewModel.hapticIntensity.collectAsStateWithLifecycle()
+    val defaultSearchCategory by viewModel.defaultSearchCategory.collectAsStateWithLifecycle()
     val moneyApp by viewModel.moneyApp.collectAsStateWithLifecycle()
     val searchPurpose by viewModel.searchPurpose.collectAsStateWithLifecycle()
     val moneySymbol = remember { localCurrencySymbol() }
@@ -300,9 +301,11 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 doubleTapToLock = doubleTapToLock,
                 reduceIndexSize = reduceIndexSize,
                 hapticIntensity = hapticIntensity,
+                defaultSearchCategory = defaultSearchCategory,
                 onDoubleTapToLockChange = viewModel::setDoubleTapToLock,
                 onReduceIndexSizeChange = viewModel::setReduceIndexSize,
                 onHapticIntensityChange = viewModel::setHapticIntensity,
+                onDefaultSearchCategoryChange = viewModel::setDefaultSearchCategory,
                 onDone = viewModel::closeSettings,
             )
         }

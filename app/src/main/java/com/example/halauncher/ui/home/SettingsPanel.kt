@@ -1,6 +1,7 @@
 package com.example.halauncher.ui.home
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,6 +14,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -40,12 +43,17 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import com.example.halauncher.R
 import com.example.halauncher.config.PinPickerConfig
 import com.example.halauncher.config.SearchConfig
 import com.example.halauncher.config.SettingsPanelConfig
 import com.example.halauncher.config.ThemeConfig
+import com.example.halauncher.model.SearchCategory
 import com.example.halauncher.service.DeviceLock
+import com.example.halauncher.ui.components.labelRes
 import com.example.halauncher.ui.components.liquidGlass
 import com.example.halauncher.util.Haptics
 import kotlin.math.roundToInt
@@ -59,15 +67,18 @@ import kotlin.math.roundToInt
  * @param onDoubleTapToLockChange saves the preference; the caller also gates the double-tap gesture on it.
  * @param onReduceIndexSizeChange saves the preference and re-indexes files so the change takes effect.
  * @param onHapticIntensityChange saves the tick strength (0f–1f); every haptic reads it on its next buzz.
+ * @param onDefaultSearchCategoryChange saves the category search opens on (null for "All").
  */
 @Composable
 fun SettingsPanel(
     doubleTapToLock: Boolean,
     reduceIndexSize: Boolean,
     hapticIntensity: Float,
+    defaultSearchCategory: SearchCategory?,
     onDoubleTapToLockChange: (Boolean) -> Unit,
     onReduceIndexSizeChange: (Boolean) -> Unit,
     onHapticIntensityChange: (Float) -> Unit,
+    onDefaultSearchCategoryChange: (SearchCategory?) -> Unit,
     onDone: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -132,6 +143,18 @@ fun SettingsPanel(
                             DeviceLock.disable(context)
                         }
                     },
+                )
+                SettingChoice(
+                    title = stringResource(R.string.setting_default_search_category_title),
+                    description = stringResource(R.string.setting_default_search_category_description),
+                    // null ("All") first, then the categories in their declared order.
+                    options = remember { listOf<SearchCategory?>(null) + SearchCategory.entries },
+                    selected = defaultSearchCategory,
+                    optionLabel = { category ->
+                        if (category == null) stringResource(R.string.category_all)
+                        else stringResource(category.labelRes)
+                    },
+                    onSelected = onDefaultSearchCategoryChange,
                 )
                 SettingToggle(
                     title = stringResource(R.string.setting_reduce_index_title),
@@ -207,6 +230,91 @@ private fun SettingToggle(
                 uncheckedTrackColor = Color.Transparent,
                 uncheckedBorderColor = ThemeConfig.Foreground.copy(alpha = SettingsPanelConfig.SWITCH_OFF_ALPHA),
             ),
+        )
+    }
+}
+
+/**
+ * One glass setting offering a single choice among [options]: a title, an explanation, and a row of
+ * pill chips (one per option) with the selected one filled. [optionLabel] names each option.
+ */
+@Composable
+private fun <T> SettingChoice(
+    title: String,
+    description: String,
+    options: List<T>,
+    selected: T,
+    optionLabel: @Composable (T) -> String,
+    onSelected: (T) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .liquidGlass(RoundedCornerShape(SettingsPanelConfig.CardCornerRadius), tint = SettingsPanelConfig.GlassTint)
+            .padding(SettingsPanelConfig.CardPadding),
+        verticalArrangement = Arrangement.spacedBy(SettingsPanelConfig.TitleDescriptionGap),
+    ) {
+        Text(
+            text = title,
+            color = ThemeConfig.Foreground,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = description,
+            color = ThemeConfig.Foreground.copy(alpha = SettingsPanelConfig.DESCRIPTION_ALPHA),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Spacer(Modifier.height(SettingsPanelConfig.ChoiceChipSpacing))
+        Row(
+            modifier = Modifier.fillMaxWidth().selectableGroup(),
+            horizontalArrangement = Arrangement.spacedBy(SettingsPanelConfig.ChoiceChipSpacing),
+        ) {
+            options.forEach { option ->
+                ChoiceChip(
+                    label = optionLabel(option),
+                    selected = option == selected,
+                    onClick = { onSelected(option) },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
+}
+
+/** A pill in a [SettingChoice] row: filled when selected, outlined when not. */
+@Composable
+private fun ChoiceChip(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val shape = RoundedCornerShape(percent = 50)
+    val outline = ThemeConfig.Foreground.copy(alpha = SettingsPanelConfig.CHOICE_UNSELECTED_ALPHA)
+    Box(
+        modifier = modifier
+            .background(if (selected) ThemeConfig.Foreground else Color.Transparent, shape)
+            .then(if (selected) Modifier else Modifier.border(1.dp, outline, shape))
+            .selectable(
+                selected = selected,
+                // The fill/outline is the feedback; a ripple on top would fight the glass look.
+                interactionSource = null,
+                indication = null,
+                role = Role.RadioButton,
+                onClick = onClick,
+            )
+            .padding(vertical = SettingsPanelConfig.ChoiceChipVerticalPadding),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            color = if (selected) Color.Black else outline,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
         )
     }
 }

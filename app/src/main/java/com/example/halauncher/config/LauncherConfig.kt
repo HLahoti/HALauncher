@@ -599,6 +599,15 @@ object SettingsPanelConfig {
     /** Opacity of the switch's thumb and outline when the setting is off. */
     const val SWITCH_OFF_ALPHA = 0.6f
 
+    /** Gap between the choice chips of a multiple-choice setting, and above the chip row. */
+    val ChoiceChipSpacing = 8.dp
+
+    /** Inner vertical padding of a choice chip. */
+    val ChoiceChipVerticalPadding = 10.dp
+
+    /** Opacity of an unselected choice chip's label and outline. */
+    const val CHOICE_UNSELECTED_ALPHA = 0.6f
+
     /**
      * Selectable stops between off and full on the vibration-intensity slider (the Slider `steps`
      * value: 9 gives 0%, 10%, … 100%). Discrete stops keep the live haptic preview from firing on

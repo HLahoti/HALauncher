@@ -3,6 +3,7 @@ package com.example.halauncher.data
 import android.content.Context
 import androidx.core.content.edit
 import com.example.halauncher.config.HapticsConfig
+import com.example.halauncher.model.SearchCategory
 
 /**
  * The launcher's preferences, set from the long-press settings panel and kept in shared
@@ -32,10 +33,27 @@ class LauncherSettingsStore(context: Context) {
         get() = prefs.getFloat(KEY_HAPTIC_INTENSITY, HapticsConfig.DEFAULT_TICK_INTENSITY)
         set(value) = prefs.edit { putFloat(KEY_HAPTIC_INTENSITY, value.coerceIn(0f, 1f)) }
 
+    /**
+     * The category the search view starts filtered to each time it opens, or null for "All".
+     * Stored by enum name, with [ALL_VALUE] standing in for null; defaults to [SearchCategory.APP]
+     * (the launcher's original fixed default) so existing behaviour is unchanged.
+     */
+    var defaultSearchCategory: SearchCategory?
+        get() = when (val stored = prefs.getString(KEY_DEFAULT_SEARCH_CATEGORY, null)) {
+            null -> SearchCategory.APP
+            ALL_VALUE -> null
+            else -> SearchCategory.entries.firstOrNull { it.name == stored } ?: SearchCategory.APP
+        }
+        set(value) = prefs.edit { putString(KEY_DEFAULT_SEARCH_CATEGORY, value?.name ?: ALL_VALUE) }
+
     private companion object {
         const val PREFS_NAME = "launcher_settings"
         const val KEY_DOUBLE_TAP_LOCK = "double_tap_to_lock"
         const val KEY_REDUCE_INDEX_SIZE = "reduce_index_size"
         const val KEY_HAPTIC_INTENSITY = "haptic_intensity"
+        const val KEY_DEFAULT_SEARCH_CATEGORY = "default_search_category"
+
+        /** Sentinel stored for the "All" default, since null can't be a preference value. */
+        const val ALL_VALUE = "ALL"
     }
 }
