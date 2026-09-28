@@ -3,6 +3,7 @@ package com.example.halauncher.ui.home
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -75,6 +76,7 @@ import kotlin.math.roundToInt
  * @param onReduceIndexSizeChange saves the preference and re-indexes files so the change takes effect.
  * @param onHapticIntensityChange saves the tick strength (0f–1f); every haptic reads it on its next buzz.
  * @param onDefaultSearchCategoryChange saves the category search opens on (null for "All").
+ * @param onHowToUse opens the "How to use this app" guide; stays available even while settings are locked.
  */
 @Composable
 fun SettingsPanel(
@@ -88,6 +90,7 @@ fun SettingsPanel(
     onReduceIndexSizeChange: (Boolean) -> Unit,
     onHapticIntensityChange: (Float) -> Unit,
     onDefaultSearchCategoryChange: (SearchCategory?) -> Unit,
+    onHowToUse: () -> Unit,
     onDone: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -211,8 +214,43 @@ fun SettingsPanel(
                         },
                     )
                 }
+                // Always available, even while locked: opening the guide changes nothing.
+                SettingAction(
+                    title = stringResource(R.string.setting_how_to_title),
+                    description = stringResource(R.string.setting_how_to_description),
+                    onClick = onHowToUse,
+                )
             }
         }
+    }
+}
+
+/** A glass card that just does something when tapped (no state), e.g. opening the how-to guide. */
+@Composable
+private fun SettingAction(
+    title: String,
+    description: String,
+    onClick: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .liquidGlass(RoundedCornerShape(SettingsPanelConfig.CardCornerRadius), tint = SettingsPanelConfig.GlassTint)
+            .clickable(onClickLabel = title, onClick = onClick)
+            .padding(SettingsPanelConfig.CardPadding),
+        verticalArrangement = Arrangement.spacedBy(SettingsPanelConfig.TitleDescriptionGap),
+    ) {
+        Text(
+            text = title,
+            color = ThemeConfig.Foreground,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = description,
+            color = ThemeConfig.Foreground.copy(alpha = SettingsPanelConfig.DESCRIPTION_ALPHA),
+            style = MaterialTheme.typography.bodyMedium,
+        )
     }
 }
 

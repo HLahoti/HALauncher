@@ -168,6 +168,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     /** Whether the long-press settings panel is showing. */
     val isSettingsOpen: StateFlow<Boolean> = _isSettingsOpen.asStateFlow()
 
+    private val _isHowToOpen = MutableStateFlow(false)
+    /** Whether the "How to use this app" card is showing (on first launch, or opened from settings). */
+    val isHowToOpen: StateFlow<Boolean> = _isHowToOpen.asStateFlow()
+
     private val _settingsLocked = MutableStateFlow(settingsStore.settingsLocked)
     /**
      * Whether settings are locked: the settings panel greys out its other options, and the
@@ -344,6 +348,12 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         refreshFilesPrompt()
+        // The first time the launcher ever opens, greet the user with the how-to card, then
+        // remember it's been shown so it doesn't come back on its own.
+        if (!settingsStore.onboardingSeen) {
+            _isHowToOpen.value = true
+            settingsStore.onboardingSeen = true
+        }
     }
 
     override fun onCleared() {
@@ -532,6 +542,18 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         _isSettingsOpen.value = false
     }
 
+    /** Opens the "How to use this app" card, closing any other overlay (e.g. from the settings panel). */
+    fun openHowTo() {
+        closeSearch()
+        _isPinPickerOpen.value = false
+        _isSettingsOpen.value = false
+        _isHowToOpen.value = true
+    }
+
+    fun closeHowTo() {
+        _isHowToOpen.value = false
+    }
+
     /** Locks or unlocks settings. The lock toggle itself stays usable when locked, so it can be turned off. */
     fun setSettingsLocked(locked: Boolean) {
         settingsStore.settingsLocked = locked
@@ -586,11 +608,12 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         pinnedAppsStore.save(updated)
     }
 
-    /** Back to the bare home screen: closes search, the pin picker and the settings panel. */
+    /** Back to the bare home screen: closes search, the pin picker, the settings panel and the how-to card. */
     fun resetHome() {
         closeSearch()
         closePinPicker()
         closeSettings()
+        closeHowTo()
     }
 
     fun onCategoryFilterChanged(category: SearchCategory?) {

@@ -19,6 +19,14 @@ class LauncherSettingsStore(context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     /**
+     * Whether the "How to use this app" card has been shown once already. It comes up by itself the
+     * first time the launcher opens; after that it's only reachable from settings.
+     */
+    var onboardingSeen: Boolean
+        get() = prefs.getBoolean(KEY_ONBOARDING_SEEN, false)
+        set(value) = prefs.edit { putBoolean(KEY_ONBOARDING_SEEN, value) }
+
+    /**
      * Whether settings are locked: the other settings can't be changed, and the reminders/money
      * buttons and app sphere hide their customisation. Guards against accidental changes; defaults off.
      */
@@ -56,6 +64,7 @@ class LauncherSettingsStore(context: Context) {
 
     private companion object {
         const val PREFS_NAME = "launcher_settings"
+        const val KEY_ONBOARDING_SEEN = "onboarding_seen"
         const val KEY_SETTINGS_LOCKED = "settings_locked"
         const val KEY_DOUBLE_TAP_LOCK = "double_tap_to_lock"
         const val KEY_REDUCE_INDEX_SIZE = "reduce_index_size"

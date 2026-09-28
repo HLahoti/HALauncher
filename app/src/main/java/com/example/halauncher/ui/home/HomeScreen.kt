@@ -100,6 +100,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     val pinnedPackages by viewModel.pinnedPackages.collectAsStateWithLifecycle()
     val isPinPickerOpen by viewModel.isPinPickerOpen.collectAsStateWithLifecycle()
     val isSettingsOpen by viewModel.isSettingsOpen.collectAsStateWithLifecycle()
+    val isHowToOpen by viewModel.isHowToOpen.collectAsStateWithLifecycle()
     val settingsLocked by viewModel.settingsLocked.collectAsStateWithLifecycle()
     val doubleTapToLock by viewModel.doubleTapToLock.collectAsStateWithLifecycle()
     val reduceIndexSize by viewModel.reduceIndexSize.collectAsStateWithLifecycle()
@@ -141,14 +142,16 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     BackHandler(enabled = isSearchOpen) { viewModel.closeSearch() }
     BackHandler(enabled = isPinPickerOpen) { viewModel.closePinPicker() }
     BackHandler(enabled = isSettingsOpen) { viewModel.closeSettings() }
+    BackHandler(enabled = isHowToOpen) { viewModel.closeHowTo() }
 
     // Frosts the home content behind an overlay (Android 12+; a no-op before that), deepening
     // as search comes in. Once the overlay is fully in, the blurred content is frozen: it isn't
     // re-recorded, and the blur isn't changed, so it's neither redrawn nor blurred again until
     // the overlay starts to leave.
-    val overlayOpen = isSearchOpen || isPinPickerOpen || isSettingsOpen
+    val overlayOpen = isSearchOpen || isPinPickerOpen || isSettingsOpen || isHowToOpen
     val pinPickerBlur = animateFloatAsState(if (isPinPickerOpen) 1f else 0f, label = "pinPickerBlur")
     val settingsBlur = animateFloatAsState(if (isSettingsOpen) 1f else 0f, label = "settingsBlur")
+    val howToBlur = animateFloatAsState(if (isHowToOpen) 1f else 0f, label = "howToBlur")
     val currentOverlayOpen by rememberUpdatedState(overlayOpen)
     val homeLayer = rememberGraphicsLayer()
     val homeBlur = remember { HomeBlur() }
@@ -217,7 +220,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 .fillMaxSize()
                 // Read in the draw phase, not in composition, so a swipe redraws without recomposing.
                 .drawWithContent {
-                    val coverage = max(max(pinPickerBlur.value, settingsBlur.value), searchReveal.value)
+                    val coverage = max(max(max(pinPickerBlur.value, settingsBlur.value), howToBlur.value), searchReveal.value)
                     val frozen = coverage >= 1f && homeBlur.recorded && homeLayer.size == size.toIntSize()
                     if (!frozen) {
                         homeLayer.record { this@drawWithContent.drawContent() }
@@ -285,7 +288,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
 
         // Hidden under overlays once they're fully in, so its touch area (and its exclusion from
         // the back gesture) can't intercept theirs.
-        if (!isPinPickerOpen && !isSettingsOpen && !(isSearchOpen && searchFullyIn)) {
+        if (!isPinPickerOpen && !isSettingsOpen && !isHowToOpen && !(isSearchOpen && searchFullyIn)) {
             PinnedAppsSphere(
                 apps = pinnedApps,
                 onAppOpened = viewModel::onEntryOpened,
@@ -320,8 +323,13 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 onReduceIndexSizeChange = viewModel::setReduceIndexSize,
                 onHapticIntensityChange = viewModel::setHapticIntensity,
                 onDefaultSearchCategoryChange = viewModel::setDefaultSearchCategory,
+                onHowToUse = viewModel::openHowTo,
                 onDone = viewModel::closeSettings,
             )
+        }
+
+        AnimatedVisibility(visible = isHowToOpen, enter = fadeIn(), exit = fadeOut()) {
+            HowToUse(onDone = viewModel::resetHome)
         }
 
         // Always composed, so a swipe only has to move it; composing it mid-swipe stalls the
