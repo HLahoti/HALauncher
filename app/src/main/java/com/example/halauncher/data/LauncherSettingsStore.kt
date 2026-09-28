@@ -19,8 +19,17 @@ class LauncherSettingsStore(context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     /**
+     * Whether the first-run setup (default home + the permissions search uses) has been shown once
+     * already. It comes up by itself the first time the launcher opens, ahead of the how-to card;
+     * after that it's only reachable from settings ("Set-up & permissions").
+     */
+    var setupSeen: Boolean
+        get() = prefs.getBoolean(KEY_SETUP_SEEN, false)
+        set(value) = prefs.edit { putBoolean(KEY_SETUP_SEEN, value) }
+
+    /**
      * Whether the "How to use this app" card has been shown once already. It comes up by itself the
-     * first time the launcher opens; after that it's only reachable from settings.
+     * first time the launcher opens (just after setup); after that it's only reachable from settings.
      */
     var onboardingSeen: Boolean
         get() = prefs.getBoolean(KEY_ONBOARDING_SEEN, false)
@@ -64,6 +73,7 @@ class LauncherSettingsStore(context: Context) {
 
     private companion object {
         const val PREFS_NAME = "launcher_settings"
+        const val KEY_SETUP_SEEN = "setup_seen"
         const val KEY_ONBOARDING_SEEN = "onboarding_seen"
         const val KEY_SETTINGS_LOCKED = "settings_locked"
         const val KEY_DOUBLE_TAP_LOCK = "double_tap_to_lock"

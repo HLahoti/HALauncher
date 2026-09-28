@@ -35,6 +35,7 @@ import com.example.halauncher.search.index.SearchEntryCodecs
 import com.example.halauncher.search.index.SearchIndex
 import com.example.halauncher.search.ranking.ContextMatchRanker
 import com.example.halauncher.search.sync.IndexUpdater
+import com.example.halauncher.service.DefaultHome
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -170,6 +171,25 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val _isHowToOpen = MutableStateFlow(false)
     /** Whether the "How to use this app" card is showing (on first launch, or opened from settings). */
     val isHowToOpen: StateFlow<Boolean> = _isHowToOpen.asStateFlow()
+
+    private val _isSetupOpen = MutableStateFlow(false)
+    /**
+     * Whether the first-run setup screen is showing (on first launch, or reopened from settings). It
+     * lists making HALauncher the default home and the permissions search uses, each with its live status.
+     */
+    val isSetupOpen: StateFlow<Boolean> = _isSetupOpen.asStateFlow()
+
+    private val _isDefaultHome = MutableStateFlow(DefaultHome.isDefault(application))
+    /** Whether HALauncher is the device's default home app; re-read on resume, shown in setup. */
+    val isDefaultHome: StateFlow<Boolean> = _isDefaultHome.asStateFlow()
+
+    private val _hasContactsAccess = MutableStateFlow(contactProvider.hasPermission())
+    /** Whether the contacts permission is granted; re-read on resume, shown in setup. */
+    val hasContactsAccess: StateFlow<Boolean> = _hasContactsAccess.asStateFlow()
+
+    private val _hasFilesAccess = MutableStateFlow(fileProvider.hasAccess())
+    /** Whether file access is granted; re-read on resume, shown in setup. */
+    val hasFilesAccess: StateFlow<Boolean> = _hasFilesAccess.asStateFlow()
 
     private val _settingsLocked = MutableStateFlow(settingsStore.settingsLocked)
     /**
@@ -347,11 +367,17 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         refreshFilesPrompt()
-        // The first time the launcher ever opens, greet the user with the how-to card, then
-        // remember it's been shown so it doesn't come back on its own.
-        if (!settingsStore.onboardingSeen) {
-            _isHowToOpen.value = true
-            settingsStore.onboardingSeen = true
+        // The first time the launcher ever opens, walk the user through setup (making it the default
+        // home, and the permissions search uses); the how-to card follows once setup is finished. On
+        // an upgrade from a build that only had the how-to, setup counts as unseen, so it's offered
+        // now and the how-to won't come back a second time. After that neither returns on its own,
+        // though setup can be reopened from settings.
+        when {
+            !settingsStore.setupSeen -> _isSetupOpen.value = true
+            !settingsStore.onboardingSeen -> {
+                _isHowToOpen.value = true
+                settingsStore.onboardingSeen = true
+            }
         }
     }
 
@@ -369,6 +395,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun onContactsPermissionResult() {
         prefs.edit { putBoolean(KEY_ASKED_CONTACTS, true) }
+        refreshPermissionStatus()
         resyncIfAccessChanged()
     }
 
@@ -384,7 +411,19 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     /** The launcher came back to the foreground, e.g. from the "All files access" screen. */
     fun onResume() {
         refreshFilesPrompt()
+        refreshPermissionStatus()
         resyncIfAccessChanged()
+    }
+
+    /**
+     * Re-reads whether HALauncher is the default home and whether contacts/files access is granted,
+     * so the setup screen reflects choices made in system screens (or access revoked from elsewhere)
+     * the moment the launcher comes back.
+     */
+    private fun refreshPermissionStatus() {
+        _isDefaultHome.value = DefaultHome.isDefault(getApplication())
+        _hasContactsAccess.value = contactProvider.hasPermission()
+        _hasFilesAccess.value = fileProvider.hasAccess()
     }
 
     fun dismissFilesPrompt() {
@@ -529,6 +568,36 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         _isHowToOpen.value = false
     }
 
+    /**
+     * Opens the first-run setup screen (from the settings panel), closing any other overlay. Reads the
+     * current status first so each item shows whether it's already set up.
+     */
+    fun openSetup() {
+        closeSearch()
+        _isPinPickerOpen.value = false
+        _isSettingsOpen.value = false
+        _isHowToOpen.value = false
+        refreshPermissionStatus()
+        _isSetupOpen.value = true
+    }
+
+    /**
+     * Finishes setup (its Done button, or a back gesture): closes it and remembers it's been shown, so
+     * it doesn't come up again on its own. On the very first run it's followed by the how-to card.
+     */
+    fun finishSetup() {
+        settingsStore.setupSeen = true
+        _isSetupOpen.value = false
+        if (!settingsStore.onboardingSeen) {
+            settingsStore.onboardingSeen = true
+            _isHowToOpen.value = true
+        }
+    }
+
+    private fun closeSetup() {
+        _isSetupOpen.value = false
+    }
+
     /** Locks or unlocks settings. The lock toggle itself stays usable when locked, so it can be turned off. */
     fun setSettingsLocked(locked: Boolean) {
         settingsStore.settingsLocked = locked
@@ -583,12 +652,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         pinnedAppsStore.save(updated)
     }
 
-    /** Back to the bare home screen: closes search, the pin picker, the settings panel and the how-to card. */
+    /** Back to the bare home screen: closes search, the pin picker, the settings panel, the how-to card and setup. */
     fun resetHome() {
         closeSearch()
         closePinPicker()
         closeSettings()
         closeHowTo()
+        closeSetup()
     }
 
     fun onCategoryFilterChanged(category: SearchCategory?) {

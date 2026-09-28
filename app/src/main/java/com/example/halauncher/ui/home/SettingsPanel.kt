@@ -77,6 +77,7 @@ import kotlin.math.roundToInt
  * @param onHapticIntensityChange saves the tick strength (0f–1f); every haptic reads it on its next buzz.
  * @param onDefaultSearchCategoryChange saves the category search opens on (null for "All").
  * @param onHowToUse opens the "How to use this app" guide; stays available even while settings are locked.
+ * @param onOpenSetup opens the "Set-up & permissions" screen; stays available even while settings are locked.
  */
 @Composable
 fun SettingsPanel(
@@ -91,6 +92,7 @@ fun SettingsPanel(
     onHapticIntensityChange: (Float) -> Unit,
     onDefaultSearchCategoryChange: (SearchCategory?) -> Unit,
     onHowToUse: () -> Unit,
+    onOpenSetup: () -> Unit,
     onDone: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -214,7 +216,13 @@ fun SettingsPanel(
                         },
                     )
                 }
-                // Always available, even while locked: opening the guide changes nothing.
+                // Always available, even while locked: re-granting permissions and opening the guide
+                // don't change any of the launcher's own settings.
+                SettingAction(
+                    title = stringResource(R.string.setting_setup_title),
+                    description = stringResource(R.string.setting_setup_description),
+                    onClick = onOpenSetup,
+                )
                 SettingAction(
                     title = stringResource(R.string.setting_how_to_title),
                     description = stringResource(R.string.setting_how_to_description),

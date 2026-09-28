@@ -100,6 +100,10 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     val isPinPickerOpen by viewModel.isPinPickerOpen.collectAsStateWithLifecycle()
     val isSettingsOpen by viewModel.isSettingsOpen.collectAsStateWithLifecycle()
     val isHowToOpen by viewModel.isHowToOpen.collectAsStateWithLifecycle()
+    val isSetupOpen by viewModel.isSetupOpen.collectAsStateWithLifecycle()
+    val isDefaultHome by viewModel.isDefaultHome.collectAsStateWithLifecycle()
+    val hasContactsAccess by viewModel.hasContactsAccess.collectAsStateWithLifecycle()
+    val hasFilesAccess by viewModel.hasFilesAccess.collectAsStateWithLifecycle()
     val settingsLocked by viewModel.settingsLocked.collectAsStateWithLifecycle()
     val doubleTapToLock by viewModel.doubleTapToLock.collectAsStateWithLifecycle()
     val reduceIndexSize by viewModel.reduceIndexSize.collectAsStateWithLifecycle()
@@ -138,20 +142,23 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
         onPauseOrDispose { }
     }
     val requestFilesAccess = rememberFilesAccessRequest(onResult = viewModel::onResume)
+    val requestDefaultHome = rememberDefaultHomeRequest(onResult = viewModel::onResume)
 
     BackHandler(enabled = isSearchOpen) { viewModel.closeSearch() }
     BackHandler(enabled = isPinPickerOpen) { viewModel.closePinPicker() }
     BackHandler(enabled = isSettingsOpen) { viewModel.closeSettings() }
     BackHandler(enabled = isHowToOpen) { viewModel.closeHowTo() }
+    BackHandler(enabled = isSetupOpen) { viewModel.finishSetup() }
 
     // Frosts the home content behind an overlay (Android 12+; a no-op before that), deepening
     // as search comes in. Once the overlay is fully in, the blurred content is frozen: it isn't
     // re-recorded, and the blur isn't changed, so it's neither redrawn nor blurred again until
     // the overlay starts to leave.
-    val overlayOpen = isSearchOpen || isPinPickerOpen || isSettingsOpen || isHowToOpen
+    val overlayOpen = isSearchOpen || isPinPickerOpen || isSettingsOpen || isHowToOpen || isSetupOpen
     val pinPickerBlur = animateFloatAsState(if (isPinPickerOpen) 1f else 0f, label = "pinPickerBlur")
     val settingsBlur = animateFloatAsState(if (isSettingsOpen) 1f else 0f, label = "settingsBlur")
     val howToBlur = animateFloatAsState(if (isHowToOpen) 1f else 0f, label = "howToBlur")
+    val setupBlur = animateFloatAsState(if (isSetupOpen) 1f else 0f, label = "setupBlur")
     val currentOverlayOpen by rememberUpdatedState(overlayOpen)
     val homeLayer = rememberGraphicsLayer()
     val homeBlur = remember { HomeBlur() }
@@ -220,7 +227,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 .fillMaxSize()
                 // Read in the draw phase, not in composition, so a swipe redraws without recomposing.
                 .drawWithContent {
-                    val coverage = max(max(max(pinPickerBlur.value, settingsBlur.value), howToBlur.value), searchReveal.value)
+                    val coverage = max(max(max(max(pinPickerBlur.value, settingsBlur.value), howToBlur.value), setupBlur.value), searchReveal.value)
                     val frozen = coverage >= 1f && homeBlur.recorded && homeLayer.size == size.toIntSize()
                     if (!frozen) {
                         homeLayer.record { this@drawWithContent.drawContent() }
@@ -330,7 +337,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
 
         // Hidden under overlays once they're fully in, so its touch area (and its exclusion from
         // the back gesture) can't intercept theirs.
-        if (!isPinPickerOpen && !isSettingsOpen && !isHowToOpen && !(isSearchOpen && searchFullyIn)) {
+        if (!isPinPickerOpen && !isSettingsOpen && !isHowToOpen && !isSetupOpen && !(isSearchOpen && searchFullyIn)) {
             PinnedAppsSphere(
                 apps = pinnedApps,
                 onAppOpened = viewModel::onEntryOpened,
@@ -366,12 +373,25 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 onHapticIntensityChange = viewModel::setHapticIntensity,
                 onDefaultSearchCategoryChange = viewModel::setDefaultSearchCategory,
                 onHowToUse = viewModel::openHowTo,
+                onOpenSetup = viewModel::openSetup,
                 onDone = viewModel::closeSettings,
             )
         }
 
         AnimatedVisibility(visible = isHowToOpen, enter = fadeIn(), exit = fadeOut()) {
             HowToUse(onDone = viewModel::resetHome)
+        }
+
+        AnimatedVisibility(visible = isSetupOpen, enter = fadeIn(), exit = fadeOut()) {
+            SetupScreen(
+                isDefaultHome = isDefaultHome,
+                hasContactsAccess = hasContactsAccess,
+                hasFilesAccess = hasFilesAccess,
+                onSetDefaultHome = requestDefaultHome,
+                onGrantContacts = { contactsPermission.launch(Manifest.permission.READ_CONTACTS) },
+                onGrantFiles = requestFilesAccess,
+                onDone = viewModel::finishSetup,
+            )
         }
 
         // Always composed, so a swipe only has to move it; composing it mid-swipe stalls the
