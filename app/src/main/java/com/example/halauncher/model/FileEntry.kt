@@ -23,6 +23,13 @@ data class FileEntry(
     override val id: String get() = idFor(mediaId)
     override val category: SearchCategory get() = SearchCategory.FILE
 
+    /**
+     * The folder path (never the file name, which is already the title), e.g. "Android/media/…".
+     * Shown in full up to the width of the row, which elides the middle only if it doesn't fit.
+     */
+    override val detail: String?
+        get() = folder?.trim('/')?.takeIf { it.isNotEmpty() }
+
     override val link: Intent get() = viewIntent(mimeType ?: ANY_TYPE)
 
     override val fallbackLinks: List<Intent>

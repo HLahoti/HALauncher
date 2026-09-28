@@ -400,14 +400,30 @@ private fun EntryRowContent(entry: SearchEntry) {
         horizontalArrangement = Arrangement.spacedBy(SearchConfig.ResultIconTextGap),
     ) {
         EntryIcon(entry)
-        Text(
-            text = entry.name,
-            color = ThemeConfig.Foreground,
-            style = MaterialTheme.typography.bodyLarge,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+        Column(
             modifier = Modifier.weight(1f),
-        )
+            verticalArrangement = Arrangement.spacedBy(SearchConfig.ResultDetailGap),
+        ) {
+            Text(
+                text = entry.name,
+                color = ThemeConfig.Foreground,
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            // A category-specific secondary line, rendered the same way for every kind of result.
+            // It runs the full width of the row and elides its middle only when it doesn't fit, so
+            // both ends of a long file path stay readable.
+            entry.detail?.let { detail ->
+                Text(
+                    text = detail,
+                    color = ThemeConfig.Foreground.copy(alpha = SearchConfig.RESULT_DETAIL_ALPHA),
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.MiddleEllipsis,
+                )
+            }
+        }
     }
 }
 

@@ -168,6 +168,12 @@ object SearchConfig {
     /** Gap between a result's icon and its name. */
     val ResultIconTextGap = 16.dp
 
+    /** Opacity of a result's secondary line (a contact's phone number, a file's folder). */
+    const val RESULT_DETAIL_ALPHA = 0.6f
+
+    /** Gap between a result's name and its secondary line. */
+    val ResultDetailGap = 2.dp
+
     /** Inner padding of each result row. */
     val ResultRowPadding = 8.dp
 

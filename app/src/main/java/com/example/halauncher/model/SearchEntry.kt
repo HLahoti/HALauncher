@@ -32,4 +32,12 @@ interface SearchEntry {
      * search shows the category's icon in its place.
      */
     val icon: Drawable? get() = null
+
+    /**
+     * A short secondary line shown under [name] in search results, or null for none. Each
+     * category fills it with its own information, already formatted for display, so the UI can
+     * render it the same way for every kind of entry: a contact's phone number, a file's folder,
+     * and so on.
+     */
+    val detail: String? get() = null
 }

@@ -20,6 +20,8 @@ data class ContactEntry(
     override val id: String get() = "contact:$lookupKey"
     override val category: SearchCategory get() = SearchCategory.CONTACT
 
+    override val detail: String? get() = phoneNumber
+
     override val link: Intent
         get() = Intent(Intent.ACTION_VIEW, ContactsContract.Contacts.getLookupUri(contactId, lookupKey))
 
