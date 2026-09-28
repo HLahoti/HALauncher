@@ -22,5 +22,8 @@ class QuickActionAppStore(context: Context) {
 
         /** The money / payments button. */
         const val MONEY_SLOT = "money"
+
+        /** The reminders / to-do button. */
+        const val REMINDERS_SLOT = "reminders"
     }
 }

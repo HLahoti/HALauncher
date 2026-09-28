@@ -105,6 +105,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     val hapticIntensity by viewModel.hapticIntensity.collectAsStateWithLifecycle()
     val defaultSearchCategory by viewModel.defaultSearchCategory.collectAsStateWithLifecycle()
     val moneyApp by viewModel.moneyApp.collectAsStateWithLifecycle()
+    val remindersApp by viewModel.remindersApp.collectAsStateWithLifecycle()
     val searchPurpose by viewModel.searchPurpose.collectAsStateWithLifecycle()
     val moneySymbol = remember { localCurrencySymbol() }
 
@@ -249,15 +250,22 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 modifier = Modifier.offset(x = -(TouchTarget - HomeScreenConfig.QuickActionIconSize) / 2),
                 verticalArrangement = Arrangement.spacedBy(HomeScreenConfig.QuickActionSpacing),
             ) {
-                // Resolving the installed reminders app queries PackageManager, so do it once.
-                val remindersIntent = remember(context) { IntentFactory.remindersIntent(context) }
+                // Resolving the device's default reminders app queries PackageManager, so do it
+                // once; the reminders button falls back to it when the user hasn't chosen one.
+                val defaultRemindersIntent = remember(context) { IntentFactory.remindersIntent(context) }
                 Row(horizontalArrangement = Arrangement.spacedBy(HomeScreenConfig.QuickActionSpacing)) {
                     QuickActionButton(
                         ImageVector.vectorResource(R.drawable.ic_camera),
                         R.string.open_camera,
                         remember { IntentFactory.cameraIntent() },
                     )
-                    QuickActionButton(Icons.Default.Check, R.string.open_reminders, remindersIntent)
+                    RemindersButton(
+                        app = remindersApp,
+                        defaultIntent = defaultRemindersIntent,
+                        onChoose = viewModel::openRemindersAppPicker,
+                        onOpened = viewModel::onEntryOpened,
+                        onRemove = viewModel::clearRemindersApp,
+                    )
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(HomeScreenConfig.QuickActionSpacing)) {
                     QuickActionButton(Icons.Default.Phone, R.string.open_dialer, remember { IntentFactory.dialerIntent() })
@@ -339,10 +347,10 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
             onEntryOpened = viewModel::onEntryOpened,
             onRequestFilesAccess = requestFilesAccess,
             onDismissFilesPrompt = viewModel::dismissFilesPrompt,
-            pickTitle = if (searchPurpose == SearchPurpose.PICK_MONEY_APP) {
-                stringResource(R.string.pick_money_app_title, moneySymbol)
-            } else {
-                null
+            pickTitle = when (searchPurpose) {
+                SearchPurpose.PICK_MONEY_APP -> stringResource(R.string.pick_money_app_title, moneySymbol)
+                SearchPurpose.PICK_REMINDERS_APP -> stringResource(R.string.pick_reminders_app_title)
+                SearchPurpose.FIND -> null
             },
             onEntryPicked = viewModel::onEntryPicked,
         )
@@ -483,6 +491,101 @@ private fun MoneyButton(
             }
             DropdownMenuItem(
                 text = { Text(stringResource(if (app != null) R.string.change_app else R.string.choose_money_app)) },
+                onClick = {
+                    menuOpen = false
+                    onChoose()
+                },
+            )
+            if (app != null) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.remove)) },
+                    onClick = {
+                        menuOpen = false
+                        onRemove()
+                    },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The reminders button: opens the user's chosen reminders / to-do app. With none chosen it opens
+ * the device's default reminders app ([defaultIntent]). Long-press (with a firmer haptic) opens a
+ * menu to choose, change, or clear the choice.
+ */
+@Composable
+private fun RemindersButton(
+    app: AppInfo?,
+    defaultIntent: Intent,
+    onChoose: () -> Unit,
+    onOpened: (AppInfo) -> Unit,
+    onRemove: () -> Unit,
+) {
+    val context = LocalContext.current
+    val haptics = remember(context) { Haptics(context) }
+    var menuOpen by remember { mutableStateOf(false) }
+    val description = if (app != null) {
+        stringResource(R.string.reminders_app_named, app.name)
+    } else {
+        stringResource(R.string.reminders_app_default)
+    }
+    val openLabel = if (app != null) stringResource(R.string.open_app, app.name) else stringResource(R.string.open_reminders)
+    val optionsLabel = stringResource(R.string.reminders_app_options)
+
+    // Opens the chosen app (recording it), or the device default when none is chosen.
+    val open = {
+        if (app != null) {
+            if (context.launchSafely(app.link, openLabel)) onOpened(app)
+        } else {
+            context.launchSafely(defaultIntent, openLabel)
+        }
+    }
+
+    Box {
+        Box(
+            modifier = Modifier
+                .size(TouchTarget)
+                .clip(CircleShape)
+                .combinedClickable(
+                    role = Role.Button,
+                    onClickLabel = openLabel,
+                    onLongClickLabel = optionsLabel,
+                    onLongClick = {
+                        haptics.longPress()
+                        menuOpen = true
+                    },
+                    onClick = { open() },
+                )
+                .clearAndSetSemantics {
+                    contentDescription = description
+                    role = Role.Button
+                    onClick(openLabel) {
+                        open()
+                        true
+                    }
+                    onLongClick(optionsLabel) {
+                        menuOpen = true
+                        true
+                    }
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Default.Check,
+                // The click label already says what it does.
+                contentDescription = null,
+                tint = ThemeConfig.Foreground,
+                modifier = Modifier.size(HomeScreenConfig.QuickActionIconSize),
+            )
+        }
+        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+            if (app != null) {
+                // Which app it opens now, as a non-interactive first line.
+                DropdownMenuItem(text = { Text(app.name) }, onClick = {}, enabled = false)
+            }
+            DropdownMenuItem(
+                text = { Text(stringResource(if (app != null) R.string.change_app else R.string.choose_reminders_app)) },
                 onClick = {
                     menuOpen = false
                     onChoose()

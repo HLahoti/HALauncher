@@ -12,6 +12,11 @@
     <string name="change_app">Change app</string>
     <string name="remove">Remove</string>
     <string name="pick_money_app_title">Choose an app for the %1$s button</string>
+    <string name="reminders_app_default">Reminders app: device default</string>
+    <string name="reminders_app_named">Reminders app: %1$s</string>
+    <string name="choose_reminders_app">Choose a reminders app</string>
+    <string name="reminders_app_options">Reminders app options</string>
+    <string name="pick_reminders_app_title">Choose an app for the reminders button</string>
     <string name="choose_app">Choose %1$s</string>
     <string name="open_app">Open %1$s</string>
     <string name="search_apps">Search apps and contacts</string>

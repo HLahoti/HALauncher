@@ -69,6 +69,9 @@ enum class SearchPurpose {
 
     /** Choosing the money button's app: apps only, and tapping a result assigns it. */
     PICK_MONEY_APP,
+
+    /** Choosing the reminders button's app: apps only, and tapping a result assigns it. */
+    PICK_REMINDERS_APP,
 }
 
 /** What search shows: instant frequent-layer matches, then ranked disk matches under a divider. */
@@ -141,6 +144,17 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     /** The app the money button opens, or null if none is chosen (or it's been uninstalled). */
     val moneyApp: StateFlow<AppInfo?> =
         combine(_moneyAppPackage, _installedApps) { packageName, apps ->
+            packageName?.let { wanted -> apps.firstOrNull { it.packageName == wanted } }
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    private val _remindersAppPackage = MutableStateFlow(quickActionAppStore.load(QuickActionAppStore.REMINDERS_SLOT))
+
+    /**
+     * The app the reminders button opens, or null if none is chosen (or it's been uninstalled),
+     * in which case the button falls back to the device's default reminders app.
+     */
+    val remindersApp: StateFlow<AppInfo?> =
+        combine(_remindersAppPackage, _installedApps) { packageName, apps ->
             packageName?.let { wanted -> apps.firstOrNull { it.packageName == wanted } }
         }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
@@ -434,11 +448,30 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         indexUpdater.flushNow()
     }
 
+    /** Opens search limited to apps, so the user can choose the reminders button's app. */
+    fun openRemindersAppPicker() {
+        _isPinPickerOpen.value = false
+        _isSettingsOpen.value = false
+        _searchPurpose.value = SearchPurpose.PICK_REMINDERS_APP
+        _categoryFilter.value = SearchCategory.APP
+        _isSearchOpen.value = true
+        indexUpdater.flushNow()
+    }
+
     /** The user chose [entry] while search was open for picking; assigns it and closes search. */
     fun onEntryPicked(entry: SearchEntry) {
-        if (_searchPurpose.value == SearchPurpose.PICK_MONEY_APP && entry is AppInfo) {
-            quickActionAppStore.save(QuickActionAppStore.MONEY_SLOT, entry.packageName)
-            _moneyAppPackage.value = entry.packageName
+        if (entry is AppInfo) {
+            when (_searchPurpose.value) {
+                SearchPurpose.PICK_MONEY_APP -> {
+                    quickActionAppStore.save(QuickActionAppStore.MONEY_SLOT, entry.packageName)
+                    _moneyAppPackage.value = entry.packageName
+                }
+                SearchPurpose.PICK_REMINDERS_APP -> {
+                    quickActionAppStore.save(QuickActionAppStore.REMINDERS_SLOT, entry.packageName)
+                    _remindersAppPackage.value = entry.packageName
+                }
+                SearchPurpose.FIND -> {}
+            }
         }
         closeSearch()
     }
@@ -446,6 +479,12 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     fun clearMoneyApp() {
         quickActionAppStore.clear(QuickActionAppStore.MONEY_SLOT)
         _moneyAppPackage.value = null
+    }
+
+    /** Forgets the chosen reminders app; the button reverts to the device's default. */
+    fun clearRemindersApp() {
+        quickActionAppStore.clear(QuickActionAppStore.REMINDERS_SLOT)
+        _remindersAppPackage.value = null
     }
 
     fun openPinPicker() {
@@ -526,7 +565,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun onCategoryFilterChanged(category: SearchCategory?) {
         // Picking an app for a button stays limited to apps.
-        if (_searchPurpose.value == SearchPurpose.PICK_MONEY_APP) return
+        if (_searchPurpose.value != SearchPurpose.FIND) return
         _categoryFilter.value = category
     }
 
