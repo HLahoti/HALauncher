@@ -623,6 +623,9 @@ object SettingsPanelConfig {
 
     /** Opacity of the intensity slider's inactive (unfilled) track. */
     const val SLIDER_INACTIVE_TRACK_ALPHA = 0.3f
+
+    /** Opacity the other settings fade to while "Lock settings" is on, marking them as frozen. */
+    const val LOCKED_CONTENT_ALPHA = 0.35f
 }
 
 /** Vibration used for the sphere's tick as each app reaches the front. */

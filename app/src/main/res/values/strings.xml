@@ -40,6 +40,8 @@
     <string name="lock_settings_unavailable">Device admin settings not found</string>
     <string name="settings_title">Settings</string>
     <string name="open_launcher_settings">Launcher settings</string>
+    <string name="setting_lock_title">Lock settings</string>
+    <string name="setting_lock_description">Freeze every setting so nothing changes by accident. While on, the other settings are greyed out, the reminders and money buttons can\'t be changed, and long-pressing the app sphere won\'t open its editor. Turn this off to make changes again.</string>
     <string name="setting_double_tap_lock_title">Double-tap to lock</string>
     <string name="setting_double_tap_lock_description">Double-tap an empty part of the home screen to lock your phone. Turning this on asks you to let HALauncher lock the screen; it\'s used only for that — it can\'t read your screen or change anything else. Turning it off removes that access.</string>
     <string name="setting_default_search_category_title">Default search category</string>

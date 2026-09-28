@@ -18,6 +18,14 @@ import com.example.halauncher.model.SearchCategory
 class LauncherSettingsStore(context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
+    /**
+     * Whether settings are locked: the other settings can't be changed, and the reminders/money
+     * buttons and app sphere hide their customisation. Guards against accidental changes; defaults off.
+     */
+    var settingsLocked: Boolean
+        get() = prefs.getBoolean(KEY_SETTINGS_LOCKED, false)
+        set(value) = prefs.edit { putBoolean(KEY_SETTINGS_LOCKED, value) }
+
     /** Whether double-tapping the empty home screen locks the phone (needs the accessibility service). */
     var doubleTapToLock: Boolean
         get() = prefs.getBoolean(KEY_DOUBLE_TAP_LOCK, false)
@@ -48,6 +56,7 @@ class LauncherSettingsStore(context: Context) {
 
     private companion object {
         const val PREFS_NAME = "launcher_settings"
+        const val KEY_SETTINGS_LOCKED = "settings_locked"
         const val KEY_DOUBLE_TAP_LOCK = "double_tap_to_lock"
         const val KEY_REDUCE_INDEX_SIZE = "reduce_index_size"
         const val KEY_HAPTIC_INTENSITY = "haptic_intensity"

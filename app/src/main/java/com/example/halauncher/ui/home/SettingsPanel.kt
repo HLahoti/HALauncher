@@ -1,5 +1,6 @@
 package com.example.halauncher.ui.home
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -35,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -64,6 +66,11 @@ import kotlin.math.roundToInt
  * slider. Laid out like the pinned-app picker: a full scrim over the (blurred) home screen, a glass
  * header with a Done button, then the cards.
  *
+ * A "Lock settings" toggle sits at the very top, always usable. While it's on, every other setting is
+ * greyed out and can't be changed, guarding against accidental taps.
+ *
+ * @param settingsLocked whether the other settings are frozen; the lock toggle itself stays live.
+ * @param onSettingsLockedChange saves the lock preference.
  * @param onDoubleTapToLockChange saves the preference; the caller also gates the double-tap gesture on it.
  * @param onReduceIndexSizeChange saves the preference and re-indexes files so the change takes effect.
  * @param onHapticIntensityChange saves the tick strength (0f–1f); every haptic reads it on its next buzz.
@@ -71,10 +78,12 @@ import kotlin.math.roundToInt
  */
 @Composable
 fun SettingsPanel(
+    settingsLocked: Boolean,
     doubleTapToLock: Boolean,
     reduceIndexSize: Boolean,
     hapticIntensity: Float,
     defaultSearchCategory: SearchCategory?,
+    onSettingsLockedChange: (Boolean) -> Unit,
     onDoubleTapToLockChange: (Boolean) -> Unit,
     onReduceIndexSizeChange: (Boolean) -> Unit,
     onHapticIntensityChange: (Float) -> Unit,
@@ -128,58 +137,80 @@ fun SettingsPanel(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(SettingsPanelConfig.CardSpacing),
             ) {
+                // At the very top, always usable so it can be turned back off: the master lock.
                 SettingToggle(
-                    title = stringResource(R.string.setting_double_tap_lock_title),
-                    description = stringResource(R.string.setting_double_tap_lock_description),
-                    checked = doubleTapToLock,
-                    onCheckedChange = { enabled ->
-                        onDoubleTapToLockChange(enabled)
-                        if (enabled) {
-                            // Offer to activate the device admin if it isn't already on.
-                            if (!DeviceLock.isEnabled(context)) promptEnableLock()
+                    title = stringResource(R.string.setting_lock_title),
+                    description = stringResource(R.string.setting_lock_description),
+                    checked = settingsLocked,
+                    onCheckedChange = onSettingsLockedChange,
+                )
+                // Every other setting fades and stops responding while the lock is on.
+                val contentAlpha by animateFloatAsState(
+                    if (settingsLocked) SettingsPanelConfig.LOCKED_CONTENT_ALPHA else 1f,
+                    label = "lockedSettingsAlpha",
+                )
+                val enabled = !settingsLocked
+                Column(
+                    modifier = Modifier.graphicsLayer { alpha = contentAlpha },
+                    verticalArrangement = Arrangement.spacedBy(SettingsPanelConfig.CardSpacing),
+                ) {
+                    SettingToggle(
+                        title = stringResource(R.string.setting_double_tap_lock_title),
+                        description = stringResource(R.string.setting_double_tap_lock_description),
+                        checked = doubleTapToLock,
+                        enabled = enabled,
+                        onCheckedChange = { enabledValue ->
+                            onDoubleTapToLockChange(enabledValue)
+                            if (enabledValue) {
+                                // Offer to activate the device admin if it isn't already on.
+                                if (!DeviceLock.isEnabled(context)) promptEnableLock()
+                            } else {
+                                // Turning the feature off also releases device admin, so the app can be
+                                // uninstalled without first deactivating it in Settings.
+                                DeviceLock.disable(context)
+                            }
+                        },
+                    )
+                    SettingChoice(
+                        title = stringResource(R.string.setting_default_search_category_title),
+                        description = stringResource(R.string.setting_default_search_category_description),
+                        // null ("All") first, then the categories in their declared order.
+                        options = remember { listOf<SearchCategory?>(null) + SearchCategory.entries },
+                        selected = defaultSearchCategory,
+                        enabled = enabled,
+                        optionLabel = { category ->
+                            if (category == null) stringResource(R.string.category_all)
+                            else stringResource(category.labelRes)
+                        },
+                        onSelected = onDefaultSearchCategoryChange,
+                    )
+                    SettingToggle(
+                        title = stringResource(R.string.setting_reduce_index_title),
+                        description = stringResource(R.string.setting_reduce_index_description),
+                        checked = reduceIndexSize,
+                        enabled = enabled,
+                        onCheckedChange = onReduceIndexSizeChange,
+                    )
+                    SettingSlider(
+                        title = stringResource(R.string.setting_haptic_intensity_title),
+                        description = stringResource(R.string.setting_haptic_intensity_description),
+                        valueLabel = if (previewIntensity <= 0f) {
+                            stringResource(R.string.setting_haptic_intensity_off)
                         } else {
-                            // Turning the feature off also releases device admin, so the app can be
-                            // uninstalled without first deactivating it in Settings.
-                            DeviceLock.disable(context)
-                        }
-                    },
-                )
-                SettingChoice(
-                    title = stringResource(R.string.setting_default_search_category_title),
-                    description = stringResource(R.string.setting_default_search_category_description),
-                    // null ("All") first, then the categories in their declared order.
-                    options = remember { listOf<SearchCategory?>(null) + SearchCategory.entries },
-                    selected = defaultSearchCategory,
-                    optionLabel = { category ->
-                        if (category == null) stringResource(R.string.category_all)
-                        else stringResource(category.labelRes)
-                    },
-                    onSelected = onDefaultSearchCategoryChange,
-                )
-                SettingToggle(
-                    title = stringResource(R.string.setting_reduce_index_title),
-                    description = stringResource(R.string.setting_reduce_index_description),
-                    checked = reduceIndexSize,
-                    onCheckedChange = onReduceIndexSizeChange,
-                )
-                SettingSlider(
-                    title = stringResource(R.string.setting_haptic_intensity_title),
-                    description = stringResource(R.string.setting_haptic_intensity_description),
-                    valueLabel = if (previewIntensity <= 0f) {
-                        stringResource(R.string.setting_haptic_intensity_off)
-                    } else {
-                        stringResource(R.string.setting_percent, (previewIntensity * 100).roundToInt())
-                    },
-                    value = previewIntensity,
-                    onValueChange = { value ->
-                        if (value != previewIntensity) {
-                            previewIntensity = value
-                            onHapticIntensityChange(value)
-                            // A tick at the new strength, so the slider is felt as well as seen.
-                            if (value > 0f) previewHaptics.tick()
-                        }
-                    },
-                )
+                            stringResource(R.string.setting_percent, (previewIntensity * 100).roundToInt())
+                        },
+                        value = previewIntensity,
+                        enabled = enabled,
+                        onValueChange = { value ->
+                            if (value != previewIntensity) {
+                                previewIntensity = value
+                                onHapticIntensityChange(value)
+                                // A tick at the new strength, so the slider is felt as well as seen.
+                                if (value > 0f) previewHaptics.tick()
+                            }
+                        },
+                    )
+                }
             }
         }
     }
@@ -192,12 +223,13 @@ private fun SettingToggle(
     description: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
+    enabled: Boolean = true,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .liquidGlass(RoundedCornerShape(SettingsPanelConfig.CardCornerRadius), tint = SettingsPanelConfig.GlassTint)
-            .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)
+            .toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onCheckedChange)
             .padding(SettingsPanelConfig.CardPadding),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(SettingsPanelConfig.CardPadding),
@@ -246,6 +278,7 @@ private fun <T> SettingChoice(
     selected: T,
     optionLabel: @Composable (T) -> String,
     onSelected: (T) -> Unit,
+    enabled: Boolean = true,
 ) {
     Column(
         modifier = Modifier
@@ -275,6 +308,7 @@ private fun <T> SettingChoice(
                     label = optionLabel(option),
                     selected = option == selected,
                     onClick = { onSelected(option) },
+                    enabled = enabled,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -289,6 +323,7 @@ private fun ChoiceChip(
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     val shape = RoundedCornerShape(percent = 50)
     val outline = ThemeConfig.Foreground.copy(alpha = SettingsPanelConfig.CHOICE_UNSELECTED_ALPHA)
@@ -298,6 +333,7 @@ private fun ChoiceChip(
             .then(if (selected) Modifier else Modifier.border(1.dp, outline, shape))
             .selectable(
                 selected = selected,
+                enabled = enabled,
                 // The fill/outline is the feedback; a ripple on top would fight the glass look.
                 interactionSource = null,
                 indication = null,
@@ -330,6 +366,7 @@ private fun SettingSlider(
     valueLabel: String,
     value: Float,
     onValueChange: (Float) -> Unit,
+    enabled: Boolean = true,
 ) {
     Column(
         modifier = Modifier
@@ -364,6 +401,7 @@ private fun SettingSlider(
         Slider(
             value = value,
             onValueChange = onValueChange,
+            enabled = enabled,
             valueRange = 0f..1f,
             steps = SettingsPanelConfig.HAPTIC_INTENSITY_STEPS,
             colors = SliderDefaults.colors(

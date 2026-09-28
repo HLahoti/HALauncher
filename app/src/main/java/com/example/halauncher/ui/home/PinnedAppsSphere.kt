@@ -110,6 +110,7 @@ fun PinnedAppsSphere(
     onAppOpened: (AppInfo) -> Unit,
     onEdit: () -> Unit,
     modifier: Modifier = Modifier,
+    locked: Boolean = false,
 ) {
     val context = LocalContext.current
     val resources = LocalResources.current
@@ -121,6 +122,9 @@ fun PinnedAppsSphere(
     val currentApps by rememberUpdatedState(apps)
     val currentOnAppOpened by rememberUpdatedState(onAppOpened)
     val currentOnEdit by rememberUpdatedState(onEdit)
+    // Read live inside the gesture handlers, which are keyed on the pin count and so don't restart
+    // when the lock flips.
+    val currentLocked by rememberUpdatedState(locked)
 
     val count = apps.size
     // Unbounded: the ring loops, so any value is valid. 0 puts the first pin at the front.
@@ -218,7 +222,12 @@ fun PinnedAppsSphere(
                 }
                 .semantics {
                     contentDescription = sphereLabel
-                    customActions = listOf(CustomAccessibilityAction(editLabel) { currentOnEdit(); true })
+                    // Editing the pins is unavailable while settings are locked.
+                    customActions = if (currentLocked) {
+                        emptyList()
+                    } else {
+                        listOf(CustomAccessibilityAction(editLabel) { currentOnEdit(); true })
+                    }
                 }
                 .pointerInput(count) {
                     val arcPerApp = ringRadius.toPx() * step
@@ -255,13 +264,17 @@ fun PinnedAppsSphere(
                 .pointerInput(count) {
                     detectTapGestures(
                         onLongPress = {
-                            haptics.tick()
-                            currentOnEdit()
+                            // Locked settings mean the pin editor stays shut on a long-press.
+                            if (!currentLocked) {
+                                haptics.tick()
+                                currentOnEdit()
+                            }
                         },
                         onTap = { tap ->
                             val all = currentApps
                             if (all.isEmpty()) {
-                                currentOnEdit()
+                                // With no pins, tapping normally opens the editor; not while locked.
+                                if (!currentLocked) currentOnEdit()
                                 return@detectTapGestures
                             }
                             val radiusPx = radius.toPx()

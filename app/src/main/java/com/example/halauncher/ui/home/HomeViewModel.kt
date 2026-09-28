@@ -168,6 +168,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     /** Whether the long-press settings panel is showing. */
     val isSettingsOpen: StateFlow<Boolean> = _isSettingsOpen.asStateFlow()
 
+    private val _settingsLocked = MutableStateFlow(settingsStore.settingsLocked)
+    /**
+     * Whether settings are locked: the settings panel greys out its other options, and the
+     * reminders/money buttons and app sphere stop offering their customisation.
+     */
+    val settingsLocked: StateFlow<Boolean> = _settingsLocked.asStateFlow()
+
     private val _doubleTapToLock = MutableStateFlow(settingsStore.doubleTapToLock)
     /** Whether a double-tap on the empty home screen locks the phone. */
     val doubleTapToLock: StateFlow<Boolean> = _doubleTapToLock.asStateFlow()
@@ -452,6 +459,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Opens search limited to apps, so the user can choose the money button's app. */
     fun openMoneyAppPicker() {
+        if (_settingsLocked.value) return
         _isPinPickerOpen.value = false
         _isSettingsOpen.value = false
         _searchPurpose.value = SearchPurpose.PICK_MONEY_APP
@@ -462,6 +470,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Opens search limited to apps, so the user can choose the reminders button's app. */
     fun openRemindersAppPicker() {
+        if (_settingsLocked.value) return
         _isPinPickerOpen.value = false
         _isSettingsOpen.value = false
         _searchPurpose.value = SearchPurpose.PICK_REMINDERS_APP
@@ -489,17 +498,20 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun clearMoneyApp() {
+        if (_settingsLocked.value) return
         quickActionAppStore.clear(QuickActionAppStore.MONEY_SLOT)
         _moneyAppPackage.value = null
     }
 
     /** Forgets the chosen reminders app; the button reverts to the device's default. */
     fun clearRemindersApp() {
+        if (_settingsLocked.value) return
         quickActionAppStore.clear(QuickActionAppStore.REMINDERS_SLOT)
         _remindersAppPackage.value = null
     }
 
     fun openPinPicker() {
+        if (_settingsLocked.value) return
         closeSearch()
         _isSettingsOpen.value = false
         _isPinPickerOpen.value = true
@@ -518,6 +530,12 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun closeSettings() {
         _isSettingsOpen.value = false
+    }
+
+    /** Locks or unlocks settings. The lock toggle itself stays usable when locked, so it can be turned off. */
+    fun setSettingsLocked(locked: Boolean) {
+        settingsStore.settingsLocked = locked
+        _settingsLocked.value = locked
     }
 
     fun setDoubleTapToLock(enabled: Boolean) {

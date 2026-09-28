@@ -100,6 +100,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     val pinnedPackages by viewModel.pinnedPackages.collectAsStateWithLifecycle()
     val isPinPickerOpen by viewModel.isPinPickerOpen.collectAsStateWithLifecycle()
     val isSettingsOpen by viewModel.isSettingsOpen.collectAsStateWithLifecycle()
+    val settingsLocked by viewModel.settingsLocked.collectAsStateWithLifecycle()
     val doubleTapToLock by viewModel.doubleTapToLock.collectAsStateWithLifecycle()
     val reduceIndexSize by viewModel.reduceIndexSize.collectAsStateWithLifecycle()
     val hapticIntensity by viewModel.hapticIntensity.collectAsStateWithLifecycle()
@@ -262,6 +263,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                     RemindersButton(
                         app = remindersApp,
                         defaultIntent = defaultRemindersIntent,
+                        locked = settingsLocked,
                         onChoose = viewModel::openRemindersAppPicker,
                         onOpened = viewModel::onEntryOpened,
                         onRemove = viewModel::clearRemindersApp,
@@ -272,6 +274,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                     MoneyButton(
                         symbol = moneySymbol,
                         app = moneyApp,
+                        locked = settingsLocked,
                         onChoose = viewModel::openMoneyAppPicker,
                         onOpened = viewModel::onEntryOpened,
                         onRemove = viewModel::clearMoneyApp,
@@ -287,6 +290,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 apps = pinnedApps,
                 onAppOpened = viewModel::onEntryOpened,
                 onEdit = viewModel::openPinPicker,
+                locked = settingsLocked,
                 // Makes way for search as it comes in.
                 modifier = Modifier
                     .systemBarsPadding()
@@ -306,10 +310,12 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
 
         AnimatedVisibility(visible = isSettingsOpen, enter = fadeIn(), exit = fadeOut()) {
             SettingsPanel(
+                settingsLocked = settingsLocked,
                 doubleTapToLock = doubleTapToLock,
                 reduceIndexSize = reduceIndexSize,
                 hapticIntensity = hapticIntensity,
                 defaultSearchCategory = defaultSearchCategory,
+                onSettingsLockedChange = viewModel::setSettingsLocked,
                 onDoubleTapToLockChange = viewModel::setDoubleTapToLock,
                 onReduceIndexSizeChange = viewModel::setReduceIndexSize,
                 onHapticIntensityChange = viewModel::setHapticIntensity,
@@ -423,11 +429,14 @@ private fun QuickActionButton(icon: ImageVector, @StringRes labelRes: Int, inten
  * The money button: a currency symbol that opens the user's chosen payments app. With none
  * chosen yet, tapping asks for one ([onChoose] opens the app picker). Long-press (with a
  * firmer haptic) opens a menu to change or remove it.
+ *
+ * When [locked] (settings are locked), it only opens the chosen app: no picker, no options menu.
  */
 @Composable
 private fun MoneyButton(
     symbol: String,
     app: AppInfo?,
+    locked: Boolean,
     onChoose: () -> Unit,
     onOpened: (AppInfo) -> Unit,
     onRemove: () -> Unit,
@@ -451,14 +460,18 @@ private fun MoneyButton(
                 .combinedClickable(
                     role = Role.Button,
                     onClickLabel = openLabel,
-                    onLongClickLabel = optionsLabel,
+                    // No options menu while settings are locked.
+                    onLongClickLabel = if (locked) null else optionsLabel,
                     onLongClick = {
-                        haptics.longPress()
-                        menuOpen = true
+                        if (!locked) {
+                            haptics.longPress()
+                            menuOpen = true
+                        }
                     },
                     onClick = {
                         when {
-                            app == null -> onChoose()
+                            // Locked: no picker to choose an app; a set app still opens.
+                            app == null -> if (!locked) onChoose()
                             context.launchSafely(app.link, openLabel) -> onOpened(app)
                         }
                     },
@@ -467,12 +480,18 @@ private fun MoneyButton(
                     contentDescription = description
                     role = Role.Button
                     onClick(openLabel) {
-                        if (app == null) onChoose() else if (context.launchSafely(app.link, openLabel)) onOpened(app)
+                        if (app == null) {
+                            if (!locked) onChoose()
+                        } else if (context.launchSafely(app.link, openLabel)) {
+                            onOpened(app)
+                        }
                         true
                     }
-                    onLongClick(optionsLabel) {
-                        menuOpen = true
-                        true
+                    if (!locked) {
+                        onLongClick(optionsLabel) {
+                            menuOpen = true
+                            true
+                        }
                     }
                 },
             contentAlignment = Alignment.Center,
@@ -513,11 +532,15 @@ private fun MoneyButton(
  * The reminders button: opens the user's chosen reminders / to-do app. With none chosen it opens
  * the device's default reminders app ([defaultIntent]). Long-press (with a firmer haptic) opens a
  * menu to choose, change, or clear the choice.
+ *
+ * When [locked] (settings are locked), it still opens its app (or the default), but the options
+ * menu no longer appears.
  */
 @Composable
 private fun RemindersButton(
     app: AppInfo?,
     defaultIntent: Intent,
+    locked: Boolean,
     onChoose: () -> Unit,
     onOpened: (AppInfo) -> Unit,
     onRemove: () -> Unit,
@@ -550,10 +573,13 @@ private fun RemindersButton(
                 .combinedClickable(
                     role = Role.Button,
                     onClickLabel = openLabel,
-                    onLongClickLabel = optionsLabel,
+                    // No options menu while settings are locked.
+                    onLongClickLabel = if (locked) null else optionsLabel,
                     onLongClick = {
-                        haptics.longPress()
-                        menuOpen = true
+                        if (!locked) {
+                            haptics.longPress()
+                            menuOpen = true
+                        }
                     },
                     onClick = { open() },
                 )
@@ -564,9 +590,11 @@ private fun RemindersButton(
                         open()
                         true
                     }
-                    onLongClick(optionsLabel) {
-                        menuOpen = true
-                        true
+                    if (!locked) {
+                        onLongClick(optionsLabel) {
+                            menuOpen = true
+                            true
+                        }
                     }
                 },
             contentAlignment = Alignment.Center,
