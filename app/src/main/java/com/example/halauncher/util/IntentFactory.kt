@@ -53,27 +53,28 @@ object IntentFactory {
         return Intent(AlarmClock.ACTION_SHOW_ALARMS)
     }
 
-    /** Reminder / to-do apps, most preferred first. */
-    private val REMINDER_PACKAGES = listOf(
-        "com.samsung.android.app.reminder",
-        "com.google.android.apps.tasks",
-        "com.google.android.keep",
-    )
-
-    /**
-     * Opens the first installed reminders app from [REMINDER_PACKAGES]. If none is installed,
-     * returns an intent for the first that nothing can handle, so the launch shows the usual
-     * "no app found" toast.
-     */
-    fun remindersIntent(context: Context): Intent =
-        REMINDER_PACKAGES.firstNotNullOfOrNull { context.packageManager.getLaunchIntentForPackage(it) }
-            ?: launchAppIntent(context, REMINDER_PACKAGES.first())
-
     /** Opens the phone app's keypad, empty, ready to dial a number (nothing is called). */
     fun dialerIntent(): Intent = Intent(Intent.ACTION_DIAL)
 
     /** Opens the camera app, ready to take a photo (the app itself saves it, not us). */
     fun cameraIntent(): Intent = Intent(MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA)
+
+    /** Opens the device's default gallery / photos app. */
+    fun galleryIntent(): Intent = appCategoryIntent(Intent.CATEGORY_APP_GALLERY)
+
+    /** Opens the device's default messaging (SMS) app. */
+    fun messagesIntent(): Intent = appCategoryIntent(Intent.CATEGORY_APP_MESSAGING)
+
+    /** Opens the device's default web browser. */
+    fun internetIntent(): Intent = appCategoryIntent(Intent.CATEGORY_APP_BROWSER)
+
+    /**
+     * A MAIN intent for one of Android's app categories (browser, gallery, messaging, …). The
+     * system routes it to whichever app the user has set as their default for that category, so the
+     * button follows the user's own choice without the launcher having to ask.
+     */
+    private fun appCategoryIntent(category: String): Intent =
+        Intent(Intent.ACTION_MAIN).addCategory(category)
 
     /** Opens the calendar app at the current moment. */
     fun calendarIntent(nowMillis: Long = System.currentTimeMillis()): Intent {

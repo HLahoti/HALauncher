@@ -70,8 +70,11 @@ enum class SearchPurpose {
     /** Choosing the money button's app: apps only, and tapping a result assigns it. */
     PICK_MONEY_APP,
 
-    /** Choosing the reminders button's app: apps only, and tapping a result assigns it. */
-    PICK_REMINDERS_APP,
+    /** Choosing the gallery button's app: apps only, and tapping a result assigns it. */
+    PICK_GALLERY_APP,
+
+    /** Choosing the messages button's app: apps only, and tapping a result assigns it. */
+    PICK_MESSAGES_APP,
 }
 
 /** What search shows: instant frequent-layer matches, then ranked disk matches under a divider. */
@@ -139,24 +142,20 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val quickActionAppStore = QuickActionAppStore(application)
-    private val _moneyAppPackage = MutableStateFlow(quickActionAppStore.load(QuickActionAppStore.MONEY_SLOT))
 
-    /** The app the money button opens, or null if none is chosen (or it's been uninstalled). */
-    val moneyApp: StateFlow<AppInfo?> =
-        combine(_moneyAppPackage, _installedApps) { packageName, apps ->
-            packageName?.let { wanted -> apps.firstOrNull { it.packageName == wanted } }
-        }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    // The customisable quick-action buttons. Each remembers a chosen app (or none) and can open a
+    // picker to change it; the payments one has no sensible system default, the others fall back to
+    // the device default for their category.
+    private val moneySlot = QuickActionSlot(QuickActionAppStore.MONEY_SLOT, SearchPurpose.PICK_MONEY_APP)
+    private val gallerySlot = QuickActionSlot(QuickActionAppStore.GALLERY_SLOT, SearchPurpose.PICK_GALLERY_APP)
+    private val messagesSlot = QuickActionSlot(QuickActionAppStore.MESSAGES_SLOT, SearchPurpose.PICK_MESSAGES_APP)
 
-    private val _remindersAppPackage = MutableStateFlow(quickActionAppStore.load(QuickActionAppStore.REMINDERS_SLOT))
-
-    /**
-     * The app the reminders button opens, or null if none is chosen (or it's been uninstalled),
-     * in which case the button falls back to the device's default reminders app.
-     */
-    val remindersApp: StateFlow<AppInfo?> =
-        combine(_remindersAppPackage, _installedApps) { packageName, apps ->
-            packageName?.let { wanted -> apps.firstOrNull { it.packageName == wanted } }
-        }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    /** The app the payments button opens, or null if none is chosen (or it's been uninstalled). */
+    val moneyApp: StateFlow<AppInfo?> = moneySlot.app
+    /** The app the gallery button opens, or null to open the device's default gallery. */
+    val galleryApp: StateFlow<AppInfo?> = gallerySlot.app
+    /** The app the messages button opens, or null to open the device's default messaging app. */
+    val messagesApp: StateFlow<AppInfo?> = messagesSlot.app
 
     private val _searchPurpose = MutableStateFlow(SearchPurpose.FIND)
     val searchPurpose: StateFlow<SearchPurpose> = _searchPurpose.asStateFlow()
@@ -467,58 +466,34 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         resyncIfAccessChanged()
     }
 
-    /** Opens search limited to apps, so the user can choose the money button's app. */
-    fun openMoneyAppPicker() {
-        if (_settingsLocked.value) return
-        _isPinPickerOpen.value = false
-        _isSettingsOpen.value = false
-        _searchPurpose.value = SearchPurpose.PICK_MONEY_APP
-        _categoryFilter.value = SearchCategory.APP
-        _isSearchOpen.value = true
-        indexUpdater.flushNow()
-    }
+    /** Opens app-only search so the user can choose the payments button's app. */
+    fun openMoneyAppPicker() = moneySlot.openPicker()
 
-    /** Opens search limited to apps, so the user can choose the reminders button's app. */
-    fun openRemindersAppPicker() {
-        if (_settingsLocked.value) return
-        _isPinPickerOpen.value = false
-        _isSettingsOpen.value = false
-        _searchPurpose.value = SearchPurpose.PICK_REMINDERS_APP
-        _categoryFilter.value = SearchCategory.APP
-        _isSearchOpen.value = true
-        indexUpdater.flushNow()
-    }
+    /** Opens app-only search so the user can choose the gallery button's app. */
+    fun openGalleryAppPicker() = gallerySlot.openPicker()
+
+    /** Opens app-only search so the user can choose the messages button's app. */
+    fun openMessagesAppPicker() = messagesSlot.openPicker()
 
     /** The user chose [entry] while search was open for picking; assigns it and closes search. */
     fun onEntryPicked(entry: SearchEntry) {
-        if (entry is AppInfo) {
-            when (_searchPurpose.value) {
-                SearchPurpose.PICK_MONEY_APP -> {
-                    quickActionAppStore.save(QuickActionAppStore.MONEY_SLOT, entry.packageName)
-                    _moneyAppPackage.value = entry.packageName
-                }
-                SearchPurpose.PICK_REMINDERS_APP -> {
-                    quickActionAppStore.save(QuickActionAppStore.REMINDERS_SLOT, entry.packageName)
-                    _remindersAppPackage.value = entry.packageName
-                }
-                SearchPurpose.FIND -> {}
-            }
+        val slot = when (_searchPurpose.value) {
+            SearchPurpose.PICK_MONEY_APP -> moneySlot
+            SearchPurpose.PICK_GALLERY_APP -> gallerySlot
+            SearchPurpose.PICK_MESSAGES_APP -> messagesSlot
+            SearchPurpose.FIND -> null
         }
+        if (entry is AppInfo) slot?.assign(entry.packageName)
         closeSearch()
     }
 
-    fun clearMoneyApp() {
-        if (_settingsLocked.value) return
-        quickActionAppStore.clear(QuickActionAppStore.MONEY_SLOT)
-        _moneyAppPackage.value = null
-    }
+    fun clearMoneyApp() = moneySlot.clear()
 
-    /** Forgets the chosen reminders app; the button reverts to the device's default. */
-    fun clearRemindersApp() {
-        if (_settingsLocked.value) return
-        quickActionAppStore.clear(QuickActionAppStore.REMINDERS_SLOT)
-        _remindersAppPackage.value = null
-    }
+    /** Forgets the chosen gallery app; the button reverts to the device's default gallery. */
+    fun clearGalleryApp() = gallerySlot.clear()
+
+    /** Forgets the chosen messages app; the button reverts to the device's default messaging app. */
+    fun clearMessagesApp() = messagesSlot.clear()
 
     fun openPinPicker() {
         if (_settingsLocked.value) return
@@ -633,6 +608,44 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     fun setDefaultSearchCategory(category: SearchCategory?) {
         settingsStore.defaultSearchCategory = category
         _defaultSearchCategory.value = category
+    }
+
+    /**
+     * One customisable quick-action button's chosen app: which app is assigned (persisted in
+     * [quickActionAppStore] under [slot]), whether it's currently installed, and opening the app
+     * picker to change it. [purpose] tells [onEntryPicked] which slot a chosen app belongs to.
+     */
+    private inner class QuickActionSlot(private val slot: String, private val purpose: SearchPurpose) {
+        private val chosen = MutableStateFlow(quickActionAppStore.load(slot))
+
+        /** The assigned app while it's installed (tracking install/uninstall); null if none or gone. */
+        val app: StateFlow<AppInfo?> =
+            combine(chosen, _installedApps) { wanted, apps ->
+                wanted?.let { pkg -> apps.firstOrNull { it.packageName == pkg } }
+            }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+        /** Opens app-only search to choose this slot's app; a no-op while settings are locked. */
+        fun openPicker() {
+            if (_settingsLocked.value) return
+            _isPinPickerOpen.value = false
+            _isSettingsOpen.value = false
+            _searchPurpose.value = purpose
+            _categoryFilter.value = SearchCategory.APP
+            _isSearchOpen.value = true
+            indexUpdater.flushNow()
+        }
+
+        fun assign(packageName: String) {
+            quickActionAppStore.save(slot, packageName)
+            chosen.value = packageName
+        }
+
+        /** Forgets the chosen app; a no-op while settings are locked. */
+        fun clear() {
+            if (_settingsLocked.value) return
+            quickActionAppStore.clear(slot)
+            chosen.value = null
+        }
     }
 
     private companion object {

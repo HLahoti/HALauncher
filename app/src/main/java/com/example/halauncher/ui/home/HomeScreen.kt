@@ -26,7 +26,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -107,7 +106,8 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     val hapticIntensity by viewModel.hapticIntensity.collectAsStateWithLifecycle()
     val defaultSearchCategory by viewModel.defaultSearchCategory.collectAsStateWithLifecycle()
     val moneyApp by viewModel.moneyApp.collectAsStateWithLifecycle()
-    val remindersApp by viewModel.remindersApp.collectAsStateWithLifecycle()
+    val galleryApp by viewModel.galleryApp.collectAsStateWithLifecycle()
+    val messagesApp by viewModel.messagesApp.collectAsStateWithLifecycle()
     val searchPurpose by viewModel.searchPurpose.collectAsStateWithLifecycle()
     val moneySymbol = remember { localCurrencySymbol() }
 
@@ -247,40 +247,82 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
             TimeDisplay(time)
             DateDisplay(date)
             Spacer(Modifier.height(HomeScreenConfig.QuickActionsSpacing))
-            // Quick actions in a 2×2 grid: camera, reminders / phone, money. Search opens on swipe up.
+            // Quick actions in a 3×2 grid of universal needs: camera / gallery, calls / messages,
+            // payments / internet. All but payments open the device's default app for that category;
+            // payments has no such default, so its button lets the user choose. Search opens on swipe up.
             Column(
                 // Buttons centre their glyph in a 48dp touch target; shift the grid left by the
                 // padding that creates so the glyphs line up with the text above.
                 modifier = Modifier.offset(x = -(TouchTarget - HomeScreenConfig.QuickActionIconSize) / 2),
                 verticalArrangement = Arrangement.spacedBy(HomeScreenConfig.QuickActionSpacing),
             ) {
-                // Resolving the device's default reminders app queries PackageManager, so do it
-                // once; the reminders button falls back to it when the user hasn't chosen one.
-                val defaultRemindersIntent = remember(context) { IntentFactory.remindersIntent(context) }
                 Row(horizontalArrangement = Arrangement.spacedBy(HomeScreenConfig.QuickActionSpacing)) {
                     QuickActionButton(
                         ImageVector.vectorResource(R.drawable.ic_camera),
                         R.string.open_camera,
                         remember { IntentFactory.cameraIntent() },
                     )
-                    RemindersButton(
-                        app = remindersApp,
-                        defaultIntent = defaultRemindersIntent,
+                    ChosenAppButton(
+                        app = galleryApp,
+                        defaultIntent = remember { IntentFactory.galleryIntent() },
+                        namedDescriptionRes = R.string.gallery_app_named,
+                        defaultDescriptionRes = R.string.gallery_app_default,
+                        defaultOpenLabelRes = R.string.open_gallery,
+                        optionsLabelRes = R.string.gallery_app_options,
+                        chooseLabelRes = R.string.choose_gallery_app,
                         locked = settingsLocked,
-                        onChoose = viewModel::openRemindersAppPicker,
+                        onChoose = viewModel::openGalleryAppPicker,
                         onOpened = viewModel::onEntryOpened,
-                        onRemove = viewModel::clearRemindersApp,
-                    )
+                        onRemove = viewModel::clearGalleryApp,
+                    ) {
+                        QuickActionGlyph(ImageVector.vectorResource(R.drawable.ic_gallery))
+                    }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(HomeScreenConfig.QuickActionSpacing)) {
                     QuickActionButton(Icons.Default.Phone, R.string.open_dialer, remember { IntentFactory.dialerIntent() })
-                    MoneyButton(
-                        symbol = moneySymbol,
+                    ChosenAppButton(
+                        app = messagesApp,
+                        defaultIntent = remember { IntentFactory.messagesIntent() },
+                        namedDescriptionRes = R.string.messages_app_named,
+                        defaultDescriptionRes = R.string.messages_app_default,
+                        defaultOpenLabelRes = R.string.open_messages,
+                        optionsLabelRes = R.string.messages_app_options,
+                        chooseLabelRes = R.string.choose_messages_app,
+                        locked = settingsLocked,
+                        onChoose = viewModel::openMessagesAppPicker,
+                        onOpened = viewModel::onEntryOpened,
+                        onRemove = viewModel::clearMessagesApp,
+                    ) {
+                        QuickActionGlyph(ImageVector.vectorResource(R.drawable.ic_messages))
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(HomeScreenConfig.QuickActionSpacing)) {
+                    ChosenAppButton(
                         app = moneyApp,
+                        // Payments has no sensible system default, so with none chosen the button
+                        // asks the user to pick one instead of opening something.
+                        defaultIntent = null,
+                        namedDescriptionRes = R.string.money_app_named,
+                        defaultDescriptionRes = R.string.money_app_not_set,
+                        defaultOpenLabelRes = R.string.choose_money_app,
+                        optionsLabelRes = R.string.money_app_options,
+                        chooseLabelRes = R.string.choose_money_app,
                         locked = settingsLocked,
                         onChoose = viewModel::openMoneyAppPicker,
                         onOpened = viewModel::onEntryOpened,
                         onRemove = viewModel::clearMoneyApp,
+                    ) {
+                        Text(
+                            text = moneySymbol,
+                            color = ThemeConfig.Foreground,
+                            fontSize = HomeScreenConfig.MoneySymbolFontSize,
+                            fontWeight = FontWeight.Medium,
+                        )
+                    }
+                    QuickActionButton(
+                        ImageVector.vectorResource(R.drawable.ic_internet),
+                        R.string.open_internet,
+                        remember { IntentFactory.internetIntent() },
                     )
                 }
             }
@@ -363,7 +405,8 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
             onDismissFilesPrompt = viewModel::dismissFilesPrompt,
             pickTitle = when (searchPurpose) {
                 SearchPurpose.PICK_MONEY_APP -> stringResource(R.string.pick_money_app_title, moneySymbol)
-                SearchPurpose.PICK_REMINDERS_APP -> stringResource(R.string.pick_reminders_app_title)
+                SearchPurpose.PICK_GALLERY_APP -> stringResource(R.string.pick_gallery_app_title)
+                SearchPurpose.PICK_MESSAGES_APP -> stringResource(R.string.pick_messages_app_title)
                 SearchPurpose.FIND -> null
             },
             onEntryPicked = viewModel::onEntryPicked,
@@ -433,143 +476,56 @@ private fun QuickActionButton(icon: ImageVector, @StringRes labelRes: Int, inten
     ClickToLaunch(element, modifier = Modifier.clip(CircleShape))
 }
 
-/**
- * The money button: a currency symbol that opens the user's chosen payments app. With none
- * chosen yet, tapping asks for one ([onChoose] opens the app picker). Long-press (with a
- * firmer haptic) opens a menu to change or remove it.
- *
- * When [locked] (settings are locked), it only opens the chosen app: no picker, no options menu.
- */
+/** A quick-action grid glyph: [icon] at the standard size and tint, centred in the touch target. */
 @Composable
-private fun MoneyButton(
-    symbol: String,
-    app: AppInfo?,
-    locked: Boolean,
-    onChoose: () -> Unit,
-    onOpened: (AppInfo) -> Unit,
-    onRemove: () -> Unit,
-) {
-    val context = LocalContext.current
-    val haptics = remember(context) { Haptics(context) }
-    var menuOpen by remember { mutableStateOf(false) }
-    val description = if (app != null) {
-        stringResource(R.string.money_app_named, app.name)
-    } else {
-        stringResource(R.string.money_app_not_set)
-    }
-    val openLabel = if (app != null) stringResource(R.string.open_app, app.name) else stringResource(R.string.choose_money_app)
-    val optionsLabel = stringResource(R.string.money_app_options)
-
-    Box {
-        Box(
-            modifier = Modifier
-                .size(TouchTarget)
-                .clip(CircleShape)
-                .combinedClickable(
-                    role = Role.Button,
-                    onClickLabel = openLabel,
-                    // No options menu while settings are locked.
-                    onLongClickLabel = if (locked) null else optionsLabel,
-                    onLongClick = {
-                        if (!locked) {
-                            haptics.longPress()
-                            menuOpen = true
-                        }
-                    },
-                    onClick = {
-                        when {
-                            // Locked: no picker to choose an app; a set app still opens.
-                            app == null -> if (!locked) onChoose()
-                            context.launchSafely(app.link, openLabel) -> onOpened(app)
-                        }
-                    },
-                )
-                .clearAndSetSemantics {
-                    contentDescription = description
-                    role = Role.Button
-                    onClick(openLabel) {
-                        if (app == null) {
-                            if (!locked) onChoose()
-                        } else if (context.launchSafely(app.link, openLabel)) {
-                            onOpened(app)
-                        }
-                        true
-                    }
-                    if (!locked) {
-                        onLongClick(optionsLabel) {
-                            menuOpen = true
-                            true
-                        }
-                    }
-                },
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = symbol,
-                color = ThemeConfig.Foreground,
-                fontSize = HomeScreenConfig.MoneySymbolFontSize,
-                fontWeight = FontWeight.Medium,
-            )
-        }
-        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-            if (app != null) {
-                // Which app it opens now, as a non-interactive first line.
-                DropdownMenuItem(text = { Text(app.name) }, onClick = {}, enabled = false)
-            }
-            DropdownMenuItem(
-                text = { Text(stringResource(if (app != null) R.string.change_app else R.string.choose_money_app)) },
-                onClick = {
-                    menuOpen = false
-                    onChoose()
-                },
-            )
-            if (app != null) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.remove)) },
-                    onClick = {
-                        menuOpen = false
-                        onRemove()
-                    },
-                )
-            }
-        }
-    }
+private fun QuickActionGlyph(icon: ImageVector) {
+    Icon(
+        imageVector = icon,
+        // The button's own click label already says what it does.
+        contentDescription = null,
+        tint = ThemeConfig.Foreground,
+        modifier = Modifier.size(HomeScreenConfig.QuickActionIconSize),
+    )
 }
 
 /**
- * The reminders button: opens the user's chosen reminders / to-do app. With none chosen it opens
- * the device's default reminders app ([defaultIntent]). Long-press (with a firmer haptic) opens a
- * menu to choose, change, or clear the choice.
+ * A quick-action button whose app the user can choose (payments, gallery, messages). Tapping opens
+ * the chosen app; with none chosen it opens [defaultIntent], or — when there's no sensible default
+ * (payments), so [defaultIntent] is null — asks the user to choose one. Long-press (firmer haptic)
+ * opens a menu to choose, change or remove the app. While [locked], it only opens: no menu, and no
+ * choosing when none is set.
  *
- * When [locked] (settings are locked), it still opens its app (or the default), but the options
- * menu no longer appears.
+ * The description, labels and menu wording come from the given string resources; [glyph] draws the
+ * button's face (an icon, or the currency symbol for payments).
  */
 @Composable
-private fun RemindersButton(
+private fun ChosenAppButton(
     app: AppInfo?,
-    defaultIntent: Intent,
+    defaultIntent: Intent?,
+    @StringRes namedDescriptionRes: Int,
+    @StringRes defaultDescriptionRes: Int,
+    @StringRes defaultOpenLabelRes: Int,
+    @StringRes optionsLabelRes: Int,
+    @StringRes chooseLabelRes: Int,
     locked: Boolean,
     onChoose: () -> Unit,
     onOpened: (AppInfo) -> Unit,
     onRemove: () -> Unit,
+    glyph: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
     val haptics = remember(context) { Haptics(context) }
     var menuOpen by remember { mutableStateOf(false) }
-    val description = if (app != null) {
-        stringResource(R.string.reminders_app_named, app.name)
-    } else {
-        stringResource(R.string.reminders_app_default)
-    }
-    val openLabel = if (app != null) stringResource(R.string.open_app, app.name) else stringResource(R.string.open_reminders)
-    val optionsLabel = stringResource(R.string.reminders_app_options)
+    val description = if (app != null) stringResource(namedDescriptionRes, app.name) else stringResource(defaultDescriptionRes)
+    val openLabel = if (app != null) stringResource(R.string.open_app, app.name) else stringResource(defaultOpenLabelRes)
+    val optionsLabel = stringResource(optionsLabelRes)
 
-    // Opens the chosen app (recording it), or the device default when none is chosen.
+    // Opens the chosen app (recording it), else the default, else — with no default — asks to choose.
     val open = {
-        if (app != null) {
-            if (context.launchSafely(app.link, openLabel)) onOpened(app)
-        } else {
-            context.launchSafely(defaultIntent, openLabel)
+        when {
+            app != null -> if (context.launchSafely(app.link, openLabel)) onOpened(app)
+            defaultIntent != null -> context.launchSafely(defaultIntent, openLabel)
+            !locked -> onChoose()
         }
     }
 
@@ -607,13 +563,7 @@ private fun RemindersButton(
                 },
             contentAlignment = Alignment.Center,
         ) {
-            Icon(
-                imageVector = Icons.Default.Check,
-                // The click label already says what it does.
-                contentDescription = null,
-                tint = ThemeConfig.Foreground,
-                modifier = Modifier.size(HomeScreenConfig.QuickActionIconSize),
-            )
+            glyph()
         }
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
             if (app != null) {
@@ -621,7 +571,7 @@ private fun RemindersButton(
                 DropdownMenuItem(text = { Text(app.name) }, onClick = {}, enabled = false)
             }
             DropdownMenuItem(
-                text = { Text(stringResource(if (app != null) R.string.change_app else R.string.choose_reminders_app)) },
+                text = { Text(stringResource(if (app != null) R.string.change_app else chooseLabelRes)) },
                 onClick = {
                     menuOpen = false
                     onChoose()
