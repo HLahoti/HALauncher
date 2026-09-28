@@ -144,6 +144,16 @@ class SearchEngine(
     }
 
     /**
+     * Every entry of [category] (all of them when null), A–Z, leaving out [excludeIds] (what the
+     * frequent layer already showed). Unlike [deepSearch] it ignores the query and lists the whole
+     * set, for showing everything on a blank query — e.g. browsing the Apps category, where the
+     * user wants to see all their apps alphabetically after their recent ones.
+     */
+    @WorkerThread
+    fun listAll(category: SearchCategory?, excludeIds: Set<String>): List<SearchEntry> =
+        index.all(category, SearchLayersConfig.DISK_CANDIDATE_LIMIT).filter { it.id !in excludeIds }
+
+    /**
      * Remembers that the user opened [entry], for the next [buildFrequentLayer] and ranking. Also
      * prunes expired history, when a prune is due.
      */

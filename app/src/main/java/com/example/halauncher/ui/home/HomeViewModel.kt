@@ -251,7 +251,12 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             val cursor = frequentCursor?.takeIf { it.trie === input.layer }
                 ?: input.layer.cursor().also { frequentCursor = it }
             val frequent = searchEngine.quickSearch(cursor, input.query, input.category)
-            if (input.query.isBlank()) {
+            val blank = input.query.isBlank()
+            // With nothing typed the disk layer normally stays out of it (only recents show). But
+            // with the Apps category selected, list every app after the recents, so someone who
+            // just wants to browse all their apps can.
+            val listAll = blank && input.category == SearchCategory.APP
+            if (blank && !listAll) {
                 emit(SearchResults(frequent = frequent))
                 return@transformLatest
             }
@@ -260,8 +265,15 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             val shownIds = frequent.mapTo(mutableSetOf()) { it.id }
             val more = withContext(Dispatchers.IO) {
                 val started = SystemClock.elapsedRealtime()
-                searchEngine.deepSearch(input.query, input.category, excludeIds = shownIds).also {
-                    Log.d(PERF_TAG, "deepSearch '${input.query}' ${input.category}: ${it.size} in ${SystemClock.elapsedRealtime() - started} ms")
+                // A blank query has nothing to rank against, so list everything A–Z instead.
+                if (blank) {
+                    searchEngine.listAll(input.category, excludeIds = shownIds).also {
+                        Log.d(PERF_TAG, "listAll ${input.category}: ${it.size} in ${SystemClock.elapsedRealtime() - started} ms")
+                    }
+                } else {
+                    searchEngine.deepSearch(input.query, input.category, excludeIds = shownIds).also {
+                        Log.d(PERF_TAG, "deepSearch '${input.query}' ${input.category}: ${it.size} in ${SystemClock.elapsedRealtime() - started} ms")
+                    }
                 }
             }
             emit(SearchResults(frequent = frequent, more = more))
