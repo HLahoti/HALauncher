@@ -92,9 +92,13 @@ fun SearchOverlay(
     reveal: SearchRevealState? = null,
     pickTitle: String? = null,
     onEntryPicked: (SearchEntry) -> Unit = {},
+    calcResult: String? = null,
+    onCalcResultSelected: (String) -> Unit = {},
 ) {
     // When picking (e.g. an app for the money button), results are chosen, not opened.
     val isPicking = pickTitle != null
+    // Calculator answers only make sense while finding, not while choosing an app for a button.
+    val activeCalcResult = calcResult.takeIf { !isPicking }
     val context = LocalContext.current
     val resources = LocalResources.current
     val focusRequester = remember { FocusRequester() }
@@ -221,8 +225,13 @@ fun SearchOverlay(
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
                 keyboardActions = KeyboardActions(
-                    // Go acts on the top result, the same as tapping it.
+                    // Go acts on the top result, the same as tapping it. The calc answer, when
+                    // it's there, sits above everything else, so Go copies it to the clipboard.
                     onGo = {
+                        activeCalcResult?.let {
+                            onCalcResultSelected(it)
+                            return@KeyboardActions
+                        }
                         val entry = results.firstOrNull() ?: return@KeyboardActions
                         when {
                             isPicking -> onEntryPicked(entry)
@@ -258,6 +267,11 @@ fun SearchOverlay(
                 }
             }
             LazyColumn(state = listState, modifier = Modifier.fillMaxWidth()) {
+                if (activeCalcResult != null) {
+                    item(key = CALC_RESULT_KEY) {
+                        CalcResultRow(query = query, result = activeCalcResult, onCopy = onCalcResultSelected)
+                    }
+                }
                 items(results.frequent, key = { it.id }) { entry ->
                     EntryRow(entry = entry, isPicking = isPicking, onOpened = onEntryOpened, onPicked = onEntryPicked)
                 }
@@ -267,7 +281,7 @@ fun SearchOverlay(
                 items(results.more, key = { it.id }) { entry ->
                     EntryRow(entry = entry, isPicking = isPicking, onOpened = onEntryOpened, onPicked = onEntryPicked)
                 }
-                if (results.isEmpty && !results.isSearchingDisk && query.isNotBlank()) {
+                if (results.isEmpty && activeCalcResult == null && !results.isSearchingDisk && query.isNotBlank()) {
                     item(key = NO_RESULTS_KEY) { SectionLabel(stringResource(R.string.no_results)) }
                 }
             }
@@ -305,6 +319,7 @@ private class SearchDismissScroll(private val reveal: SearchRevealState) : Neste
 /** List keys that can't collide with entry ids (which all contain a ':'). */
 private const val MORE_RESULTS_KEY = "section-more"
 private const val NO_RESULTS_KEY = "section-none"
+private const val CALC_RESULT_KEY = "section-calc"
 
 @Composable
 private fun SectionLabel(text: String) {
@@ -423,6 +438,54 @@ private fun EntryRowContent(entry: SearchEntry) {
                     overflow = TextOverflow.MiddleEllipsis,
                 )
             }
+        }
+    }
+}
+
+/**
+ * The row for a calculator answer. Tapping it (or pressing Go while it's at the top) copies the
+ * [result] to the clipboard. The input [query] is shown on the secondary line so there's no doubt
+ * which expression produced the number.
+ */
+@Composable
+private fun CalcResultRow(query: String, result: String, onCopy: (String) -> Unit) {
+    val label = stringResource(R.string.copy_calc_result, result)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClickLabel = label) { onCopy(result) }
+            .padding(SearchConfig.ResultRowPadding),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(SearchConfig.ResultIconTextGap),
+    ) {
+        Box(
+            modifier = Modifier.size(SearchConfig.ResultIconSize),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = "=",
+                color = ThemeConfig.Foreground,
+                style = MaterialTheme.typography.headlineSmall,
+            )
+        }
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(SearchConfig.ResultDetailGap),
+        ) {
+            Text(
+                text = result,
+                color = ThemeConfig.Foreground,
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = query,
+                color = ThemeConfig.Foreground.copy(alpha = SearchConfig.RESULT_DETAIL_ALPHA),
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.MiddleEllipsis,
+            )
         }
     }
 }

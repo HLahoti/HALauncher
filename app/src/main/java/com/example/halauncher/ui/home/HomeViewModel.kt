@@ -2,6 +2,8 @@ package com.example.halauncher.ui.home
 
 import android.app.Application
 import android.content.BroadcastReceiver
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -36,6 +38,7 @@ import com.example.halauncher.search.index.SearchIndex
 import com.example.halauncher.search.ranking.ContextMatchRanker
 import com.example.halauncher.search.sync.IndexUpdater
 import com.example.halauncher.service.DefaultHome
+import com.example.halauncher.util.Calculator
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -56,6 +59,7 @@ import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.updateAndGet
@@ -317,6 +321,15 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     )
 
     /**
+     * The query parsed as an arithmetic expression ("5+3" → "8"), or null when the query doesn't
+     * look like one or doesn't evaluate. Shown at the top of search results while picking is off;
+     * selecting it copies the result to the clipboard.
+     */
+    val calcResult: StateFlow<String?> =
+        _searchQuery.map(Calculator::evaluate).distinctUntilChanged()
+            .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    /**
      * The time, read when the screen starts showing it and then only on the system's minute
      * tick (ACTION_TIME_TICK, sent as each minute starts), or when the clock, time zone or
      * 12/24-hour setting is changed. Nothing runs between minutes.
@@ -492,6 +505,16 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun onSearchQueryChanged(query: String) {
         _searchQuery.value = query
+    }
+
+    /**
+     * Copies a calculator result to the system clipboard, labelled with the query it came from so
+     * the clipboard's own history (Android 13+) can show both the expression and the number.
+     */
+    fun copyCalcResult(result: String) {
+        val clipboard = ContextCompat.getSystemService(getApplication(), ClipboardManager::class.java)
+            ?: return
+        clipboard.setPrimaryClip(ClipData.newPlainText(_searchQuery.value, result))
     }
 
     fun openSearch() {

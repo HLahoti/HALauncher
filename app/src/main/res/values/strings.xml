@@ -34,6 +34,8 @@
     <string name="category_file">File</string>
     <string name="more_results">More results</string>
     <string name="no_results">No results</string>
+    <string name="copy_calc_result">Copy %1$s to clipboard</string>
+    <string name="calc_result_copied">Copied %1$s</string>
     <string name="allow_file_search">Search your files too</string>
     <string name="allow_file_search_action">Allow</string>
     <string name="dismiss">Dismiss</string>

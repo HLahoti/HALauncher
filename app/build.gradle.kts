@@ -65,6 +65,8 @@ dependencies {
     implementation(libs.compose.foundation)
     implementation(libs.compose.material3)
     implementation(libs.compose.material.icons.core)
+    // Evaluates expressions typed into search so results can include a calculator answer.
+    implementation(libs.exp4j)
     // Installs the baseline profile (src/release/generated/baselineProfiles) when sideloaded,
     // so startup and first interactions run precompiled code instead of interpreted code.
     implementation(libs.profileinstaller)

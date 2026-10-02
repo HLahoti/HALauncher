@@ -2,6 +2,8 @@ package com.example.halauncher.ui.home
 
 import android.Manifest
 import android.content.Intent
+import android.os.Build
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -113,6 +115,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     val galleryApp by viewModel.galleryApp.collectAsStateWithLifecycle()
     val messagesApp by viewModel.messagesApp.collectAsStateWithLifecycle()
     val searchPurpose by viewModel.searchPurpose.collectAsStateWithLifecycle()
+    val calcResult by viewModel.calcResult.collectAsStateWithLifecycle()
     val moneySymbol = remember { localCurrencySymbol() }
 
     val contactsPermission = rememberLauncherForActivityResult(
@@ -430,6 +433,20 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 SearchPurpose.FIND -> null
             },
             onEntryPicked = viewModel::onEntryPicked,
+            calcResult = calcResult,
+            onCalcResultSelected = { result ->
+                viewModel.copyCalcResult(result)
+                // Android 13+ shows its own clipboard confirmation, so a toast would stack on
+                // top of it. On older versions nothing is shown by the system, so this covers
+                // the gap.
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.calc_result_copied, result),
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }
+            },
         )
     }
 }
