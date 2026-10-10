@@ -42,6 +42,7 @@ import com.example.halauncher.config.PinPickerConfig
 import com.example.halauncher.config.SearchConfig
 import com.example.halauncher.config.SettingsPanelConfig
 import com.example.halauncher.config.ThemeConfig
+import com.example.halauncher.model.AccessState
 import com.example.halauncher.ui.components.liquidGlass
 
 /**
@@ -53,11 +54,16 @@ import com.example.halauncher.ui.components.liquidGlass
  * screen, a titled header, one card per item, and a Done button at the end. Each card shows whether
  * that item is already set up (a check and "Enabled") or offers a button to set it up now; because
  * the status is re-read every time the launcher resumes, an item granted in a system screen flips to
- * "Enabled" as soon as the user comes back.
+ * "Enabled" as soon as the user comes back. A permission the user turned down says so in a small
+ * warning box on its card, and its button turns it back on (via system Settings if Android no
+ * longer shows the dialog).
+ *
+ * On the first run it's step 1 of 2, ahead of the how-to guide, so its button reads "Next".
  *
  * @param isDefaultHome whether HALauncher is already the device's default home app.
- * @param hasContactsAccess whether the contacts permission is granted.
- * @param hasFilesAccess whether file access is granted.
+ * @param contactsAccess where the contacts permission stands.
+ * @param filesAccess where file access stands.
+ * @param isOnboarding whether this is the first-run walkthrough, with the how-to guide to follow.
  * @param onSetDefaultHome opens the system prompt to make HALauncher the default home app.
  * @param onGrantContacts asks for the contacts permission.
  * @param onGrantFiles asks for file access.
@@ -66,8 +72,9 @@ import com.example.halauncher.ui.components.liquidGlass
 @Composable
 fun SetupScreen(
     isDefaultHome: Boolean,
-    hasContactsAccess: Boolean,
-    hasFilesAccess: Boolean,
+    contactsAccess: AccessState,
+    filesAccess: AccessState,
+    isOnboarding: Boolean,
     onSetDefaultHome: () -> Unit,
     onGrantContacts: () -> Unit,
     onGrantFiles: () -> Unit,
@@ -88,21 +95,10 @@ fun SetupScreen(
                 .padding(bottom = SearchConfig.BottomSpacing),
         ) {
             Spacer(Modifier.height(SearchConfig.TopSpacing))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .liquidGlass(RoundedCornerShape(percent = 50), tint = SearchConfig.FIELD_GLASS_TINT)
-                    .padding(start = PinPickerConfig.HeaderStartPadding, top = SettingsPanelConfig.CardPadding, bottom = SettingsPanelConfig.CardPadding),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = stringResource(R.string.setup_title),
-                    color = ThemeConfig.Foreground,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f).semantics { heading() },
-                )
-            }
+            GlassPageHeader(
+                title = stringResource(R.string.setup_title),
+                step = if (isOnboarding) stringResource(R.string.onboarding_step, 1, ONBOARDING_STEPS) else null,
+            )
             Spacer(Modifier.height(SearchConfig.ResultsSpacing))
             Column(
                 modifier = Modifier
@@ -123,32 +119,59 @@ fun SetupScreen(
                     actionLabel = stringResource(R.string.setup_action_set_default),
                     onAction = onSetDefaultHome,
                 )
-                SetupItem(
+                PermissionItem(
                     title = stringResource(R.string.setup_contacts_title),
                     description = stringResource(R.string.setup_contacts_desc),
-                    granted = hasContactsAccess,
-                    actionLabel = stringResource(R.string.setup_action_allow),
+                    deniedMessage = stringResource(R.string.setup_contacts_denied),
+                    access = contactsAccess,
                     onAction = onGrantContacts,
                 )
-                SetupItem(
+                PermissionItem(
                     title = stringResource(R.string.setup_files_title),
                     description = stringResource(R.string.setup_files_desc),
-                    granted = hasFilesAccess,
-                    actionLabel = stringResource(R.string.setup_action_allow),
+                    deniedMessage = stringResource(R.string.setup_files_denied),
+                    access = filesAccess,
                     onAction = onGrantFiles,
                 )
-                // The Done button sits at the end of the page; setup can be finished at any point,
-                // whether or not everything was granted.
-                DoneButton(onDone)
+                // The button sits at the end of the page; setup can be finished at any point,
+                // whether or not everything was granted. On the first run it leads on to the guide.
+                GlassPageButton(
+                    label = stringResource(if (isOnboarding) R.string.next else R.string.done),
+                    onClick = onDone,
+                )
             }
         }
     }
 }
 
 /**
+ * A [SetupItem] for a permission: "Allow" until it's been asked for; once turned down, a warning
+ * box with [deniedMessage] and a "Turn on" button.
+ */
+@Composable
+private fun PermissionItem(
+    title: String,
+    description: String,
+    deniedMessage: String,
+    access: AccessState,
+    onAction: () -> Unit,
+) {
+    val denied = access == AccessState.DENIED
+    SetupItem(
+        title = title,
+        description = description,
+        granted = access.isGranted,
+        actionLabel = stringResource(if (denied) R.string.setup_action_turn_on else R.string.setup_action_allow),
+        onAction = onAction,
+        warning = deniedMessage.takeIf { denied },
+    )
+}
+
+/**
  * One setup item: a title, an explanation, and — depending on whether it's already set up — either a
  * check with "Enabled", or a glass button that starts the request. When granted the whole card is
- * inert; otherwise the whole card is the button, so it's an easy target.
+ * inert; otherwise the whole card is the button, so it's an easy target. A [warning] (e.g. that the
+ * permission was denied) shows in a small box under the explanation.
  */
 @Composable
 private fun SetupItem(
@@ -157,8 +180,10 @@ private fun SetupItem(
     granted: Boolean,
     actionLabel: String,
     onAction: () -> Unit,
+    warning: String? = null,
 ) {
     val enabledLabel = stringResource(R.string.setup_enabled)
+    val deniedLabel = stringResource(R.string.setup_denied)
     val cardModifier = Modifier
         .fillMaxWidth()
         .liquidGlass(RoundedCornerShape(SettingsPanelConfig.CardCornerRadius), tint = SettingsPanelConfig.GlassTint)
@@ -167,8 +192,12 @@ private fun SetupItem(
     Row(
         modifier = cardModifier.semantics {
             // Read the whole card as one item: its title, and whether it's done or still tappable.
-            contentDescription = title
-            stateDescription = if (granted) enabledLabel else actionLabel
+            contentDescription = if (warning != null) "$title. $warning" else title
+            stateDescription = when {
+                granted -> enabledLabel
+                warning != null -> deniedLabel
+                else -> actionLabel
+            }
             if (!granted) role = Role.Button
         },
         verticalAlignment = Alignment.CenterVertically,
@@ -189,6 +218,9 @@ private fun SetupItem(
                 color = ThemeConfig.Foreground.copy(alpha = SettingsPanelConfig.DESCRIPTION_ALPHA),
                 style = MaterialTheme.typography.bodyMedium,
             )
+            if (warning != null && !granted) {
+                InlineWarning(text = warning, modifier = Modifier.padding(top = SettingsPanelConfig.TitleDescriptionGap))
+            }
         }
         if (granted) {
             Row(
@@ -228,15 +260,49 @@ private fun SetupItem(
     }
 }
 
-/** A full-width glass button ending setup; tapping it returns to the home screen. */
+/**
+ * The glass pill heading a full-screen page (setup, the how-to guide): its [title], and on the first
+ * run which [step] of the walkthrough this is.
+ */
 @Composable
-private fun DoneButton(onDone: () -> Unit) {
-    val label = stringResource(R.string.done)
+internal fun GlassPageHeader(title: String, step: String? = null) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .liquidGlass(RoundedCornerShape(percent = 50), tint = SearchConfig.FIELD_GLASS_TINT)
+            .padding(
+                start = PinPickerConfig.HeaderStartPadding,
+                end = PinPickerConfig.HeaderStartPadding,
+                top = SettingsPanelConfig.CardPadding,
+                bottom = SettingsPanelConfig.CardPadding,
+            ),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = title,
+            color = ThemeConfig.Foreground,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.weight(1f).semantics { heading() },
+        )
+        if (step != null) {
+            Text(
+                text = step,
+                color = ThemeConfig.Foreground.copy(alpha = SettingsPanelConfig.DESCRIPTION_ALPHA),
+                style = MaterialTheme.typography.labelLarge,
+            )
+        }
+    }
+}
+
+/** A full-width glass button ending a page (setup, the how-to guide). */
+@Composable
+internal fun GlassPageButton(label: String, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .liquidGlass(RoundedCornerShape(percent = 50), tint = SettingsPanelConfig.GlassTint)
-            .clickable(onClickLabel = label, onClick = onDone)
+            .clickable(onClickLabel = label, onClick = onClick)
             .padding(SettingsPanelConfig.CardPadding),
         contentAlignment = Alignment.Center,
     ) {
@@ -248,6 +314,9 @@ private fun DoneButton(onDone: () -> Unit) {
         )
     }
 }
+
+/** Pages in the first-run walkthrough: setup, then the how-to guide. */
+internal const val ONBOARDING_STEPS = 2
 
 /** Size of the "Enabled" check icon. */
 private val SetupCheckSize = 20.dp

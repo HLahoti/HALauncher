@@ -54,6 +54,7 @@ import com.example.halauncher.config.PinPickerConfig
 import com.example.halauncher.config.SearchConfig
 import com.example.halauncher.config.SettingsPanelConfig
 import com.example.halauncher.config.ThemeConfig
+import com.example.halauncher.model.AccessState
 import com.example.halauncher.model.SearchCategory
 import com.example.halauncher.service.DeviceLock
 import com.example.halauncher.ui.components.labelRes
@@ -78,6 +79,8 @@ import kotlin.math.roundToInt
  * @param onDefaultSearchCategoryChange saves the category search opens on (null for "All").
  * @param onHowToUse opens the "How to use this app" guide; stays available even while settings are locked.
  * @param onOpenSetup opens the "Set-up & permissions" screen; stays available even while settings are locked.
+ * @param contactsAccess where the contacts permission stands; the set-up row warns while it's off.
+ * @param filesAccess where file access stands; the set-up row warns while it's off.
  */
 @Composable
 fun SettingsPanel(
@@ -93,6 +96,8 @@ fun SettingsPanel(
     onDefaultSearchCategoryChange: (SearchCategory?) -> Unit,
     onHowToUse: () -> Unit,
     onOpenSetup: () -> Unit,
+    contactsAccess: AccessState,
+    filesAccess: AccessState,
     onDone: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -222,6 +227,12 @@ fun SettingsPanel(
                     title = stringResource(R.string.setting_setup_title),
                     description = stringResource(R.string.setting_setup_description),
                     onClick = onOpenSetup,
+                    warning = when {
+                        !contactsAccess.isGranted && !filesAccess.isGranted -> stringResource(R.string.setup_warning_both)
+                        !contactsAccess.isGranted -> stringResource(R.string.setup_warning_contacts)
+                        !filesAccess.isGranted -> stringResource(R.string.setup_warning_files)
+                        else -> null
+                    },
                 )
                 SettingAction(
                     title = stringResource(R.string.setting_how_to_title),
@@ -233,12 +244,16 @@ fun SettingsPanel(
     }
 }
 
-/** A glass card that just does something when tapped (no state), e.g. opening the how-to guide. */
+/**
+ * A glass card that just does something when tapped (no state), e.g. opening the how-to guide. A
+ * [warning] (e.g. a permission that's off) shows in a small box under the description.
+ */
 @Composable
 private fun SettingAction(
     title: String,
     description: String,
     onClick: () -> Unit,
+    warning: String? = null,
 ) {
     Column(
         modifier = Modifier
@@ -259,6 +274,9 @@ private fun SettingAction(
             color = ThemeConfig.Foreground.copy(alpha = SettingsPanelConfig.DESCRIPTION_ALPHA),
             style = MaterialTheme.typography.bodyMedium,
         )
+        if (warning != null) {
+            InlineWarning(text = warning, modifier = Modifier.padding(top = SettingsPanelConfig.TitleDescriptionGap))
+        }
     }
 }
 

@@ -1,12 +1,9 @@
 package com.example.halauncher.ui.home
 
-import android.Manifest
 import android.content.Intent
 import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
@@ -95,7 +92,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     val results by viewModel.searchResults.collectAsStateWithLifecycle()
     val searchCategories by viewModel.availableCategories.collectAsStateWithLifecycle()
     val categoryFilter by viewModel.categoryFilter.collectAsStateWithLifecycle()
-    val showFilesPrompt by viewModel.showFilesPrompt.collectAsStateWithLifecycle()
+    val showPermissionsPrompt by viewModel.showPermissionsPrompt.collectAsStateWithLifecycle()
     val installedApps by viewModel.installedApps.collectAsStateWithLifecycle()
     val pinnedApps by viewModel.pinnedApps.collectAsStateWithLifecycle()
     val pinnedPackages by viewModel.pinnedPackages.collectAsStateWithLifecycle()
@@ -104,8 +101,9 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     val isHowToOpen by viewModel.isHowToOpen.collectAsStateWithLifecycle()
     val isSetupOpen by viewModel.isSetupOpen.collectAsStateWithLifecycle()
     val isDefaultHome by viewModel.isDefaultHome.collectAsStateWithLifecycle()
-    val hasContactsAccess by viewModel.hasContactsAccess.collectAsStateWithLifecycle()
-    val hasFilesAccess by viewModel.hasFilesAccess.collectAsStateWithLifecycle()
+    val isOnboarding by viewModel.isOnboarding.collectAsStateWithLifecycle()
+    val contactsAccess by viewModel.contactsAccess.collectAsStateWithLifecycle()
+    val filesAccess by viewModel.filesAccess.collectAsStateWithLifecycle()
     val settingsLocked by viewModel.settingsLocked.collectAsStateWithLifecycle()
     val doubleTapToLock by viewModel.doubleTapToLock.collectAsStateWithLifecycle()
     val reduceIndexSize by viewModel.reduceIndexSize.collectAsStateWithLifecycle()
@@ -118,9 +116,10 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     val calcResult by viewModel.calcResult.collectAsStateWithLifecycle()
     val moneySymbol = remember { localCurrencySymbol() }
 
-    val contactsPermission = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { viewModel.onContactsPermissionResult() }
+    val requestContactsAccess = rememberContactsAccessRequest(
+        requestedBefore = viewModel::hasRequestedContacts,
+        onResult = viewModel::onContactsPermissionResult,
+    )
     val context = LocalContext.current
     val searchReveal = rememberSearchRevealState(
         isOpen = { viewModel.isSearchOpen.value },
@@ -135,7 +134,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     val searchSettledOpen = isSearchOpen && searchFullyIn
     LaunchedEffect(searchSettledOpen) {
         if (searchSettledOpen && viewModel.shouldRequestContactsPermission()) {
-            contactsPermission.launch(Manifest.permission.READ_CONTACTS)
+            requestContactsAccess()
         }
     }
 
@@ -144,7 +143,11 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
         viewModel.onResume()
         onPauseOrDispose { }
     }
-    val requestFilesAccess = rememberFilesAccessRequest(onResult = viewModel::onResume)
+    val requestFilesAccess = rememberFilesAccessRequest(
+        requestedBefore = viewModel::hasRequestedFiles,
+        onRequested = viewModel::onFilesAccessRequested,
+        onResult = viewModel::onResume,
+    )
     val requestDefaultHome = rememberDefaultHomeRequest(onResult = viewModel::onResume)
 
     BackHandler(enabled = isSearchOpen) { viewModel.closeSearch() }
@@ -377,21 +380,24 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 onDefaultSearchCategoryChange = viewModel::setDefaultSearchCategory,
                 onHowToUse = viewModel::openHowTo,
                 onOpenSetup = viewModel::openSetup,
+                contactsAccess = contactsAccess,
+                filesAccess = filesAccess,
                 onDone = viewModel::closeSettings,
             )
         }
 
         AnimatedVisibility(visible = isHowToOpen, enter = fadeIn(), exit = fadeOut()) {
-            HowToUse(onDone = viewModel::resetHome)
+            HowToUse(isOnboarding = isOnboarding, onDone = viewModel::resetHome)
         }
 
         AnimatedVisibility(visible = isSetupOpen, enter = fadeIn(), exit = fadeOut()) {
             SetupScreen(
                 isDefaultHome = isDefaultHome,
-                hasContactsAccess = hasContactsAccess,
-                hasFilesAccess = hasFilesAccess,
+                contactsAccess = contactsAccess,
+                filesAccess = filesAccess,
+                isOnboarding = isOnboarding,
                 onSetDefaultHome = requestDefaultHome,
-                onGrantContacts = { contactsPermission.launch(Manifest.permission.READ_CONTACTS) },
+                onGrantContacts = requestContactsAccess,
                 onGrantFiles = requestFilesAccess,
                 onDone = viewModel::finishSetup,
             )
@@ -420,12 +426,9 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
             results = results,
             categories = searchCategories,
             categoryFilter = categoryFilter,
-            showFilesPrompt = showFilesPrompt,
             onQueryChange = viewModel::onSearchQueryChanged,
             onCategoryFilterChange = viewModel::onCategoryFilterChanged,
             onEntryOpened = viewModel::onEntryOpened,
-            onRequestFilesAccess = requestFilesAccess,
-            onDismissFilesPrompt = viewModel::dismissFilesPrompt,
             pickTitle = when (searchPurpose) {
                 SearchPurpose.PICK_MONEY_APP -> stringResource(R.string.pick_money_app_title, moneySymbol)
                 SearchPurpose.PICK_GALLERY_APP -> stringResource(R.string.pick_gallery_app_title)
@@ -447,6 +450,15 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                     ).show()
                 }
             },
+            permissions = SearchPermissions(
+                contacts = contactsAccess,
+                files = filesAccess,
+                showSummary = showPermissionsPrompt,
+                onRequestContacts = requestContactsAccess,
+                onRequestFiles = requestFilesAccess,
+                onReview = viewModel::openSetup,
+                onDismissSummary = viewModel::dismissPermissionsPrompt,
+            ),
         )
     }
 }

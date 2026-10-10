@@ -23,6 +23,7 @@ import com.example.halauncher.data.FileSearchProvider
 import com.example.halauncher.data.LauncherSettingsStore
 import com.example.halauncher.data.PinnedAppsStore
 import com.example.halauncher.data.QuickActionAppStore
+import com.example.halauncher.model.AccessState
 import com.example.halauncher.model.AppInfo
 import com.example.halauncher.model.SearchCategory
 import com.example.halauncher.model.SearchEntry
@@ -183,17 +184,25 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
      */
     val isSetupOpen: StateFlow<Boolean> = _isSetupOpen.asStateFlow()
 
+    private val _isOnboarding = MutableStateFlow(!settingsStore.setupSeen && !settingsStore.onboardingSeen)
+    /**
+     * Whether the first-run walkthrough is under way: setup, then the how-to guide. While it is, the
+     * two pages are labelled as steps and setup's button reads "Next" rather than "Done". Ends once
+     * the guide is closed; reopening either page from settings doesn't start it again.
+     */
+    val isOnboarding: StateFlow<Boolean> = _isOnboarding.asStateFlow()
+
     private val _isDefaultHome = MutableStateFlow(DefaultHome.isDefault(application))
     /** Whether HALauncher is the device's default home app; re-read on resume, shown in setup. */
     val isDefaultHome: StateFlow<Boolean> = _isDefaultHome.asStateFlow()
 
-    private val _hasContactsAccess = MutableStateFlow(contactProvider.hasPermission())
-    /** Whether the contacts permission is granted; re-read on resume, shown in setup. */
-    val hasContactsAccess: StateFlow<Boolean> = _hasContactsAccess.asStateFlow()
+    private val _contactsAccess = MutableStateFlow(contactsAccessState())
+    /** Whether contacts can be read, or were never asked for, or were turned down; re-read on resume. */
+    val contactsAccess: StateFlow<AccessState> = _contactsAccess.asStateFlow()
 
-    private val _hasFilesAccess = MutableStateFlow(fileProvider.hasAccess())
-    /** Whether file access is granted; re-read on resume, shown in setup. */
-    val hasFilesAccess: StateFlow<Boolean> = _hasFilesAccess.asStateFlow()
+    private val _filesAccess = MutableStateFlow(filesAccessState())
+    /** Whether files can be read, or access was never asked for, or was turned down; re-read on resume. */
+    val filesAccess: StateFlow<AccessState> = _filesAccess.asStateFlow()
 
     private val _settingsLocked = MutableStateFlow(settingsStore.settingsLocked)
     /**
@@ -254,13 +263,24 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     /** The category search is limited to, or null for all of them. */
     val categoryFilter: StateFlow<SearchCategory?> = _categoryFilter.asStateFlow()
 
+    /** Categories with at least one indexed entry, as of the last index update. */
+    @Volatile
+    private var indexedCategories: List<SearchCategory> = emptyList()
+
     private val _availableCategories = MutableStateFlow<List<SearchCategory>>(emptyList())
-    /** Categories that have at least one indexed entry, in declaration order; the filter offers only these. */
+    /**
+     * The categories the filter offers, in declaration order: those with at least one indexed entry,
+     * plus any whose permission is missing, so its tab is still there to say why it's empty.
+     */
     val availableCategories: StateFlow<List<SearchCategory>> = _availableCategories.asStateFlow()
 
-    private val _showFilesPrompt = MutableStateFlow(false)
-    /** Whether search should offer to enable file search (no access yet, and not dismissed). */
-    val showFilesPrompt: StateFlow<Boolean> = _showFilesPrompt.asStateFlow()
+    private val _showPermissionsPrompt = MutableStateFlow(false)
+    /**
+     * Whether search's "All" view should point out that contacts or files aren't being searched
+     * (either permission missing, and the notice not dismissed). The Contacts and Files tabs always
+     * say so while their own permission is missing, dismissed or not.
+     */
+    val showPermissionsPrompt: StateFlow<Boolean> = _showPermissionsPrompt.asStateFlow()
 
     /**
      * Frequent-layer matches at once on every change; then, if nothing has changed for
@@ -364,7 +384,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(indexUpdater.dispatcher) {
             _installedApps.value = appRepository.getInstalledApps()
             rebuildFrequentLayer()
-            publishCategories()
+            publishIndexedCategories()
         }
         // ...then the updater catches up on anything that changed while the launcher wasn't running,
         // and keeps the index current from then on.
@@ -375,11 +395,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 withContext(indexUpdater.dispatcher) {
                     update.installedApps?.let { _installedApps.value = it }
                     rebuildFrequentLayer()
-                    publishCategories()
+                    publishIndexedCategories()
                 }
             }
         }
-        refreshFilesPrompt()
+        refreshPermissionsPrompt()
         // The first time the launcher ever opens, walk the user through setup (making it the default
         // home, and the permissions search uses); the how-to card follows once setup is finished. On
         // an upgrade from a build that only had the how-to, setup counts as unseen, so it's offered
@@ -406,10 +426,20 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     fun shouldRequestContactsPermission(): Boolean =
         !contactProvider.hasPermission() && !prefs.getBoolean(KEY_ASKED_CONTACTS, false)
 
+    /** Whether the contacts dialog has been shown before, so a "no" can be told from "never asked". */
+    fun hasRequestedContacts(): Boolean = prefs.getBoolean(KEY_ASKED_CONTACTS, false)
+
     fun onContactsPermissionResult() {
         prefs.edit { putBoolean(KEY_ASKED_CONTACTS, true) }
-        refreshPermissionStatus()
-        resyncIfAccessChanged()
+        onResume()
+    }
+
+    /** Whether file access has been asked for before, so a "no" can be told from "never asked". */
+    fun hasRequestedFiles(): Boolean = prefs.getBoolean(KEY_ASKED_FILES, false)
+
+    /** File access is being asked for; coming back without it then counts as turned down. */
+    fun onFilesAccessRequested() {
+        prefs.edit { putBoolean(KEY_ASKED_FILES, true) }
     }
 
     /**
@@ -423,29 +453,35 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     /** The launcher came back to the foreground, e.g. from the "All files access" screen. */
     fun onResume() {
-        refreshFilesPrompt()
         refreshPermissionStatus()
+        refreshPermissionsPrompt()
+        publishCategories()
         resyncIfAccessChanged()
     }
 
     /**
-     * Re-reads whether HALauncher is the default home and whether contacts/files access is granted,
-     * so the setup screen reflects choices made in system screens (or access revoked from elsewhere)
-     * the moment the launcher comes back.
+     * Re-reads whether HALauncher is the default home and where contacts/files access stands, so
+     * setup, settings and search reflect choices made in system screens (or access revoked from
+     * elsewhere) the moment the launcher comes back.
      */
     private fun refreshPermissionStatus() {
         _isDefaultHome.value = DefaultHome.isDefault(getApplication())
-        _hasContactsAccess.value = contactProvider.hasPermission()
-        _hasFilesAccess.value = fileProvider.hasAccess()
+        _contactsAccess.value = contactsAccessState()
+        _filesAccess.value = filesAccessState()
     }
 
-    fun dismissFilesPrompt() {
-        prefs.edit { putBoolean(KEY_DISMISSED_FILES_PROMPT, true) }
-        refreshFilesPrompt()
+    private fun contactsAccessState() = AccessState.of(contactProvider.hasPermission(), hasRequestedContacts())
+
+    private fun filesAccessState() = AccessState.of(fileProvider.hasAccess(), hasRequestedFiles())
+
+    fun dismissPermissionsPrompt() {
+        prefs.edit { putBoolean(KEY_DISMISSED_PERMISSIONS_PROMPT, true) }
+        refreshPermissionsPrompt()
     }
 
-    private fun refreshFilesPrompt() {
-        _showFilesPrompt.value = !fileProvider.hasAccess() && !prefs.getBoolean(KEY_DISMISSED_FILES_PROMPT, false)
+    private fun refreshPermissionsPrompt() {
+        val missing = !contactProvider.hasPermission() || !fileProvider.hasAccess()
+        _showPermissionsPrompt.value = missing && !prefs.getBoolean(KEY_DISMISSED_PERMISSIONS_PROMPT, false)
     }
 
     private fun hasAccess(category: SearchCategory): Boolean = when (category) {
@@ -478,8 +514,15 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Re-reads which categories are indexed, then republishes the filter's categories. */
+    private fun publishIndexedCategories() {
+        indexedCategories = searchEngine.availableCategories()
+        publishCategories()
+    }
+
     private fun publishCategories() {
-        val categories = searchEngine.availableCategories()
+        val indexed = indexedCategories
+        val categories = SearchCategory.entries.filter { it in indexed || !hasAccess(it) }
         _availableCategories.value = categories
         // The default stays even before its category is indexed, so it isn't lost at startup.
         val filter = _categoryFilter.value
@@ -587,8 +630,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         _isHowToOpen.value = true
     }
 
+    /** Closes the how-to card; on the first run that's the end of the walkthrough. */
     fun closeHowTo() {
         _isHowToOpen.value = false
+        _isOnboarding.value = false
     }
 
     /**
@@ -599,7 +644,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         closeSearch()
         _isPinPickerOpen.value = false
         _isSettingsOpen.value = false
-        _isHowToOpen.value = false
+        closeHowTo()
         refreshPermissionStatus()
         _isSetupOpen.value = true
     }
@@ -745,7 +790,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         const val PREFS_NAME = "home"
         const val PERF_TAG = "Perf"
         const val KEY_ASKED_CONTACTS = "asked_contacts_permission"
-        const val KEY_DISMISSED_FILES_PROMPT = "dismissed_files_prompt"
+        const val KEY_ASKED_FILES = "asked_files_access"
+        const val KEY_DISMISSED_PERMISSIONS_PROMPT = "dismissed_permissions_prompt"
     }
 
     /**

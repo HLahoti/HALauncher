@@ -25,10 +25,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -64,6 +63,7 @@ import com.example.halauncher.R
 import com.example.halauncher.config.CategoryFilterConfig
 import com.example.halauncher.config.SearchConfig
 import com.example.halauncher.config.ThemeConfig
+import com.example.halauncher.model.AccessState
 import com.example.halauncher.model.LaunchableElement
 import com.example.halauncher.model.SearchCategory
 import com.example.halauncher.model.SearchEntry
@@ -81,12 +81,9 @@ fun SearchOverlay(
     results: SearchResults,
     categories: List<SearchCategory>,
     categoryFilter: SearchCategory?,
-    showFilesPrompt: Boolean,
     onQueryChange: (String) -> Unit,
     onCategoryFilterChange: (SearchCategory?) -> Unit,
     onEntryOpened: (SearchEntry) -> Unit,
-    onRequestFilesAccess: () -> Unit,
-    onDismissFilesPrompt: () -> Unit,
     modifier: Modifier = Modifier,
     isFullyIn: Boolean = true,
     reveal: SearchRevealState? = null,
@@ -94,6 +91,7 @@ fun SearchOverlay(
     onEntryPicked: (SearchEntry) -> Unit = {},
     calcResult: String? = null,
     onCalcResultSelected: (String) -> Unit = {},
+    permissions: SearchPermissions = SearchPermissions(),
 ) {
     // When picking (e.g. an app for the money button), results are chosen, not opened.
     val isPicking = pickTitle != null
@@ -255,8 +253,12 @@ fun SearchOverlay(
             } else {
                 Spacer(Modifier.height(SearchConfig.ResultsSpacing))
             }
-            if (showFilesPrompt && !isPicking) {
-                FilesAccessPrompt(onAllow = onRequestFilesAccess, onDismiss = onDismissFilesPrompt)
+            if (!isPicking) {
+                SearchPermissionNotice(
+                    permissions = permissions,
+                    categoryFilter = categoryFilter,
+                    modifier = Modifier.padding(bottom = SearchConfig.ResultsSpacing),
+                )
             }
             // A new query or category starts the list from the top, and so does coming back:
             // search stays composed while hidden, so the list would otherwise keep its place.
@@ -333,44 +335,74 @@ private fun SectionLabel(text: String) {
     )
 }
 
-/** A glass row offering to turn on file search, which needs "All files access". */
+/**
+ * Where search's permissions stand, and what to do about them. Each tab whose source can't be read
+ * says so in a [PermissionNotice] with a link to grant it; "All" sums up whatever's missing, with a
+ * link to the setup page, until dismissed.
+ */
+data class SearchPermissions(
+    val contacts: AccessState = AccessState.GRANTED,
+    val files: AccessState = AccessState.GRANTED,
+    /** Whether "All" still shows its summary (something's missing and it hasn't been dismissed). */
+    val showSummary: Boolean = false,
+    val onRequestContacts: () -> Unit = {},
+    val onRequestFiles: () -> Unit = {},
+    val onReview: () -> Unit = {},
+    val onDismissSummary: () -> Unit = {},
+)
+
+/** The permission notice for the [categoryFilter] tab, if its source (or, on "All", any) is missing. */
 @Composable
-private fun FilesAccessPrompt(onAllow: () -> Unit, onDismiss: () -> Unit) {
-    val shape = RoundedCornerShape(percent = 50)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = SearchConfig.ResultsSpacing)
-            .liquidGlass(shape, tint = SearchConfig.PROMPT_GLASS_TINT)
-            .clickable(onClickLabel = stringResource(R.string.allow_file_search_action), onClick = onAllow)
-            .padding(start = SearchConfig.ResultRowPadding * 2),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(SearchConfig.ResultIconTextGap),
-    ) {
-        Icon(
-            imageVector = SearchCategory.FILE.icon,
-            contentDescription = null,
-            tint = ThemeConfig.Foreground,
-            modifier = Modifier.size(SearchConfig.CategoryBadgeSize),
-        )
-        Text(
-            text = stringResource(R.string.allow_file_search),
-            color = ThemeConfig.Foreground,
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.weight(1f),
-        )
-        Text(
-            text = stringResource(R.string.allow_file_search_action),
-            color = ThemeConfig.Foreground,
-            style = MaterialTheme.typography.labelLarge,
-        )
-        IconButton(onClick = onDismiss) {
-            Icon(
-                imageVector = Icons.Default.Close,
-                contentDescription = stringResource(R.string.dismiss),
-                tint = ThemeConfig.Foreground.copy(alpha = SearchConfig.CATEGORY_BADGE_ALPHA),
-                modifier = Modifier.size(SearchConfig.CategoryBadgeSize),
+private fun SearchPermissionNotice(
+    permissions: SearchPermissions,
+    categoryFilter: SearchCategory?,
+    modifier: Modifier = Modifier,
+) {
+    when (categoryFilter) {
+        SearchCategory.CONTACT -> if (!permissions.contacts.isGranted) {
+            val denied = permissions.contacts == AccessState.DENIED
+            PermissionNotice(
+                icon = SearchCategory.CONTACT.icon,
+                message = stringResource(
+                    if (denied) R.string.permission_contacts_denied else R.string.permission_contacts_not_requested,
+                ),
+                actionLabel = stringResource(if (denied) R.string.permission_action_turn_on else R.string.permission_action_allow),
+                onAction = permissions.onRequestContacts,
+                modifier = modifier,
             )
+        }
+        SearchCategory.FILE -> if (!permissions.files.isGranted) {
+            val denied = permissions.files == AccessState.DENIED
+            PermissionNotice(
+                icon = SearchCategory.FILE.icon,
+                message = stringResource(
+                    if (denied) R.string.permission_files_denied else R.string.permission_files_not_requested,
+                ),
+                actionLabel = stringResource(if (denied) R.string.permission_action_turn_on else R.string.permission_action_allow),
+                onAction = permissions.onRequestFiles,
+                modifier = modifier,
+            )
+        }
+        SearchCategory.APP -> Unit
+        null -> {
+            val contactsOff = !permissions.contacts.isGranted
+            val filesOff = !permissions.files.isGranted
+            if (permissions.showSummary && (contactsOff || filesOff)) {
+                PermissionNotice(
+                    icon = Icons.Default.Info,
+                    message = stringResource(
+                        when {
+                            contactsOff && filesOff -> R.string.permissions_off_both
+                            contactsOff -> R.string.permissions_off_contacts
+                            else -> R.string.permissions_off_files
+                        },
+                    ),
+                    actionLabel = stringResource(R.string.permissions_review),
+                    onAction = permissions.onReview,
+                    onDismiss = permissions.onDismissSummary,
+                    modifier = modifier,
+                )
+            }
         }
     }
 }
