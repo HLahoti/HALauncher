@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en" class="no-js">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>HALauncher</title>
+  <meta name="description" content="A calm, fast home screen for Android. Swipe up to search apps, contacts and files, spin your favourite apps on a sphere, and do quick maths without opening a calculator.">
+  <meta name="theme-color" content="#0b0d14">
+  <meta name="color-scheme" content="dark">
+  <meta property="og:title" content="HALauncher — a calm home screen for Android">
+  <meta property="og:description" content="Search everything with one swipe. Free, private, no internet permission.">
+  <meta property="og:image" content="assets/screen-home.webp">
+  <link rel="icon" href="assets/icon.webp" type="image/webp">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="backdrop" aria-hidden="true">
+    <span class="orb orb-a"></span>
+    <span class="orb orb-b"></span>
+  </div>
+
+  <header class="nav">
+    <a class="brand" href="#top">
+      <img src="assets/icon.webp" alt="" width="32" height="32">
+      <span>HALauncher</span>
+    </a>
+    <a class="btn btn-small" href="https://github.com/HLahoti/HALauncher/releases/latest/download/HALauncher.apk" data-download>Download</a>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow load-in">Android launcher · Free</p>
+        <h1 class="load-in">A home screen that gets out of your way.</h1>
+        <p class="lede load-in">Swipe up to find any app, contact or file. Spin your favourite apps on a sphere. Type a sum and get the answer. That's it — no clutter, no ads, no account.</p>
+        <div class="cta load-in">
+          <a class="btn btn-primary" href="https://github.com/HLahoti/HALauncher/releases/latest/download/HALauncher.apk" data-download>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-5-5m5 5 5-5M5 21h14"/></svg>
+            Download APK
+          </a>
+          <a class="btn btn-ghost" href="#install">How to install</a>
+        </div>
+        <p class="meta load-in">
+          <span data-version>Version 1.0</span>
+          <span class="dot" aria-hidden="true"></span>
+          <span data-size>1.6 MB</span>
+          <span class="dot" aria-hidden="true"></span>
+          <span>Android 7.0+</span>
+        </p>
+      </div>
+
+      <div class="hero-phone load-in">
+        <div class="phone phone-float">
+          <video class="screen" src="assets/demo.mp4" poster="assets/demo-poster.webp" autoplay muted loop playsinline preload="metadata" aria-label="HALauncher demo: spinning the app sphere, then swiping up to search"></video>
+        </div>
+      </div>
+    </section>
+
+    <section class="features" aria-label="Features">
+      <article class="feature reveal">
+        <div class="feature-shot"><div class="phone"><img class="screen" src="assets/screen-search.webp" alt="Search results for “ma”: the Maps app, two contacts and a PDF" width="720" height="1600" loading="lazy"></div></div>
+        <div class="feature-copy">
+          <p class="eyebrow">Search</p>
+          <h2>One swipe finds everything.</h2>
+          <p>Swipe up anywhere and start typing. Apps, contacts and files land in a single list, best match first. Swipe sideways to narrow it to just apps, people or files.</p>
+        </div>
+      </article>
+
+      <article class="feature reveal">
+        <div class="feature-shot"><div class="phone"><img class="screen" src="assets/screen-calc.webp" alt="Typing 1250*0.18 in search shows the answer, 225" width="720" height="1600" loading="lazy"></div></div>
+        <div class="feature-copy">
+          <p class="eyebrow">Quick maths</p>
+          <h2>Type the sum, see the answer.</h2>
+          <p>Splitting a bill or working out a tip? Type it straight into search and the result appears as you type. Tap it to copy.</p>
+        </div>
+      </article>
+
+      <article class="feature reveal">
+        <div class="feature-shot"><div class="phone"><img class="screen" src="assets/screen-picker.webp" alt="The pinned apps editor with eight apps chosen and drag handles to reorder them" width="720" height="1600" loading="lazy"></div></div>
+        <div class="feature-copy">
+          <p class="eyebrow">App sphere</p>
+          <h2>Your eight favourites, one flick away.</h2>
+          <p>Drag the sphere on the right to spin through your pinned apps and tap one to open it. Long-press it to choose which apps live there and put them in order.</p>
+        </div>
+      </article>
+
+      <article class="feature reveal">
+        <div class="feature-shot"><div class="phone"><img class="screen" src="assets/screen-settings.webp" alt="Settings: lock settings, double-tap to lock, default search category and reduce index size" width="720" height="1600" loading="lazy"></div></div>
+        <div class="feature-copy">
+          <p class="eyebrow">Settings</p>
+          <h2>Set it up once. Lock it in.</h2>
+          <p>Double-tap the home screen to lock your phone, pick where search starts, and freeze every setting so nothing changes by accident. Long-press an empty spot to open them.</p>
+        </div>
+      </article>
+
+      <article class="feature reveal">
+        <div class="feature-shot"><div class="phone"><img class="screen" src="assets/screen-setup.webp" alt="First-run setup asking to set HALauncher as home and allow contacts and file access" width="720" height="1600" loading="lazy"></div></div>
+        <div class="feature-copy">
+          <p class="eyebrow">Private</p>
+          <h2>Nothing leaves your phone.</h2>
+          <p>HALauncher doesn't even ask for internet access, so it has no way to send anything anywhere. Contacts and files are read only so you can search them, and each permission is optional.</p>
+        </div>
+      </article>
+    </section>
+
+    <section class="gallery-section reveal" aria-labelledby="gallery-title">
+      <div class="section-head">
+        <h2 id="gallery-title">A closer look</h2>
+        <div class="gallery-nav">
+          <button class="icon-btn" type="button" data-scroll="-1" aria-label="Previous screenshots"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg></button>
+          <button class="icon-btn" type="button" data-scroll="1" aria-label="Next screenshots"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></button>
+        </div>
+      </div>
+      <div class="gallery" tabindex="0" aria-label="Screenshots, scroll sideways">
+        <figure><div class="phone"><img class="screen" src="assets/screen-home.webp" alt="Home screen with clock, quick buttons and the app sphere" width="720" height="1600" loading="lazy"></div><figcaption>Home</figcaption></figure>
+        <figure><div class="phone"><img class="screen" src="assets/screen-search.webp" alt="Search results" width="720" height="1600" loading="lazy"></div><figcaption>Search</figcaption></figure>
+        <figure><div class="phone"><img class="screen" src="assets/screen-calc.webp" alt="Calculator answer in search" width="720" height="1600" loading="lazy"></div><figcaption>Quick maths</figcaption></figure>
+        <figure><div class="phone"><img class="screen" src="assets/screen-picker.webp" alt="Pinned apps editor" width="720" height="1600" loading="lazy"></div><figcaption>Pin apps</figcaption></figure>
+        <figure><div class="phone"><img class="screen" src="assets/screen-settings.webp" alt="Settings panel" width="720" height="1600" loading="lazy"></div><figcaption>Settings</figcaption></figure>
+        <figure><div class="phone"><img class="screen" src="assets/screen-guide.webp" alt="Built-in guide to gestures" width="720" height="1600" loading="lazy"></div><figcaption>Built-in guide</figcaption></figure>
+        <figure><div class="phone"><img class="screen" src="assets/screen-setup.webp" alt="First-run setup" width="720" height="1600" loading="lazy"></div><figcaption>Setup</figcaption></figure>
+      </div>
+    </section>
+
+    <section class="install reveal" id="install" aria-labelledby="install-title">
+      <h2 id="install-title">Install in a minute</h2>
+      <p class="section-lede">HALauncher isn't on the Play Store yet, so you install it straight from this page.</p>
+      <ol class="steps">
+        <li>
+          <span class="step-num">1</span>
+          <h3>Download</h3>
+          <p>Open this page on your Android phone and tap <strong>Download APK</strong>.</p>
+        </li>
+        <li>
+          <span class="step-num">2</span>
+          <h3>Allow and install</h3>
+          <p>Open the file. If asked, allow <strong>Install unknown apps</strong> for your browser, then tap <strong>Install</strong>. Play Protect may warn you — that happens for any app from outside the Play Store.</p>
+        </li>
+        <li>
+          <span class="step-num">3</span>
+          <h3>Make it home</h3>
+          <p>Open HALauncher and tap <strong>Set as home</strong>. The short setup walks you through the rest.</p>
+        </li>
+      </ol>
+
+      <div class="checksum">
+        <div>
+          <p class="checksum-label">SHA-256 of the APK</p>
+          <code data-sha>d63516de024742cd04de970fec7e24d9633ac04b30d97a35c7977d6cf12cdec9</code>
+        </div>
+        <button class="btn btn-ghost btn-small" type="button" data-copy>Copy</button>
+      </div>
+
+      <a class="btn btn-primary btn-wide" href="https://github.com/HLahoti/HALauncher/releases/latest/download/HALauncher.apk" data-download>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-5-5m5 5 5-5M5 21h14"/></svg>
+        Download APK
+      </a>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>Made by Harsh Lahoti · <a href="https://github.com/HLahoti/HALauncher">Source on GitHub</a> · <a href="https://github.com/HLahoti/HALauncher/releases">All versions</a></p>
+  </footer>
+
+  <script src="main.js" defer></script>
+</body>
+</html>
