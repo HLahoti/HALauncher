@@ -3,7 +3,7 @@ package com.example.halauncher.baselineprofile
 import android.view.KeyEvent
 import androidx.benchmark.macro.MacrobenchmarkScope
 
-const val PACKAGE_NAME = "com.example.halauncher"
+const val PACKAGE_NAME = "com.harshlahoti.halauncher"
 
 /**
  * The launcher's everyday moments: swipe search in, type, clear, leave; turn the pinned sphere.

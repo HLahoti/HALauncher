@@ -15,3 +15,11 @@
 local.properties
 .kotlin
 /Claude outputs
+
+# Release signing — NEVER commit these. Keep private backups elsewhere.
+/keystore.properties
+*.jks
+*.keystore
+
+# Built distribution artifacts
+/dist/

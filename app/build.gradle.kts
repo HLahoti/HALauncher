@@ -1,7 +1,19 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.baselineprofile)
+}
+
+// Release signing credentials live in keystore.properties at the repo root (git-ignored).
+// When it's absent (e.g. a fresh clone or CI without secrets), release builds stay unsigned
+// rather than failing configuration.
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        keystorePropertiesFile.inputStream().use { load(it) }
+    }
 }
 
 android {
@@ -10,8 +22,19 @@ android {
         version = release(37)
     }
 
+    signingConfigs {
+        if (keystorePropertiesFile.exists()) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     defaultConfig {
-        applicationId = "com.example.halauncher"
+        applicationId = "com.harshlahoti.halauncher"
         minSdk = 24
         targetSdk = 37
         versionCode = 1
@@ -27,6 +50,8 @@ android {
             optimization {
                 enable = true
             }
+            // Sign with the release key when keystore.properties is present.
+            signingConfigs.findByName("release")?.let { signingConfig = it }
         }
 
     }
