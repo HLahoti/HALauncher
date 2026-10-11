@@ -75,7 +75,7 @@ The manifest requests some sensitive permissions that Play scrutinizes:
 - `targetSdk = 37` — Play requires targeting a recent API level for new apps; 37 is
   ahead of the current minimum, so you're fine.
 - Test the **R8/minified release build** on a real device before uploading — obfuscation
-  can surface issues that debug builds don't. Install `dist/HALauncher-1.0.apk` and
+  can surface issues that debug builds don't. Install `dist/HALauncher.apk` and
   exercise search, the app grid, contacts, file search, and double-tap-to-lock.
 
 ## 7. Build & upload
@@ -88,7 +88,7 @@ export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
 
 - Upload the **`.aab`** (not the APK) to a release track: **Internal testing** first,
   then Closed → Open → Production.
-- Upload the **`mapping.txt`** (`dist/HALauncher-1.0-mapping.txt`) so Play can
+- Upload the **`mapping.txt`** (`dist/HALauncher-1.1-mapping.txt`) so Play can
   de-obfuscate crash reports.
 - For every future release, **increase `versionCode`** (e.g. 2, 3, …) and update
   `versionName`. Play refuses an upload whose versionCode isn't higher than the last.
@@ -101,7 +101,7 @@ export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
 ---
 
 ### Quick reference — current build state
-- versionName: `1.0`, versionCode: `1`
+- versionName: `1.1`, versionCode: `2`
 - applicationId: `com.example.halauncher` ← **must change before Play (step 1)**
 - Signing: release keystore `halauncher-release.jks` (git-ignored; back it up)
 - Min SDK 24 (Android 7.0), Target SDK 37
