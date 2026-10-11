@@ -154,8 +154,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val quickActionAppStore = QuickActionAppStore(application)
 
     // The customisable quick-action buttons (and the date, which opens a calendar). Each remembers a chosen app (or none) and can open a
-    // picker to change it; the payments one has no sensible system default, the others fall back to
-    // the device default for their category.
+    // picker to change it. Unchosen, the buttons ask the user to choose; only while settings are
+    // locked do the others fall back to the device default for their category (payments has none).
     private val moneySlot = QuickActionSlot(QuickActionAppStore.MONEY_SLOT, SearchPurpose.PICK_MONEY_APP)
     private val gallerySlot = QuickActionSlot(QuickActionAppStore.GALLERY_SLOT, SearchPurpose.PICK_GALLERY_APP)
     private val messagesSlot = QuickActionSlot(QuickActionAppStore.MESSAGES_SLOT, SearchPurpose.PICK_MESSAGES_APP)
@@ -163,11 +163,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     /** The app the payments button opens, or null if none is chosen (or it's been uninstalled). */
     val moneyApp: StateFlow<AppInfo?> = moneySlot.app
-    /** The app the gallery button opens, or null to open the device's default gallery. */
+    /** The app the gallery button opens, or null if none is chosen (or it's been uninstalled). */
     val galleryApp: StateFlow<AppInfo?> = gallerySlot.app
-    /** The app the messages button opens, or null to open the device's default messaging app. */
+    /** The app the messages button opens, or null if none is chosen (or it's been uninstalled). */
     val messagesApp: StateFlow<AppInfo?> = messagesSlot.app
-    /** The app the date opens, or null to open the device's default calendar. */
+    /** The app the date opens, or null if none is chosen (or it's been uninstalled). */
     val calendarApp: StateFlow<AppInfo?> = calendarSlot.app
 
     private val _searchPurpose = MutableStateFlow(SearchPurpose.FIND)
@@ -609,13 +609,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearMoneyApp() = moneySlot.clear()
 
-    /** Forgets the chosen gallery app; the button reverts to the device's default gallery. */
+    /** Forgets the chosen gallery app; the button goes back to asking for one. */
     fun clearGalleryApp() = gallerySlot.clear()
 
-    /** Forgets the chosen messages app; the button reverts to the device's default messaging app. */
+    /** Forgets the chosen messages app; the button goes back to asking for one. */
     fun clearMessagesApp() = messagesSlot.clear()
 
-    /** Forgets the chosen calendar app; the date reverts to opening the device's default calendar. */
+    /** Forgets the chosen calendar app; the date goes back to asking for one. */
     fun clearCalendarApp() = calendarSlot.clear()
 
     fun openPinPicker() {

@@ -300,8 +300,9 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 )
                 Spacer(Modifier.height(HomeScreenConfig.QuickActionsSpacing))
                 // Quick actions in a 3×2 grid of universal needs: camera / gallery, calls / messages,
-                // payments / internet. All but payments open the device's default app for that category;
-                // payments has no such default, so its button lets the user choose. Search opens on swipe up.
+                // payments / internet. Gallery, messages and payments open the app the user chose, and
+                // until one is chosen they ask for it; the rest open the device's default app for their
+                // category. Search opens on swipe up.
                 Column(
                     // Buttons centre their glyph in a 48dp touch target; shift the grid left by the
                     // padding that creates so the glyphs line up with the text above.
@@ -318,6 +319,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                             app = galleryApp,
                             defaultIntent = remember { IntentFactory.galleryIntent() },
                             namedDescriptionRes = R.string.gallery_app_named,
+                            notSetDescriptionRes = R.string.gallery_app_not_set,
                             defaultDescriptionRes = R.string.gallery_app_default,
                             defaultOpenLabelRes = R.string.open_gallery,
                             optionsLabelRes = R.string.gallery_app_options,
@@ -337,6 +339,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                             app = messagesApp,
                             defaultIntent = remember { IntentFactory.messagesIntent() },
                             namedDescriptionRes = R.string.messages_app_named,
+                            notSetDescriptionRes = R.string.messages_app_not_set,
                             defaultDescriptionRes = R.string.messages_app_default,
                             defaultOpenLabelRes = R.string.open_messages,
                             optionsLabelRes = R.string.messages_app_options,
@@ -353,10 +356,11 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                     Row(horizontalArrangement = Arrangement.spacedBy(HomeScreenConfig.QuickActionSpacing)) {
                         ChosenAppButton(
                             app = moneyApp,
-                            // Payments has no sensible system default, so with none chosen the button
-                            // asks the user to pick one instead of opening something.
+                            // Payments has no sensible system default, so while locked with none
+                            // chosen the button does nothing.
                             defaultIntent = null,
                             namedDescriptionRes = R.string.money_app_named,
+                            notSetDescriptionRes = R.string.money_app_not_set,
                             defaultDescriptionRes = R.string.money_app_not_set,
                             defaultOpenLabelRes = R.string.choose_money_app,
                             optionsLabelRes = R.string.money_app_options,
@@ -585,13 +589,15 @@ private fun QuickActionGlyph(icon: ImageVector) {
 
 /**
  * A home-screen target whose app the user can choose (payments, gallery, messages, the date's
- * calendar). Tapping opens
- * the chosen app; with none chosen it opens [defaultIntent], or — when there's no sensible default
- * (payments), so [defaultIntent] is null — asks the user to choose one. Long-press (firmer haptic)
- * opens a menu to choose, change or remove the app. While [locked], it only opens: no menu, and no
- * choosing when none is set.
+ * calendar). Tapping opens the chosen app. With none chosen, both tap and long-press ask the user to
+ * choose one, so a new user discovers the button is theirs to set rather than it quietly opening
+ * some default. Once chosen, long-press (firmer haptic) opens a menu to change or remove the app.
  *
- * The description, labels and menu wording come from the given string resources; [glyph] draws the
+ * While [locked] nothing can be chosen, so it only opens: the chosen app, else [defaultIntent] (the
+ * device's default for the category; null for payments, which has none, so the button does nothing).
+ *
+ * The description, labels and menu wording come from the given string resources ([notSetDescriptionRes]
+ * while unchosen and choosable, [defaultDescriptionRes] while unchosen and locked); [glyph] draws the
  * button's face (an icon, the currency symbol for payments, or the date text); [modifier] sizes and
  * shapes it. A face that shows text (the date) passes it as [spokenText], read before the
  * description, since the face itself is hidden from screen readers.
@@ -601,6 +607,7 @@ private fun ChosenAppButton(
     app: AppInfo?,
     defaultIntent: Intent?,
     @StringRes namedDescriptionRes: Int,
+    @StringRes notSetDescriptionRes: Int,
     @StringRes defaultDescriptionRes: Int,
     @StringRes defaultOpenLabelRes: Int,
     @StringRes optionsLabelRes: Int,
@@ -616,18 +623,36 @@ private fun ChosenAppButton(
     val context = LocalContext.current
     val haptics = remember(context) { Haptics(context) }
     var menuOpen by remember { mutableStateOf(false) }
-    val appDescription = if (app != null) stringResource(namedDescriptionRes, app.name) else stringResource(defaultDescriptionRes)
+    // Unchosen and not locked: every interaction leads to choosing.
+    val choosing = app == null && !locked
+    val appDescription = when {
+        app != null -> stringResource(namedDescriptionRes, app.name)
+        choosing -> stringResource(notSetDescriptionRes)
+        else -> stringResource(defaultDescriptionRes)
+    }
     val description = if (spokenText != null) "$spokenText, $appDescription" else appDescription
-    val openLabel = if (app != null) stringResource(R.string.open_app, app.name) else stringResource(defaultOpenLabelRes)
-    val optionsLabel = stringResource(optionsLabelRes)
+    val openLabel = when {
+        app != null -> stringResource(R.string.open_app, app.name)
+        choosing -> stringResource(chooseLabelRes)
+        else -> stringResource(defaultOpenLabelRes)
+    }
+    // Long-press chooses directly while unchosen, else opens the menu; nothing while locked.
+    val longPressLabel = when {
+        locked -> null
+        choosing -> stringResource(chooseLabelRes)
+        else -> stringResource(optionsLabelRes)
+    }
 
-    // Opens the chosen app (recording it), else the default, else — with no default — asks to choose.
+    // Opens the chosen app (recording it), else asks to choose, else (locked) the default if any.
     val open = {
         when {
             app != null -> if (context.launchSafely(app.link, openLabel)) onOpened(app)
+            choosing -> onChoose()
             defaultIntent != null -> context.launchSafely(defaultIntent, openLabel)
-            !locked -> onChoose()
         }
+    }
+    val longPress = {
+        if (choosing) onChoose() else menuOpen = true
     }
 
     Box {
@@ -636,12 +661,11 @@ private fun ChosenAppButton(
                 .combinedClickable(
                     role = Role.Button,
                     onClickLabel = openLabel,
-                    // No options menu while settings are locked.
-                    onLongClickLabel = if (locked) null else optionsLabel,
+                    onLongClickLabel = longPressLabel,
                     onLongClick = {
                         if (!locked) {
                             haptics.longPress()
-                            menuOpen = true
+                            longPress()
                         }
                     },
                     onClick = { open() },
@@ -653,9 +677,9 @@ private fun ChosenAppButton(
                         open()
                         true
                     }
-                    if (!locked) {
-                        onLongClick(optionsLabel) {
-                            menuOpen = true
+                    if (longPressLabel != null) {
+                        onLongClick(longPressLabel) {
+                            longPress()
                             true
                         }
                     }
@@ -664,19 +688,18 @@ private fun ChosenAppButton(
         ) {
             glyph()
         }
-        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+        // Only opens with an app chosen (unchosen, long-press goes straight to choosing).
+        DropdownMenu(expanded = menuOpen && app != null, onDismissRequest = { menuOpen = false }) {
             if (app != null) {
                 // Which app it opens now, as a non-interactive first line.
                 DropdownMenuItem(text = { Text(app.name) }, onClick = {}, enabled = false)
-            }
-            DropdownMenuItem(
-                text = { Text(stringResource(if (app != null) R.string.change_app else chooseLabelRes)) },
-                onClick = {
-                    menuOpen = false
-                    onChoose()
-                },
-            )
-            if (app != null) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.change_app)) },
+                    onClick = {
+                        menuOpen = false
+                        onChoose()
+                    },
+                )
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.remove)) },
                     onClick = {
@@ -690,7 +713,7 @@ private fun ChosenAppButton(
 }
 
 /**
- * Today's date. Tapping opens the chosen calendar app, else the device's default calendar at "now";
+ * Today's date. Tapping opens the chosen calendar app at "now", or asks for one until it's chosen;
  * long-press chooses, changes or removes the app, like the customisable quick-action buttons.
  */
 @Composable
@@ -707,6 +730,7 @@ private fun DateDisplay(
         // Rebuilt when the date changes, so it opens the calendar at "now".
         defaultIntent = remember(date) { IntentFactory.calendarIntent() },
         namedDescriptionRes = R.string.calendar_app_named,
+        notSetDescriptionRes = R.string.calendar_app_not_set,
         defaultDescriptionRes = R.string.calendar_app_default,
         defaultOpenLabelRes = R.string.open_calendar,
         optionsLabelRes = R.string.calendar_app_options,
