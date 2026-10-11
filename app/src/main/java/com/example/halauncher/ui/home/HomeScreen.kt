@@ -112,6 +112,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     val moneyApp by viewModel.moneyApp.collectAsStateWithLifecycle()
     val galleryApp by viewModel.galleryApp.collectAsStateWithLifecycle()
     val messagesApp by viewModel.messagesApp.collectAsStateWithLifecycle()
+    val calendarApp by viewModel.calendarApp.collectAsStateWithLifecycle()
     val searchPurpose by viewModel.searchPurpose.collectAsStateWithLifecycle()
     val calcResult by viewModel.calcResult.collectAsStateWithLifecycle()
     val moneySymbol = remember { localCurrencySymbol() }
@@ -258,7 +259,14 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
             verticalArrangement = Arrangement.Top,
         ) {
             TimeDisplay(time)
-            DateDisplay(date)
+            DateDisplay(
+                date = date,
+                app = calendarApp,
+                locked = settingsLocked,
+                onChoose = viewModel::openCalendarAppPicker,
+                onOpened = viewModel::onEntryOpened,
+                onRemove = viewModel::clearCalendarApp,
+            )
             Spacer(Modifier.height(HomeScreenConfig.QuickActionsSpacing))
             // Quick actions in a 3×2 grid of universal needs: camera / gallery, calls / messages,
             // payments / internet. All but payments open the device's default app for that category;
@@ -284,6 +292,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                         optionsLabelRes = R.string.gallery_app_options,
                         chooseLabelRes = R.string.choose_gallery_app,
                         locked = settingsLocked,
+                        modifier = QuickActionButtonShape,
                         onChoose = viewModel::openGalleryAppPicker,
                         onOpened = viewModel::onEntryOpened,
                         onRemove = viewModel::clearGalleryApp,
@@ -302,6 +311,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                         optionsLabelRes = R.string.messages_app_options,
                         chooseLabelRes = R.string.choose_messages_app,
                         locked = settingsLocked,
+                        modifier = QuickActionButtonShape,
                         onChoose = viewModel::openMessagesAppPicker,
                         onOpened = viewModel::onEntryOpened,
                         onRemove = viewModel::clearMessagesApp,
@@ -321,6 +331,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                         optionsLabelRes = R.string.money_app_options,
                         chooseLabelRes = R.string.choose_money_app,
                         locked = settingsLocked,
+                        modifier = QuickActionButtonShape,
                         onChoose = viewModel::openMoneyAppPicker,
                         onOpened = viewModel::onEntryOpened,
                         onRemove = viewModel::clearMoneyApp,
@@ -433,6 +444,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 SearchPurpose.PICK_MONEY_APP -> stringResource(R.string.pick_money_app_title, moneySymbol)
                 SearchPurpose.PICK_GALLERY_APP -> stringResource(R.string.pick_gallery_app_title)
                 SearchPurpose.PICK_MESSAGES_APP -> stringResource(R.string.pick_messages_app_title)
+                SearchPurpose.PICK_CALENDAR_APP -> stringResource(R.string.pick_calendar_app_title)
                 SearchPurpose.FIND -> null
             },
             onEntryPicked = viewModel::onEntryPicked,
@@ -498,6 +510,9 @@ private class HomeBlur {
 /** Material's minimum touch target, which IconButton also uses. */
 private val TouchTarget = 48.dp
 
+/** The size and round ripple of a quick-action button. */
+private val QuickActionButtonShape = Modifier.size(TouchTarget).clip(CircleShape)
+
 /**
  * A small glyph in the quick-action grid that opens [intent], with a 48dp touch target and a
  * round ripple. [labelRes] is read out by screen readers.
@@ -538,14 +553,17 @@ private fun QuickActionGlyph(icon: ImageVector) {
 }
 
 /**
- * A quick-action button whose app the user can choose (payments, gallery, messages). Tapping opens
+ * A home-screen target whose app the user can choose (payments, gallery, messages, the date's
+ * calendar). Tapping opens
  * the chosen app; with none chosen it opens [defaultIntent], or — when there's no sensible default
  * (payments), so [defaultIntent] is null — asks the user to choose one. Long-press (firmer haptic)
  * opens a menu to choose, change or remove the app. While [locked], it only opens: no menu, and no
  * choosing when none is set.
  *
  * The description, labels and menu wording come from the given string resources; [glyph] draws the
- * button's face (an icon, or the currency symbol for payments).
+ * button's face (an icon, the currency symbol for payments, or the date text); [modifier] sizes and
+ * shapes it. A face that shows text (the date) passes it as [spokenText], read before the
+ * description, since the face itself is hidden from screen readers.
  */
 @Composable
 private fun ChosenAppButton(
@@ -560,12 +578,15 @@ private fun ChosenAppButton(
     onChoose: () -> Unit,
     onOpened: (AppInfo) -> Unit,
     onRemove: () -> Unit,
+    modifier: Modifier = Modifier,
+    spokenText: String? = null,
     glyph: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
     val haptics = remember(context) { Haptics(context) }
     var menuOpen by remember { mutableStateOf(false) }
-    val description = if (app != null) stringResource(namedDescriptionRes, app.name) else stringResource(defaultDescriptionRes)
+    val appDescription = if (app != null) stringResource(namedDescriptionRes, app.name) else stringResource(defaultDescriptionRes)
+    val description = if (spokenText != null) "$spokenText, $appDescription" else appDescription
     val openLabel = if (app != null) stringResource(R.string.open_app, app.name) else stringResource(defaultOpenLabelRes)
     val optionsLabel = stringResource(optionsLabelRes)
 
@@ -580,9 +601,7 @@ private fun ChosenAppButton(
 
     Box {
         Box(
-            modifier = Modifier
-                .size(TouchTarget)
-                .clip(CircleShape)
+            modifier = modifier
                 .combinedClickable(
                     role = Role.Button,
                     onClickLabel = openLabel,
@@ -639,22 +658,39 @@ private fun ChosenAppButton(
     }
 }
 
+/**
+ * Today's date. Tapping opens the chosen calendar app, else the device's default calendar at "now";
+ * long-press chooses, changes or removes the app, like the customisable quick-action buttons.
+ */
 @Composable
-private fun DateDisplay(date: String) {
-    val label = stringResource(R.string.open_calendar)
-    val element = remember(date, label) {
-        LaunchableElement(
-            displayContent = {
-                Text(
-                    text = date,
-                    color = ThemeConfig.Foreground,
-                    style = TextStyle(fontSize = ClockConfig.DateFontSize, shadow = ThemeConfig.LegibilityShadow),
-                )
-            },
-            // Rebuilt when the date changes, so it opens the calendar at "now".
-            launchIntent = IntentFactory.calendarIntent(),
-            actionLabel = label,
+private fun DateDisplay(
+    date: String,
+    app: AppInfo?,
+    locked: Boolean,
+    onChoose: () -> Unit,
+    onOpened: (AppInfo) -> Unit,
+    onRemove: () -> Unit,
+) {
+    ChosenAppButton(
+        app = app,
+        // Rebuilt when the date changes, so it opens the calendar at "now".
+        defaultIntent = remember(date) { IntentFactory.calendarIntent() },
+        namedDescriptionRes = R.string.calendar_app_named,
+        defaultDescriptionRes = R.string.calendar_app_default,
+        defaultOpenLabelRes = R.string.open_calendar,
+        optionsLabelRes = R.string.calendar_app_options,
+        chooseLabelRes = R.string.choose_calendar_app,
+        locked = locked,
+        onChoose = onChoose,
+        onOpened = onOpened,
+        onRemove = onRemove,
+        modifier = Modifier.padding(vertical = ClockConfig.DateVerticalPadding),
+        spokenText = date,
+    ) {
+        Text(
+            text = date,
+            color = ThemeConfig.Foreground,
+            style = TextStyle(fontSize = ClockConfig.DateFontSize, shadow = ThemeConfig.LegibilityShadow),
         )
     }
-    ClickToLaunch(element, modifier = Modifier.padding(vertical = ClockConfig.DateVerticalPadding))
 }

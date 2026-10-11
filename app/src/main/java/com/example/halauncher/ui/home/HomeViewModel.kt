@@ -81,6 +81,9 @@ enum class SearchPurpose {
 
     /** Choosing the messages button's app: apps only, and tapping a result assigns it. */
     PICK_MESSAGES_APP,
+
+    /** Choosing the app the date opens: apps only, and tapping a result assigns it. */
+    PICK_CALENDAR_APP,
 }
 
 /** What search shows: instant frequent-layer matches, then ranked disk matches under a divider. */
@@ -149,12 +152,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private val quickActionAppStore = QuickActionAppStore(application)
 
-    // The customisable quick-action buttons. Each remembers a chosen app (or none) and can open a
+    // The customisable quick-action buttons (and the date, which opens a calendar). Each remembers a chosen app (or none) and can open a
     // picker to change it; the payments one has no sensible system default, the others fall back to
     // the device default for their category.
     private val moneySlot = QuickActionSlot(QuickActionAppStore.MONEY_SLOT, SearchPurpose.PICK_MONEY_APP)
     private val gallerySlot = QuickActionSlot(QuickActionAppStore.GALLERY_SLOT, SearchPurpose.PICK_GALLERY_APP)
     private val messagesSlot = QuickActionSlot(QuickActionAppStore.MESSAGES_SLOT, SearchPurpose.PICK_MESSAGES_APP)
+    private val calendarSlot = QuickActionSlot(QuickActionAppStore.CALENDAR_SLOT, SearchPurpose.PICK_CALENDAR_APP)
 
     /** The app the payments button opens, or null if none is chosen (or it's been uninstalled). */
     val moneyApp: StateFlow<AppInfo?> = moneySlot.app
@@ -162,6 +166,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     val galleryApp: StateFlow<AppInfo?> = gallerySlot.app
     /** The app the messages button opens, or null to open the device's default messaging app. */
     val messagesApp: StateFlow<AppInfo?> = messagesSlot.app
+    /** The app the date opens, or null to open the device's default calendar. */
+    val calendarApp: StateFlow<AppInfo?> = calendarSlot.app
 
     private val _searchPurpose = MutableStateFlow(SearchPurpose.FIND)
     val searchPurpose: StateFlow<SearchPurpose> = _searchPurpose.asStateFlow()
@@ -580,12 +586,16 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     /** Opens app-only search so the user can choose the messages button's app. */
     fun openMessagesAppPicker() = messagesSlot.openPicker()
 
+    /** Opens app-only search so the user can choose the app the date opens. */
+    fun openCalendarAppPicker() = calendarSlot.openPicker()
+
     /** The user chose [entry] while search was open for picking; assigns it and closes search. */
     fun onEntryPicked(entry: SearchEntry) {
         val slot = when (_searchPurpose.value) {
             SearchPurpose.PICK_MONEY_APP -> moneySlot
             SearchPurpose.PICK_GALLERY_APP -> gallerySlot
             SearchPurpose.PICK_MESSAGES_APP -> messagesSlot
+            SearchPurpose.PICK_CALENDAR_APP -> calendarSlot
             SearchPurpose.FIND -> null
         }
         if (entry is AppInfo) slot?.assign(entry.packageName)
@@ -599,6 +609,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Forgets the chosen messages app; the button reverts to the device's default messaging app. */
     fun clearMessagesApp() = messagesSlot.clear()
+
+    /** Forgets the chosen calendar app; the date reverts to opening the device's default calendar. */
+    fun clearCalendarApp() = calendarSlot.clear()
 
     fun openPinPicker() {
         if (_settingsLocked.value) return

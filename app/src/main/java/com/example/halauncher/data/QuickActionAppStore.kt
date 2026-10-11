@@ -28,5 +28,8 @@ class QuickActionAppStore(context: Context) {
 
         /** The messages button. */
         const val MESSAGES_SLOT = "messages"
+
+        /** The date on the home screen, which opens a calendar. */
+        const val CALENDAR_SLOT = "calendar"
     }
 }
