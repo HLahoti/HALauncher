@@ -217,7 +217,7 @@ object SearchLayersConfig {
      * How long typing must pause, with nothing opened, before the disk layer is searched. Each
      * keystroke restarts the wait.
      */
-    const val DISK_SEARCH_DELAY_MS = 300L
+    const val DISK_SEARCH_DELAY_MS = 500L
 
     /**
      * How many full-text matches are fetched from disk for ranking. Higher finds good matches
