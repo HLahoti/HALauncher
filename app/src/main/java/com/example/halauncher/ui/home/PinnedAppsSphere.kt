@@ -67,9 +67,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.halauncher.R
 import com.example.halauncher.config.SphereConfig
-import com.example.halauncher.config.ThemeConfig
 import com.example.halauncher.model.AppInfo
 import com.example.halauncher.ui.components.launchSafely
+import com.example.halauncher.ui.components.LocalHomePalette
 import com.example.halauncher.ui.components.liquidGlass
 import com.example.halauncher.ui.components.rememberDrawablePainter
 import com.example.halauncher.util.Haptics
@@ -119,6 +119,8 @@ fun PinnedAppsSphere(
     // The sphere's fixed shading (light, rim, latitude stroke) doesn't depend on the rotation, so
     // it's built once and reused, not re-allocated on every frame of a turn.
     val shading = remember { SphereShading() }
+    // Smoky glass with light lines on a dark wallpaper; frosted with dark lines on a light one.
+    val palette = LocalHomePalette.current
     val currentApps by rememberUpdatedState(apps)
     val currentOnAppOpened by rememberUpdatedState(onAppOpened)
     val currentOnEdit by rememberUpdatedState(onEdit)
@@ -194,7 +196,12 @@ fun PinnedAppsSphere(
                 .offset(x = centerX - radius, y = centerY - radius)
                 .size(radius * 2)
                 .systemGestureExclusion()
-                .liquidGlass(CircleShape, tint = SphereConfig.GLASS_TINT)
+                .liquidGlass(
+                    CircleShape,
+                    tint = if (palette.isLight) SphereConfig.GLASS_TINT_ON_LIGHT else SphereConfig.GLASS_TINT,
+                    base = palette.glassBase,
+                    edge = palette.glassLine,
+                )
                 .drawBehind {
                     val r = size.minDimension / 2
                     // Rebuilds only when the sphere's pixel size changes, not on every turn frame.
@@ -213,7 +220,7 @@ fun PinnedAppsSphere(
                         val halfWidth = r * depth
                         val height = halfWidth * SphereConfig.LATITUDE_TILT
                         drawOval(
-                            color = Color.White.copy(alpha = SphereConfig.LATITUDE_ALPHA * depth),
+                            color = palette.glassLine.copy(alpha = SphereConfig.LATITUDE_ALPHA * depth),
                             topLeft = Offset(r - halfWidth, r + r * sin(angle) - height / 2),
                             size = Size(halfWidth * 2, height),
                             style = shading.latitudeStroke,
@@ -303,13 +310,13 @@ fun PinnedAppsSphere(
                         y = radius - iconSize / 2 - SphereConfig.FrontHaloPadding,
                     )
                     .size(iconSize + SphereConfig.FrontHaloPadding * 2)
-                    .liquidGlass(CircleShape, tint = 0f),
+                    .liquidGlass(CircleShape, tint = 0f, edge = palette.glassLine),
             )
             if (count == 0) {
                 Icon(
                     imageVector = Icons.Default.Add,
                     contentDescription = null,
-                    tint = ThemeConfig.Foreground,
+                    tint = palette.foreground,
                     modifier = Modifier
                         .offset(x = radius - ringRadius - iconSize / 2, y = radius - iconSize / 2)
                         .size(iconSize)
@@ -372,12 +379,17 @@ fun PinnedAppsSphere(
                 ) { name ->
                     Text(
                         text = name,
-                        color = ThemeConfig.Foreground,
+                        color = palette.foreground,
                         style = MaterialTheme.typography.labelLarge,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier
-                            .liquidGlass(RoundedCornerShape(percent = 50), tint = SphereConfig.LABEL_GLASS_TINT)
+                            .liquidGlass(
+                                RoundedCornerShape(percent = 50),
+                                tint = if (palette.isLight) SphereConfig.LABEL_GLASS_TINT_ON_LIGHT else SphereConfig.LABEL_GLASS_TINT,
+                                base = palette.glassBase,
+                                edge = palette.glassLine,
+                            )
                             .padding(horizontal = SphereConfig.LabelHorizontalPadding, vertical = SphereConfig.LabelVerticalPadding),
                     )
                 }

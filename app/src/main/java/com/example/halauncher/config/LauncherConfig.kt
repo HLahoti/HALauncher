@@ -5,9 +5,7 @@ import android.os.VibrationEffect
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.SpringSpec
 import androidx.compose.animation.core.spring
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.halauncher.model.SearchCategory
@@ -24,15 +22,30 @@ import com.example.halauncher.model.SearchCategory
 
 /** Colours shared across the whole launcher. */
 object ThemeConfig {
-    /** Text and icon colour drawn over the wallpaper. */
+    /** Text and icon colour drawn over the wallpaper, and over the overlays' dark scrim. */
     val Foreground = Color.White
 
-    /** Shadow under home-screen text so it stays legible on light wallpapers. */
-    val LegibilityShadow = Shadow(
-        color = Color.Black.copy(alpha = 0.45f),
-        offset = Offset(0f, 2f),
-        blurRadius = 6f,
-    )
+    /**
+     * Text and icon colour of the bare home screen (clock, date, quick actions, sphere) when the
+     * wallpaper is light enough for dark content. Overlays keep [Foreground] on their dark scrim.
+     */
+    val ForegroundOnLight = Color(0xFF161616)
+
+    /**
+     * Shadow under home-screen text and glyphs, so they stay legible on wallpapers that are
+     * neither clearly dark nor clearly light: dark under white content, a white glow under dark.
+     */
+    const val LEGIBILITY_SHADOW_ALPHA = 0.6f
+    const val LEGIBILITY_GLOW_ALPHA = 0.7f
+    val LegibilityShadowBlur = 4.dp
+    val LegibilityShadowOffset = 1.dp
+
+    /**
+     * On Android 8–11, which can't say outright whether a wallpaper suits dark text, a wallpaper
+     * whose main colour is brighter than this relative luminance (0f black to 1f white) counts as
+     * light. Android 12+ uses the system's own verdict instead.
+     */
+    const val LIGHT_WALLPAPER_LUMINANCE = 0.5f
 }
 
 /** Layout of the bare home screen (clock column and quick actions). */
@@ -475,6 +488,9 @@ object SphereConfig {
     /** Darkness of the sphere's glass. */
     const val GLASS_TINT = 0.14f
 
+    /** On a light wallpaper the glass is frosted white instead: the opacity of that white base. */
+    const val GLASS_TINT_ON_LIGHT = 0.3f
+
     /** Brightness of the light reflection on the upper left. */
     const val HIGHLIGHT_ALPHA = 0.2f
 
@@ -522,6 +538,9 @@ object SphereConfig {
 
     /** Darkness of the label's glass. */
     const val LABEL_GLASS_TINT = 0.25f
+
+    /** Opacity of the label's white glass on a light wallpaper. */
+    const val LABEL_GLASS_TINT_ON_LIGHT = 0.5f
 
     /** How long the label stays after the sphere stops turning. */
     const val LABEL_LINGER_MS = 1200L
