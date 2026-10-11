@@ -55,6 +55,7 @@ import com.example.halauncher.config.SearchConfig
 import com.example.halauncher.config.SettingsPanelConfig
 import com.example.halauncher.config.ThemeConfig
 import com.example.halauncher.model.AccessState
+import com.example.halauncher.model.HomeTextColor
 import com.example.halauncher.model.SearchCategory
 import com.example.halauncher.service.DeviceLock
 import com.example.halauncher.ui.components.labelRes
@@ -77,6 +78,7 @@ import kotlin.math.roundToInt
  * @param onReduceIndexSizeChange saves the preference and re-indexes files so the change takes effect.
  * @param onHapticIntensityChange saves the tick strength (0f–1f); every haptic reads it on its next buzz.
  * @param onDefaultSearchCategoryChange saves the category search opens on (null for "All").
+ * @param onHomeTextColorChange saves the home screen's content colour (auto, light or dark).
  * @param onHowToUse opens the "How to use this app" guide; stays available even while settings are locked.
  * @param onOpenSetup opens the "Set-up & permissions" screen; stays available even while settings are locked.
  * @param contactsAccess where the contacts permission stands; the set-up row warns while it's off.
@@ -89,11 +91,13 @@ fun SettingsPanel(
     reduceIndexSize: Boolean,
     hapticIntensity: Float,
     defaultSearchCategory: SearchCategory?,
+    homeTextColor: HomeTextColor,
     onSettingsLockedChange: (Boolean) -> Unit,
     onDoubleTapToLockChange: (Boolean) -> Unit,
     onReduceIndexSizeChange: (Boolean) -> Unit,
     onHapticIntensityChange: (Float) -> Unit,
     onDefaultSearchCategoryChange: (SearchCategory?) -> Unit,
+    onHomeTextColorChange: (HomeTextColor) -> Unit,
     onHowToUse: () -> Unit,
     onOpenSetup: () -> Unit,
     contactsAccess: AccessState,
@@ -193,6 +197,21 @@ fun SettingsPanel(
                             else stringResource(category.labelRes)
                         },
                         onSelected = onDefaultSearchCategoryChange,
+                    )
+                    SettingChoice(
+                        title = stringResource(R.string.setting_home_text_color_title),
+                        description = stringResource(R.string.setting_home_text_color_description),
+                        options = HomeTextColor.entries,
+                        selected = homeTextColor,
+                        enabled = enabled,
+                        optionLabel = { color ->
+                            when (color) {
+                                HomeTextColor.AUTO -> stringResource(R.string.home_text_color_auto)
+                                HomeTextColor.LIGHT -> stringResource(R.string.home_text_color_light)
+                                HomeTextColor.DARK -> stringResource(R.string.home_text_color_dark)
+                            }
+                        },
+                        onSelected = onHomeTextColorChange,
                     )
                     SettingToggle(
                         title = stringResource(R.string.setting_reduce_index_title),

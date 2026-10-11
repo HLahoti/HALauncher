@@ -3,6 +3,7 @@ package com.example.halauncher.data
 import android.content.Context
 import androidx.core.content.edit
 import com.example.halauncher.config.HapticsConfig
+import com.example.halauncher.model.HomeTextColor
 import com.example.halauncher.model.SearchCategory
 
 /**
@@ -71,6 +72,13 @@ class LauncherSettingsStore(context: Context) {
         }
         set(value) = prefs.edit { putString(KEY_DEFAULT_SEARCH_CATEGORY, value?.name ?: ALL_VALUE) }
 
+    /** Colour of the home screen's content over the wallpaper. Stored by enum name; defaults to [HomeTextColor.AUTO]. */
+    var homeTextColor: HomeTextColor
+        get() = prefs.getString(KEY_HOME_TEXT_COLOR, null)
+            ?.let { stored -> HomeTextColor.entries.firstOrNull { it.name == stored } }
+            ?: HomeTextColor.AUTO
+        set(value) = prefs.edit { putString(KEY_HOME_TEXT_COLOR, value.name) }
+
     private companion object {
         const val PREFS_NAME = "launcher_settings"
         const val KEY_SETUP_SEEN = "setup_seen"
@@ -80,6 +88,7 @@ class LauncherSettingsStore(context: Context) {
         const val KEY_REDUCE_INDEX_SIZE = "reduce_index_size"
         const val KEY_HAPTIC_INTENSITY = "haptic_intensity"
         const val KEY_DEFAULT_SEARCH_CATEGORY = "default_search_category"
+        const val KEY_HOME_TEXT_COLOR = "home_text_color"
 
         /** Sentinel stored for the "All" default, since null can't be a preference value. */
         const val ALL_VALUE = "ALL"

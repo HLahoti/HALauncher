@@ -76,6 +76,7 @@ import com.example.halauncher.R
 import com.example.halauncher.config.ClockConfig
 import com.example.halauncher.config.HomeScreenConfig
 import com.example.halauncher.model.AppInfo
+import com.example.halauncher.model.HomeTextColor
 import com.example.halauncher.model.LaunchableElement
 import com.example.halauncher.ui.components.ClickToLaunch
 import com.example.halauncher.ui.components.LegibleIcon
@@ -115,6 +116,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     val reduceIndexSize by viewModel.reduceIndexSize.collectAsStateWithLifecycle()
     val hapticIntensity by viewModel.hapticIntensity.collectAsStateWithLifecycle()
     val defaultSearchCategory by viewModel.defaultSearchCategory.collectAsStateWithLifecycle()
+    val homeTextColor by viewModel.homeTextColor.collectAsStateWithLifecycle()
     val moneyApp by viewModel.moneyApp.collectAsStateWithLifecycle()
     val galleryApp by viewModel.galleryApp.collectAsStateWithLifecycle()
     val messagesApp by viewModel.messagesApp.collectAsStateWithLifecycle()
@@ -176,9 +178,17 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     val homeLayer = rememberGraphicsLayer()
     val homeBlur = remember { HomeBlur() }
 
-    // Dark content on a light wallpaper. The status and navigation bar icons follow it while the
-    // bare home screen shows, and go back to light once an overlay's dark scrim is over it.
-    val homePalette = rememberHomePalette(isLight = rememberWallpaperIsLight())
+    // Dark content on a light wallpaper, unless the user has picked light or dark outright. The
+    // status and navigation bar icons follow it while the bare home screen shows, and go back to
+    // light once an overlay's dark scrim is over it.
+    val wallpaperIsLight = rememberWallpaperIsLight()
+    val homePalette = rememberHomePalette(
+        isLight = when (homeTextColor) {
+            HomeTextColor.AUTO -> wallpaperIsLight
+            HomeTextColor.LIGHT -> false
+            HomeTextColor.DARK -> true
+        },
+    )
     val searchMostlyIn by remember { derivedStateOf { searchReveal.value >= 0.5f } }
     val lightSystemBars = homePalette.isLight && !overlayOpen && !searchMostlyIn
     val activity = LocalActivity.current
@@ -409,11 +419,13 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 reduceIndexSize = reduceIndexSize,
                 hapticIntensity = hapticIntensity,
                 defaultSearchCategory = defaultSearchCategory,
+                homeTextColor = homeTextColor,
                 onSettingsLockedChange = viewModel::setSettingsLocked,
                 onDoubleTapToLockChange = viewModel::setDoubleTapToLock,
                 onReduceIndexSizeChange = viewModel::setReduceIndexSize,
                 onHapticIntensityChange = viewModel::setHapticIntensity,
                 onDefaultSearchCategoryChange = viewModel::setDefaultSearchCategory,
+                onHomeTextColorChange = viewModel::setHomeTextColor,
                 onHowToUse = viewModel::openHowTo,
                 onOpenSetup = viewModel::openSetup,
                 contactsAccess = contactsAccess,

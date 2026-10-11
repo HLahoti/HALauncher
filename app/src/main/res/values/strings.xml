@@ -68,6 +68,11 @@
     <string name="setting_double_tap_lock_description">Double-tap an empty part of the home screen to lock your phone. Turning this on asks you to let HALauncher lock the screen; it\'s used only for that — it can\'t read your screen or change anything else. Turning it off removes that access.</string>
     <string name="setting_default_search_category_title">Default search category</string>
     <string name="setting_default_search_category_description">Which category search starts on each time you open it. \"All\" searches everything.</string>
+    <string name="setting_home_text_color_title">Home screen colour</string>
+    <string name="setting_home_text_color_description">Colour of the clock, icons and app sphere over your wallpaper. Auto uses dark on light wallpapers and light on the rest; pick Light or Dark if it gets yours wrong.</string>
+    <string name="home_text_color_auto">Auto</string>
+    <string name="home_text_color_light">Light</string>
+    <string name="home_text_color_dark">Dark</string>
     <string name="setting_reduce_index_title">Reduce index size</string>
     <string name="setting_reduce_index_description">Leave files you\'d never open out of search — app backups, caches and the trash bin — so the index stays small and the app lighter. No extra permission: it works within the file access you\'ve already granted.</string>
     <string name="setting_haptic_intensity_title">Vibration intensity</string>

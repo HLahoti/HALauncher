@@ -25,6 +25,7 @@ import com.example.halauncher.data.PinnedAppsStore
 import com.example.halauncher.data.QuickActionAppStore
 import com.example.halauncher.model.AccessState
 import com.example.halauncher.model.AppInfo
+import com.example.halauncher.model.HomeTextColor
 import com.example.halauncher.model.SearchCategory
 import com.example.halauncher.model.SearchEntry
 import com.example.halauncher.search.SearchEngine
@@ -232,6 +233,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val _defaultSearchCategory = MutableStateFlow(settingsStore.defaultSearchCategory)
     /** The category search opens filtered to, or null for "All"; set from the settings panel. */
     val defaultSearchCategory: StateFlow<SearchCategory?> = _defaultSearchCategory.asStateFlow()
+
+    private val _homeTextColor = MutableStateFlow(settingsStore.homeTextColor)
+    /** Colour of the home screen's content: following the wallpaper, or forced light or dark; set from the settings panel. */
+    val homeTextColor: StateFlow<HomeTextColor> = _homeTextColor.asStateFlow()
 
     /**
      * The in-memory frequent layer. The published trie is only read and changed on the main
@@ -759,6 +764,12 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     fun setDefaultSearchCategory(category: SearchCategory?) {
         settingsStore.defaultSearchCategory = category
         _defaultSearchCategory.value = category
+    }
+
+    /** Sets the colour of the home screen's content; applies straight away. */
+    fun setHomeTextColor(color: HomeTextColor) {
+        settingsStore.homeTextColor = color
+        _homeTextColor.value = color
     }
 
     /**
