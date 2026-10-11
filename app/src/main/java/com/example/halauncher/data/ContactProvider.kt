@@ -3,6 +3,7 @@ package com.example.halauncher.data
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.provider.ContactsContract.CommonDataKinds.Phone
 import android.provider.ContactsContract.Contacts
 import androidx.annotation.WorkerThread
@@ -20,6 +21,9 @@ class ContactProvider(private val context: Context) : SearchEntryProvider {
 
     override val category = SearchCategory.CONTACT
 
+    /** The contacts' photos, loaded as search shows them. */
+    val photos = ContactPhotoCache(context)
+
     fun hasPermission(): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) ==
             PackageManager.PERMISSION_GRANTED
@@ -29,7 +33,9 @@ class ContactProvider(private val context: Context) : SearchEntryProvider {
         if (!hasPermission()) return emptyList()
         return try {
             val numbers = loadBestPhoneNumbers()
-            loadContacts().map { contact -> contact.copy(phoneNumber = numbers[contact.contactId]) }
+            loadContacts()
+                .map { contact -> contact.copy(phoneNumber = numbers[contact.contactId]) }
+                .also(photos::retainOnly)
         } catch (e: SecurityException) {
             // Permission revoked between the check and the query.
             emptyList()
@@ -37,17 +43,32 @@ class ContactProvider(private val context: Context) : SearchEntryProvider {
     }
 
     private fun loadContacts(): List<ContactEntry> {
-        val projection = arrayOf(Contacts._ID, Contacts.LOOKUP_KEY, Contacts.DISPLAY_NAME_PRIMARY)
+        val projection = arrayOf(
+            Contacts._ID, Contacts.LOOKUP_KEY, Contacts.DISPLAY_NAME_PRIMARY,
+            Contacts.PHOTO_URI, Contacts.CONTACT_LAST_UPDATED_TIMESTAMP,
+        )
         val contacts = mutableListOf<ContactEntry>()
         context.contentResolver.query(Contacts.CONTENT_URI, projection, null, null, null)?.use { cursor ->
             val idCol = cursor.getColumnIndexOrThrow(Contacts._ID)
             val keyCol = cursor.getColumnIndexOrThrow(Contacts.LOOKUP_KEY)
             val nameCol = cursor.getColumnIndexOrThrow(Contacts.DISPLAY_NAME_PRIMARY)
+            val photoCol = cursor.getColumnIndexOrThrow(Contacts.PHOTO_URI)
+            val updatedCol = cursor.getColumnIndexOrThrow(Contacts.CONTACT_LAST_UPDATED_TIMESTAMP)
             while (cursor.moveToNext()) {
                 val name = cursor.getString(nameCol)?.trim()
                 val lookupKey = cursor.getString(keyCol)
                 if (name.isNullOrEmpty() || lookupKey == null) continue
-                contacts += ContactEntry(cursor.getLong(idCol), lookupKey, name, phoneNumber = null)
+                // Only the URI is read here; the photo itself loads when search shows the contact.
+                val photoUri = cursor.getString(photoCol)?.let(Uri::parse)
+                contacts += ContactEntry(
+                    contactId = cursor.getLong(idCol),
+                    lookupKey = lookupKey,
+                    name = name,
+                    phoneNumber = null,
+                    photoUri = photoUri,
+                    // Only matters with a photo; left 0 otherwise so other edits don't change the entry.
+                    photoVersion = if (photoUri != null) cursor.getLong(updatedCol) else 0L,
+                )
             }
         }
         return contacts

@@ -48,6 +48,8 @@ object ContactEntryCodec : SearchEntryCodec {
     private const val CONTACT_ID = "id"
     private const val LOOKUP_KEY = "lookup"
     private const val PHONE = "phone"
+    private const val PHOTO = "photo"
+    private const val PHOTO_VERSION = "photoVersion"
 
     override val category = SearchCategory.CONTACT
 
@@ -57,6 +59,8 @@ object ContactEntryCodec : SearchEntryCodec {
             .put(CONTACT_ID, contact.contactId)
             .put(LOOKUP_KEY, contact.lookupKey)
             .put(PHONE, contact.phoneNumber ?: JSONObject.NULL)
+            .put(PHOTO, contact.photoUri?.toString() ?: JSONObject.NULL)
+            .put(PHOTO_VERSION, contact.photoVersion)
             .toString()
     }
 
@@ -67,6 +71,9 @@ object ContactEntryCodec : SearchEntryCodec {
             lookupKey = json.getString(LOOKUP_KEY),
             name = name,
             phoneNumber = json.optStringOrNull(PHONE),
+            // Absent in entries indexed before photos were stored; the next sync adds them.
+            photoUri = if (json.has(PHOTO)) json.optStringOrNull(PHOTO)?.let(Uri::parse) else null,
+            photoVersion = json.optLong(PHOTO_VERSION),
         )
     }
 }

@@ -1,5 +1,6 @@
 package com.example.halauncher.ui.home
 
+import android.graphics.drawable.Drawable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -42,8 +43,10 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -73,7 +76,9 @@ import com.example.halauncher.R
 import com.example.halauncher.config.CategoryFilterConfig
 import com.example.halauncher.config.SearchConfig
 import com.example.halauncher.config.ThemeConfig
+import com.example.halauncher.data.ContactPhotoCache
 import com.example.halauncher.model.AccessState
+import com.example.halauncher.model.ContactEntry
 import com.example.halauncher.model.LaunchableElement
 import com.example.halauncher.model.SearchCategory
 import com.example.halauncher.model.SearchEntry
@@ -97,8 +102,9 @@ fun SearchOverlay(
     onCategoryFilterChange: (SearchCategory?) -> Unit,
     onEntryOpened: (SearchEntry) -> Unit,
     modifier: Modifier = Modifier,
-    appsAsGrid: Boolean = false,
-    onAppsAsGridChange: (Boolean) -> Unit = {},
+    gridCategories: Set<SearchCategory> = emptySet(),
+    onGridChange: (SearchCategory, Boolean) -> Unit = { _, _ -> },
+    contactPhotos: ContactPhotoCache? = null,
     isFullyIn: Boolean = true,
     reveal: SearchRevealState? = null,
     pickTitle: String? = null,
@@ -116,9 +122,9 @@ fun SearchOverlay(
     val focusRequester = remember { FocusRequester() }
     val listState = rememberLazyListState()
     val gridState = rememberLazyGridState()
-    // Only the apps tab can be a grid; every other tab, and picking an app, stays a list.
-    val canShowGrid = categoryFilter == SearchCategory.APP && !isPicking
-    val showGrid = appsAsGrid && canShowGrid
+    // Only some tabs can be a grid; every other tab, and picking an app, stays a list.
+    val gridCategory = categoryFilter?.takeIf { it in SearchConfig.GridCategories && !isPicking }
+    val showGrid = gridCategory != null && gridCategory in gridCategories
     val searchFieldShape = RoundedCornerShape(percent = 50)
     val placeholderColor = ThemeConfig.Foreground.copy(alpha = SearchConfig.PLACEHOLDER_ALPHA)
     val keyboard = LocalSoftwareKeyboardController.current
@@ -272,10 +278,11 @@ fun SearchOverlay(
                         onSelected = onCategoryFilterChange,
                         modifier = Modifier.align(Alignment.Center),
                     )
-                    if (canShowGrid) {
+                    if (gridCategory != null) {
                         LayoutToggle(
-                            asGrid = appsAsGrid,
-                            onChange = onAppsAsGridChange,
+                            category = gridCategory,
+                            asGrid = showGrid,
+                            onChange = { onGridChange(gridCategory, it) },
                             modifier = Modifier.align(Alignment.CenterEnd),
                         )
                     }
@@ -308,7 +315,7 @@ fun SearchOverlay(
             }
             if (showGrid) {
                 LazyVerticalGrid(
-                    columns = GridCells.Fixed(SearchConfig.APP_GRID_COLUMNS),
+                    columns = GridCells.Fixed(SearchConfig.GRID_COLUMNS),
                     state = gridState,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
@@ -319,7 +326,7 @@ fun SearchOverlay(
                     }
                     items(results.frequent, key = { it.id }) { entry ->
                         EntryItem(entry = entry, isPicking = false, onOpened = onEntryOpened, onPicked = onEntryPicked) {
-                            EntryGridCellContent(entry)
+                            EntryGridCellContent(entry, contactPhotos)
                         }
                     }
                     if (results.frequent.isNotEmpty() && results.more.isNotEmpty()) {
@@ -329,7 +336,7 @@ fun SearchOverlay(
                     }
                     items(results.more, key = { it.id }) { entry ->
                         EntryItem(entry = entry, isPicking = false, onOpened = onEntryOpened, onPicked = onEntryPicked) {
-                            EntryGridCellContent(entry)
+                            EntryGridCellContent(entry, contactPhotos)
                         }
                     }
                     if (results.isEmpty && activeCalcResult == null && !results.isSearchingDisk && query.isNotBlank()) {
@@ -347,7 +354,7 @@ fun SearchOverlay(
                     }
                     items(results.frequent, key = { it.id }) { entry ->
                         EntryItem(entry = entry, isPicking = isPicking, onOpened = onEntryOpened, onPicked = onEntryPicked) {
-                            EntryRowContent(entry)
+                            EntryRowContent(entry, contactPhotos)
                         }
                     }
                     if (results.frequent.isNotEmpty() && results.more.isNotEmpty()) {
@@ -355,7 +362,7 @@ fun SearchOverlay(
                     }
                     items(results.more, key = { it.id }) { entry ->
                         EntryItem(entry = entry, isPicking = isPicking, onOpened = onEntryOpened, onPicked = onEntryPicked) {
-                            EntryRowContent(entry)
+                            EntryRowContent(entry, contactPhotos)
                         }
                     }
                     if (results.isEmpty && activeCalcResult == null && !results.isSearchingDisk && query.isNotBlank()) {
@@ -519,7 +526,7 @@ private fun EntryItem(
 }
 
 @Composable
-private fun EntryRowContent(entry: SearchEntry) {
+private fun EntryRowContent(entry: SearchEntry, contactPhotos: ContactPhotoCache?) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -527,7 +534,7 @@ private fun EntryRowContent(entry: SearchEntry) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(SearchConfig.ResultIconTextGap),
     ) {
-        EntryIcon(entry)
+        EntryIcon(entry, contactPhotos)
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(SearchConfig.ResultDetailGap),
@@ -557,7 +564,7 @@ private fun EntryRowContent(entry: SearchEntry) {
 
 /** A grid cell: the entry's icon with its name centred right below it. */
 @Composable
-private fun EntryGridCellContent(entry: SearchEntry) {
+private fun EntryGridCellContent(entry: SearchEntry, contactPhotos: ContactPhotoCache?) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -565,7 +572,7 @@ private fun EntryGridCellContent(entry: SearchEntry) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(SearchConfig.GridIconTextGap),
     ) {
-        EntryIcon(entry, size = SearchConfig.GridIconSize)
+        EntryIcon(entry, contactPhotos, size = SearchConfig.GridIconSize)
         Text(
             text = entry.name,
             color = ThemeConfig.Foreground,
@@ -578,11 +585,16 @@ private fun EntryGridCellContent(entry: SearchEntry) {
 }
 
 /**
- * The round glass button beside the category bar that switches the apps tab between a list and
- * a grid. It shows the layout it's set to, brightened like the bar's thumb while it's a grid.
+ * The round glass button beside the category bar that switches the [category] tab between a list
+ * and a grid. It shows the layout it's set to, brightened like the bar's thumb while it's a grid.
  */
 @Composable
-private fun LayoutToggle(asGrid: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
+private fun LayoutToggle(
+    category: SearchCategory,
+    asGrid: Boolean,
+    onChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val context = LocalContext.current
     val haptics = remember(context) { Haptics(context) }
     Box(
@@ -607,7 +619,9 @@ private fun LayoutToggle(asGrid: Boolean, onChange: (Boolean) -> Unit, modifier:
     ) {
         Icon(
             imageVector = if (asGrid) GridLayoutIcon else ListLayoutIcon,
-            contentDescription = stringResource(R.string.show_apps_as_grid),
+            contentDescription = stringResource(
+                if (category == SearchCategory.CONTACT) R.string.show_contacts_as_grid else R.string.show_apps_as_grid,
+            ),
             tint = ThemeConfig.Foreground,
             modifier = Modifier.size(SearchConfig.LayoutToggleIconSize),
         )
@@ -662,10 +676,14 @@ private fun CalcResultRow(query: String, result: String, onCopy: (String) -> Uni
     }
 }
 
-/** The entry's own image (app icon, contact photo), or its category icon when it has none. */
+/**
+ * The entry's own image (app icon, contact photo), or its category icon when it has none. A contact's
+ * photo loads from [contactPhotos] as it's shown; until then (or if it can't be read) the category
+ * icon stands in.
+ */
 @Composable
-private fun EntryIcon(entry: SearchEntry, size: Dp = SearchConfig.ResultIconSize) {
-    val icon = entry.icon
+private fun EntryIcon(entry: SearchEntry, contactPhotos: ContactPhotoCache?, size: Dp = SearchConfig.ResultIconSize) {
+    val icon = entry.icon ?: rememberContactPhoto(entry, contactPhotos)
     // The name next to it already describes the row, so the image itself is decorative.
     if (icon != null) {
         Image(
@@ -683,4 +701,18 @@ private fun EntryIcon(entry: SearchEntry, size: Dp = SearchConfig.ResultIconSize
                 .padding(SearchConfig.PlaceholderIconPadding),
         )
     }
+}
+
+/**
+ * [entry]'s contact photo: straight away when it's in memory, else once [contactPhotos] has loaded
+ * it in the background. Null for anything that isn't a contact with a photo.
+ */
+@Composable
+private fun rememberContactPhoto(entry: SearchEntry, contactPhotos: ContactPhotoCache?): Drawable? {
+    val contact = (entry as? ContactEntry)?.takeIf { it.photoUri != null }
+    var photo by remember(contact, contactPhotos) { mutableStateOf(contact?.let { contactPhotos?.cached(it) }) }
+    LaunchedEffect(contact, contactPhotos) {
+        if (photo == null && contact != null && contactPhotos != null) photo = contactPhotos.load(contact)
+    }
+    return photo
 }

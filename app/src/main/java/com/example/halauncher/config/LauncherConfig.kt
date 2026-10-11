@@ -211,10 +211,13 @@ object SearchConfig {
      */
     val PlaceholderIconPadding = 6.dp
 
-    /** How many apps sit in each row when the apps tab is shown as a grid. */
-    const val APP_GRID_COLUMNS = 3
+    /** The tabs that can show their results as a grid of icons; every other tab is always a list. */
+    val GridCategories = setOf(SearchCategory.APP, SearchCategory.CONTACT)
 
-    /** App icon size in a grid cell. */
+    /** How many results sit in each row when a tab is shown as a grid. */
+    const val GRID_COLUMNS = 3
+
+    /** Icon (or contact photo) size in a grid cell. */
     val GridIconSize = 52.dp
 
     /** Gap between a grid cell's icon and the name under it. */
@@ -476,6 +479,21 @@ object IconCacheConfig {
      * sphere, or a search result), so they're never scaled up.
      */
     val IconSize get() = maxOf(SphereConfig.IconSize, SearchConfig.ResultIconSize)
+
+    /** Size contact photos are stored at: the largest search draws them (a grid cell), so they're never scaled up. */
+    val ContactPhotoSize get() = maxOf(SearchConfig.ResultIconSize, SearchConfig.GridIconSize)
+
+    /**
+     * Memory kept for the most recently shown contact photos (about 60 at a typical density);
+     * older ones are read back from disk when needed.
+     */
+    const val CONTACT_PHOTO_MEMORY_BYTES = 6 * 1024 * 1024
+
+    /** How many contact photos may load at once, so a fast scroll doesn't flood the disk. */
+    const val CONTACT_PHOTO_LOAD_PARALLELISM = 2
+
+    /** WebP quality of the photos kept on disk (Android 11+). */
+    const val CONTACT_PHOTO_QUALITY = 90
 }
 
 /** The glass half-sphere of pinned apps on the right edge of the home screen. */

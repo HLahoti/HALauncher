@@ -16,8 +16,10 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.halauncher.config.ClockConfig
 import com.example.halauncher.config.PinPickerConfig
+import com.example.halauncher.config.SearchConfig
 import com.example.halauncher.config.SearchLayersConfig
 import com.example.halauncher.data.AppRepository
+import com.example.halauncher.data.ContactPhotoCache
 import com.example.halauncher.data.ContactProvider
 import com.example.halauncher.data.FileSearchProvider
 import com.example.halauncher.data.LauncherSettingsStore
@@ -238,9 +240,12 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     /** Colour of the home screen's content: following the wallpaper, or forced light or dark; set from the settings panel. */
     val homeTextColor: StateFlow<HomeTextColor> = _homeTextColor.asStateFlow()
 
-    private val _searchAppsAsGrid = MutableStateFlow(settingsStore.searchAppsAsGrid)
-    /** Whether search's apps-only tab shows a grid of icons rather than a list; toggled from search itself. */
-    val searchAppsAsGrid: StateFlow<Boolean> = _searchAppsAsGrid.asStateFlow()
+    private val _searchGridCategories = MutableStateFlow(SearchConfig.GridCategories.filter(settingsStore::searchAsGrid).toSet())
+    /** The search tabs showing a grid of icons rather than a list; toggled from search itself. */
+    val searchGridCategories: StateFlow<Set<SearchCategory>> = _searchGridCategories.asStateFlow()
+
+    /** Contact photos for search, loaded as contacts are shown. */
+    val contactPhotos: ContactPhotoCache get() = contactProvider.photos
 
     /**
      * The in-memory frequent layer. The published trie is only read and changed on the main
@@ -770,10 +775,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         _defaultSearchCategory.value = category
     }
 
-    /** Switches search's apps-only tab between a grid and a list, and remembers the choice. */
-    fun setSearchAppsAsGrid(asGrid: Boolean) {
-        settingsStore.searchAppsAsGrid = asGrid
-        _searchAppsAsGrid.value = asGrid
+    /** Switches search's [category] tab between a grid and a list, and remembers the choice. */
+    fun setSearchAsGrid(category: SearchCategory, asGrid: Boolean) {
+        settingsStore.setSearchAsGrid(category, asGrid)
+        _searchGridCategories.value = if (asGrid) _searchGridCategories.value + category else _searchGridCategories.value - category
     }
 
     /** Sets the colour of the home screen's content; applies straight away. */

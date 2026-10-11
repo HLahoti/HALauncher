@@ -41,6 +41,7 @@
     <string name="category_contact">Contact</string>
     <string name="category_file">File</string>
     <string name="show_apps_as_grid">Show apps as a grid</string>
+    <string name="show_contacts_as_grid">Show contacts as a grid</string>
     <string name="more_results">More results</string>
     <string name="no_results">No results</string>
     <string name="copy_calc_result">Copy %1$s to clipboard</string>
