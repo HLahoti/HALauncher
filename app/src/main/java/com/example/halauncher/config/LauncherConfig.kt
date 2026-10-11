@@ -210,6 +210,24 @@ object SearchConfig {
      * (e.g. a contact without a photo), so it looks balanced beside real app icons.
      */
     val PlaceholderIconPadding = 6.dp
+
+    /** How many apps sit in each row when the apps tab is shown as a grid. */
+    const val APP_GRID_COLUMNS = 3
+
+    /** App icon size in a grid cell. */
+    val GridIconSize = 52.dp
+
+    /** Gap between a grid cell's icon and the name under it. */
+    val GridIconTextGap = 6.dp
+
+    /** Inner padding of each grid cell. */
+    val GridCellPadding = 8.dp
+
+    /** Size of the round glass grid/list toggle beside the category bar (matches the bar's height). */
+    val LayoutToggleSize = 40.dp
+
+    /** Size of the icon on that toggle. */
+    val LayoutToggleIconSize = 20.dp
 }
 
 /** How search is split between the in-memory frequent layer and the on-disk full index. */

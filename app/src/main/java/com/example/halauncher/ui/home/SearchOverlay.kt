@@ -19,8 +19,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -54,10 +61,13 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
 import com.example.halauncher.R
 import com.example.halauncher.config.CategoryFilterConfig
@@ -68,6 +78,8 @@ import com.example.halauncher.model.LaunchableElement
 import com.example.halauncher.model.SearchCategory
 import com.example.halauncher.model.SearchEntry
 import com.example.halauncher.ui.components.ClickToLaunch
+import com.example.halauncher.ui.components.GridLayoutIcon
+import com.example.halauncher.ui.components.ListLayoutIcon
 import com.example.halauncher.ui.components.icon
 import com.example.halauncher.ui.components.launchSafely
 import com.example.halauncher.ui.components.liquidGlass
@@ -85,6 +97,8 @@ fun SearchOverlay(
     onCategoryFilterChange: (SearchCategory?) -> Unit,
     onEntryOpened: (SearchEntry) -> Unit,
     modifier: Modifier = Modifier,
+    appsAsGrid: Boolean = false,
+    onAppsAsGridChange: (Boolean) -> Unit = {},
     isFullyIn: Boolean = true,
     reveal: SearchRevealState? = null,
     pickTitle: String? = null,
@@ -101,6 +115,10 @@ fun SearchOverlay(
     val resources = LocalResources.current
     val focusRequester = remember { FocusRequester() }
     val listState = rememberLazyListState()
+    val gridState = rememberLazyGridState()
+    // Only the apps tab can be a grid; every other tab, and picking an app, stays a list.
+    val canShowGrid = categoryFilter == SearchCategory.APP && !isPicking
+    val showGrid = appsAsGrid && canShowGrid
     val searchFieldShape = RoundedCornerShape(percent = 50)
     val placeholderColor = ThemeConfig.Foreground.copy(alpha = SearchConfig.PLACEHOLDER_ALPHA)
     val keyboard = LocalSoftwareKeyboardController.current
@@ -242,14 +260,26 @@ fun SearchOverlay(
             // Filtering only helps when there's more than one kind of result, and picking is
             // already limited to one kind.
             if (categories.size > 1 && !isPicking) {
-                CategoryFilterBar(
-                    categories = categories,
-                    selected = categoryFilter,
-                    onSelected = onCategoryFilterChange,
+                // The bar stays centred; the grid/list toggle sits at the end of its line.
+                Box(
                     modifier = Modifier
-                        .padding(vertical = CategoryFilterConfig.VerticalSpacing)
-                        .align(Alignment.CenterHorizontally),
-                )
+                        .fillMaxWidth()
+                        .padding(vertical = CategoryFilterConfig.VerticalSpacing),
+                ) {
+                    CategoryFilterBar(
+                        categories = categories,
+                        selected = categoryFilter,
+                        onSelected = onCategoryFilterChange,
+                        modifier = Modifier.align(Alignment.Center),
+                    )
+                    if (canShowGrid) {
+                        LayoutToggle(
+                            asGrid = appsAsGrid,
+                            onChange = onAppsAsGridChange,
+                            modifier = Modifier.align(Alignment.CenterEnd),
+                        )
+                    }
+                }
             } else {
                 Spacer(Modifier.height(SearchConfig.ResultsSpacing))
             }
@@ -262,29 +292,75 @@ fun SearchOverlay(
             }
             // A new query or category starts the list from the top, and so does coming back:
             // search stays composed while hidden, so the list would otherwise keep its place.
-            LaunchedEffect(query, categoryFilter) { listState.scrollToItem(0) }
+            LaunchedEffect(query, categoryFilter, showGrid) {
+                listState.scrollToItem(0)
+                gridState.scrollToItem(0)
+            }
             LaunchedEffect(reveal) {
                 if (reveal != null) {
-                    snapshotFlow { reveal.value == 0f }.collect { hidden -> if (hidden) listState.scrollToItem(0) }
-                }
-            }
-            LazyColumn(state = listState, modifier = Modifier.fillMaxWidth()) {
-                if (activeCalcResult != null) {
-                    item(key = CALC_RESULT_KEY) {
-                        CalcResultRow(query = query, result = activeCalcResult, onCopy = onCalcResultSelected)
+                    snapshotFlow { reveal.value == 0f }.collect { hidden ->
+                        if (hidden) {
+                            listState.scrollToItem(0)
+                            gridState.scrollToItem(0)
+                        }
                     }
                 }
-                items(results.frequent, key = { it.id }) { entry ->
-                    EntryRow(entry = entry, isPicking = isPicking, onOpened = onEntryOpened, onPicked = onEntryPicked)
+            }
+            if (showGrid) {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(SearchConfig.APP_GRID_COLUMNS),
+                    state = gridState,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    if (activeCalcResult != null) {
+                        item(key = CALC_RESULT_KEY, span = { GridItemSpan(maxLineSpan) }) {
+                            CalcResultRow(query = query, result = activeCalcResult, onCopy = onCalcResultSelected)
+                        }
+                    }
+                    items(results.frequent, key = { it.id }) { entry ->
+                        EntryItem(entry = entry, isPicking = false, onOpened = onEntryOpened, onPicked = onEntryPicked) {
+                            EntryGridCellContent(entry)
+                        }
+                    }
+                    if (results.frequent.isNotEmpty() && results.more.isNotEmpty()) {
+                        item(key = MORE_RESULTS_KEY, span = { GridItemSpan(maxLineSpan) }) {
+                            SectionLabel(stringResource(R.string.more_results))
+                        }
+                    }
+                    items(results.more, key = { it.id }) { entry ->
+                        EntryItem(entry = entry, isPicking = false, onOpened = onEntryOpened, onPicked = onEntryPicked) {
+                            EntryGridCellContent(entry)
+                        }
+                    }
+                    if (results.isEmpty && activeCalcResult == null && !results.isSearchingDisk && query.isNotBlank()) {
+                        item(key = NO_RESULTS_KEY, span = { GridItemSpan(maxLineSpan) }) {
+                            SectionLabel(stringResource(R.string.no_results))
+                        }
+                    }
                 }
-                if (results.frequent.isNotEmpty() && results.more.isNotEmpty()) {
-                    item(key = MORE_RESULTS_KEY) { SectionLabel(stringResource(R.string.more_results)) }
-                }
-                items(results.more, key = { it.id }) { entry ->
-                    EntryRow(entry = entry, isPicking = isPicking, onOpened = onEntryOpened, onPicked = onEntryPicked)
-                }
-                if (results.isEmpty && activeCalcResult == null && !results.isSearchingDisk && query.isNotBlank()) {
-                    item(key = NO_RESULTS_KEY) { SectionLabel(stringResource(R.string.no_results)) }
+            } else {
+                LazyColumn(state = listState, modifier = Modifier.fillMaxWidth()) {
+                    if (activeCalcResult != null) {
+                        item(key = CALC_RESULT_KEY) {
+                            CalcResultRow(query = query, result = activeCalcResult, onCopy = onCalcResultSelected)
+                        }
+                    }
+                    items(results.frequent, key = { it.id }) { entry ->
+                        EntryItem(entry = entry, isPicking = isPicking, onOpened = onEntryOpened, onPicked = onEntryPicked) {
+                            EntryRowContent(entry)
+                        }
+                    }
+                    if (results.frequent.isNotEmpty() && results.more.isNotEmpty()) {
+                        item(key = MORE_RESULTS_KEY) { SectionLabel(stringResource(R.string.more_results)) }
+                    }
+                    items(results.more, key = { it.id }) { entry ->
+                        EntryItem(entry = entry, isPicking = isPicking, onOpened = onEntryOpened, onPicked = onEntryPicked) {
+                            EntryRowContent(entry)
+                        }
+                    }
+                    if (results.isEmpty && activeCalcResult == null && !results.isSearchingDisk && query.isNotBlank()) {
+                        item(key = NO_RESULTS_KEY) { SectionLabel(stringResource(R.string.no_results)) }
+                    }
                 }
             }
         }
@@ -407,13 +483,17 @@ private fun SearchPermissionNotice(
     }
 }
 
-/** A result row: tapping opens the entry, or, when [isPicking], chooses it instead. */
+/**
+ * A result, drawn by [content] (a list row or a grid cell): tapping opens the entry, or, when
+ * [isPicking], chooses it instead.
+ */
 @Composable
-private fun EntryRow(
+private fun EntryItem(
     entry: SearchEntry,
     isPicking: Boolean,
     onOpened: (SearchEntry) -> Unit,
     onPicked: (SearchEntry) -> Unit,
+    content: @Composable () -> Unit,
 ) {
     if (isPicking) {
         Box(
@@ -421,14 +501,15 @@ private fun EntryRow(
                 .fillMaxWidth()
                 .clickable(onClickLabel = stringResource(R.string.choose_app, entry.name)) { onPicked(entry) },
         ) {
-            EntryRowContent(entry)
+            content()
         }
         return
     }
     val label = stringResource(R.string.open_app, entry.name)
+    val currentContent by rememberUpdatedState(content)
     val element = remember(entry, label) {
         LaunchableElement(
-            displayContent = { EntryRowContent(entry) },
+            displayContent = { currentContent() },
             launchIntent = entry.link,
             fallbackIntents = entry.fallbackLinks,
             actionLabel = label,
@@ -471,6 +552,65 @@ private fun EntryRowContent(entry: SearchEntry) {
                 )
             }
         }
+    }
+}
+
+/** A grid cell: the entry's icon with its name centred right below it. */
+@Composable
+private fun EntryGridCellContent(entry: SearchEntry) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(SearchConfig.GridCellPadding),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(SearchConfig.GridIconTextGap),
+    ) {
+        EntryIcon(entry, size = SearchConfig.GridIconSize)
+        Text(
+            text = entry.name,
+            color = ThemeConfig.Foreground,
+            style = MaterialTheme.typography.bodySmall,
+            textAlign = TextAlign.Center,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/**
+ * The round glass button beside the category bar that switches the apps tab between a list and
+ * a grid. It shows the layout it's set to, brightened like the bar's thumb while it's a grid.
+ */
+@Composable
+private fun LayoutToggle(asGrid: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val haptics = remember(context) { Haptics(context) }
+    Box(
+        modifier = modifier
+            .size(SearchConfig.LayoutToggleSize)
+            .liquidGlass(CircleShape)
+            .then(
+                if (asGrid) {
+                    Modifier.background(
+                        ThemeConfig.Foreground.copy(alpha = CategoryFilterConfig.THUMB_SHEEN_ALPHA),
+                        CircleShape,
+                    )
+                } else {
+                    Modifier
+                },
+            )
+            .toggleable(value = asGrid, role = Role.Switch) {
+                haptics.tick()
+                onChange(it)
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = if (asGrid) GridLayoutIcon else ListLayoutIcon,
+            contentDescription = stringResource(R.string.show_apps_as_grid),
+            tint = ThemeConfig.Foreground,
+            modifier = Modifier.size(SearchConfig.LayoutToggleIconSize),
+        )
     }
 }
 
@@ -524,14 +664,14 @@ private fun CalcResultRow(query: String, result: String, onCopy: (String) -> Uni
 
 /** The entry's own image (app icon, contact photo), or its category icon when it has none. */
 @Composable
-private fun EntryIcon(entry: SearchEntry) {
+private fun EntryIcon(entry: SearchEntry, size: Dp = SearchConfig.ResultIconSize) {
     val icon = entry.icon
     // The name next to it already describes the row, so the image itself is decorative.
     if (icon != null) {
         Image(
             painter = rememberDrawablePainter(icon),
             contentDescription = null,
-            modifier = Modifier.size(SearchConfig.ResultIconSize),
+            modifier = Modifier.size(size),
         )
     } else {
         Icon(
@@ -539,7 +679,7 @@ private fun EntryIcon(entry: SearchEntry) {
             contentDescription = null,
             tint = ThemeConfig.Foreground,
             modifier = Modifier
-                .size(SearchConfig.ResultIconSize)
+                .size(size)
                 .padding(SearchConfig.PlaceholderIconPadding),
         )
     }

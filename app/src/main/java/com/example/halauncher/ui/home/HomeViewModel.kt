@@ -238,6 +238,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     /** Colour of the home screen's content: following the wallpaper, or forced light or dark; set from the settings panel. */
     val homeTextColor: StateFlow<HomeTextColor> = _homeTextColor.asStateFlow()
 
+    private val _searchAppsAsGrid = MutableStateFlow(settingsStore.searchAppsAsGrid)
+    /** Whether search's apps-only tab shows a grid of icons rather than a list; toggled from search itself. */
+    val searchAppsAsGrid: StateFlow<Boolean> = _searchAppsAsGrid.asStateFlow()
+
     /**
      * The in-memory frequent layer. The published trie is only read and changed on the main
      * thread: per-keystroke search runs there, and opened entries are inserted there in place.
@@ -764,6 +768,12 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     fun setDefaultSearchCategory(category: SearchCategory?) {
         settingsStore.defaultSearchCategory = category
         _defaultSearchCategory.value = category
+    }
+
+    /** Switches search's apps-only tab between a grid and a list, and remembers the choice. */
+    fun setSearchAppsAsGrid(asGrid: Boolean) {
+        settingsStore.searchAppsAsGrid = asGrid
+        _searchAppsAsGrid.value = asGrid
     }
 
     /** Sets the colour of the home screen's content; applies straight away. */

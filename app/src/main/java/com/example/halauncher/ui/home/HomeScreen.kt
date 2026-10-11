@@ -117,6 +117,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     val hapticIntensity by viewModel.hapticIntensity.collectAsStateWithLifecycle()
     val defaultSearchCategory by viewModel.defaultSearchCategory.collectAsStateWithLifecycle()
     val homeTextColor by viewModel.homeTextColor.collectAsStateWithLifecycle()
+    val searchAppsAsGrid by viewModel.searchAppsAsGrid.collectAsStateWithLifecycle()
     val moneyApp by viewModel.moneyApp.collectAsStateWithLifecycle()
     val galleryApp by viewModel.galleryApp.collectAsStateWithLifecycle()
     val messagesApp by viewModel.messagesApp.collectAsStateWithLifecycle()
@@ -481,6 +482,8 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
             onQueryChange = viewModel::onSearchQueryChanged,
             onCategoryFilterChange = viewModel::onCategoryFilterChanged,
             onEntryOpened = viewModel::onEntryOpened,
+            appsAsGrid = searchAppsAsGrid,
+            onAppsAsGridChange = viewModel::setSearchAppsAsGrid,
             pickTitle = when (searchPurpose) {
                 SearchPurpose.PICK_MONEY_APP -> stringResource(R.string.pick_money_app_title, moneySymbol)
                 SearchPurpose.PICK_GALLERY_APP -> stringResource(R.string.pick_gallery_app_title)

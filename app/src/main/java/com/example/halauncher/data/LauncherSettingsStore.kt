@@ -79,6 +79,14 @@ class LauncherSettingsStore(context: Context) {
             ?: HomeTextColor.AUTO
         set(value) = prefs.edit { putString(KEY_HOME_TEXT_COLOR, value.name) }
 
+    /**
+     * Whether search's apps-only tab shows its results as a grid of icons rather than a list.
+     * Every other tab is always a list. Defaults off (a list).
+     */
+    var searchAppsAsGrid: Boolean
+        get() = prefs.getBoolean(KEY_SEARCH_APPS_AS_GRID, false)
+        set(value) = prefs.edit { putBoolean(KEY_SEARCH_APPS_AS_GRID, value) }
+
     private companion object {
         const val PREFS_NAME = "launcher_settings"
         const val KEY_SETUP_SEEN = "setup_seen"
@@ -89,6 +97,7 @@ class LauncherSettingsStore(context: Context) {
         const val KEY_HAPTIC_INTENSITY = "haptic_intensity"
         const val KEY_DEFAULT_SEARCH_CATEGORY = "default_search_category"
         const val KEY_HOME_TEXT_COLOR = "home_text_color"
+        const val KEY_SEARCH_APPS_AS_GRID = "search_apps_as_grid"
 
         /** Sentinel stored for the "All" default, since null can't be a preference value. */
         const val ALL_VALUE = "ALL"

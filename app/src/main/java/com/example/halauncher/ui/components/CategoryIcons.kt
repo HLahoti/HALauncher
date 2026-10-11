@@ -50,6 +50,22 @@ private val FileIcon: ImageVector by lazy {
     )
 }
 
+/** Material "Grid View": shown on the toggle that lays search's apps out as a grid. */
+val GridLayoutIcon: ImageVector by lazy {
+    materialIcon(
+        name = "GridView",
+        pathData = "M3,3v8h8V3H3zM13,3v8h8V3H13zM3,13v8h8v-8H3zM13,13v8h8v-8H13z",
+    )
+}
+
+/** Material "View List": shown on the toggle that lays search's apps out as a list. */
+val ListLayoutIcon: ImageVector by lazy {
+    materialIcon(
+        name = "ViewList",
+        pathData = "M3,14h4v-4H3v4zM3,19h4v-4H3v4zM3,9h4V5H3v4zM8,14h13v-4H8v4zM8,19h13v-4H8v4zM8,5v4h13V5H8z",
+    )
+}
+
 /** A 24dp Material-style filled icon from SVG path data (tinted by Icon at draw time). */
 private fun materialIcon(name: String, pathData: String): ImageVector =
     ImageVector.Builder(
