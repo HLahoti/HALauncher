@@ -41,6 +41,9 @@ class FileSearchProvider(
 
     override val category = SearchCategory.FILE
 
+    /** Preview thumbnails of the files, loaded as search shows them. */
+    val thumbnails = FileThumbnailCache(context)
+
     fun hasAccess(): Boolean =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             Environment.isExternalStorageManager()

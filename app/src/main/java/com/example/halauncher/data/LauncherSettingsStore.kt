@@ -80,17 +80,19 @@ class LauncherSettingsStore(context: Context) {
         set(value) = prefs.edit { putString(KEY_HOME_TEXT_COLOR, value.name) }
 
     /**
-     * Whether search's [category] tab shows its results as a grid of icons rather than a list.
-     * Only the tabs in SearchConfig.GridCategories can; every other tab is always a list. Defaults
-     * off (a list).
+     * Whether search's [category] tab (null for "All") shows its results as a grid of icons rather
+     * than a list. Each tab has its own setting. Defaults off (a list).
      */
-    fun searchAsGrid(category: SearchCategory): Boolean = prefs.getBoolean(gridKey(category), false)
+    fun searchAsGrid(category: SearchCategory?): Boolean = prefs.getBoolean(gridKey(category), false)
 
-    fun setSearchAsGrid(category: SearchCategory, asGrid: Boolean) = prefs.edit { putBoolean(gridKey(category), asGrid) }
+    fun setSearchAsGrid(category: SearchCategory?, asGrid: Boolean) = prefs.edit { putBoolean(gridKey(category), asGrid) }
 
     // The apps tab's key predates the other tabs having one.
-    private fun gridKey(category: SearchCategory): String =
-        if (category == SearchCategory.APP) KEY_SEARCH_APPS_AS_GRID else "search_${category.name.lowercase()}_as_grid"
+    private fun gridKey(category: SearchCategory?): String = when (category) {
+        SearchCategory.APP -> KEY_SEARCH_APPS_AS_GRID
+        null -> "search_all_as_grid"
+        else -> "search_${category.name.lowercase()}_as_grid"
+    }
 
     private companion object {
         const val PREFS_NAME = "launcher_settings"

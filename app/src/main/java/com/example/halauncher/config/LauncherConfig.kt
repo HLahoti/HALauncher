@@ -211,17 +211,26 @@ object SearchConfig {
      */
     val PlaceholderIconPadding = 6.dp
 
-    /** The tabs that can show their results as a grid of icons; every other tab is always a list. */
-    val GridCategories = setOf(SearchCategory.APP, SearchCategory.CONTACT)
+    /**
+     * How long a file result must stay on screen before its thumbnail starts loading, so results
+     * flashing past while typing or flinging cost nothing.
+     */
+    const val FILE_THUMBNAIL_LOAD_DELAY_MS = 150L
 
     /** How many results sit in each row when a tab is shown as a grid. */
     const val GRID_COLUMNS = 3
 
-    /** Icon (or contact photo) size in a grid cell. */
+    /** Icon (or contact photo, or file thumbnail) size in a grid cell. */
     val GridIconSize = 52.dp
 
     /** Gap between a grid cell's icon and the name under it. */
     val GridIconTextGap = 6.dp
+
+    /**
+     * Whether a grid cell shows the entry's secondary line (a contact's number, a file's folder)
+     * under its name, as a list row does. Off leaves just the icon and name.
+     */
+    const val SHOW_DETAIL_IN_GRID = true
 
     /** Inner padding of each grid cell. */
     val GridCellPadding = 8.dp
@@ -494,6 +503,27 @@ object IconCacheConfig {
 
     /** WebP quality of the photos kept on disk (Android 11+). */
     const val CONTACT_PHOTO_QUALITY = 90
+
+    /** Size file thumbnails are stored at: the largest search draws them (a grid cell), so they're never scaled up. */
+    val FileThumbnailSize get() = maxOf(SearchConfig.ResultIconSize, SearchConfig.GridIconSize)
+
+    /** Corner rounding of file thumbnails. */
+    val FileThumbnailCornerRadius = 8.dp
+
+    /** Memory kept for the most recently shown file thumbnails (about 40 at a typical density). */
+    const val FILE_THUMBNAIL_MEMORY_BYTES = 4 * 1024 * 1024
+
+    /**
+     * How many files the thumbnails rendered by the launcher itself (PDFs, and before Android 10
+     * album art) and the "has no thumbnail" markers may take up on disk; the oldest go first.
+     */
+    const val FILE_THUMBNAIL_DISK_FILES = 1000
+
+    /** How many file thumbnails may load at once, so a fast scroll doesn't flood the disk. */
+    const val FILE_THUMBNAIL_LOAD_PARALLELISM = 2
+
+    /** WebP quality of the file thumbnails kept on disk (Android 11+). */
+    const val FILE_THUMBNAIL_QUALITY = 85
 }
 
 /** The glass half-sphere of pinned apps on the right edge of the home screen. */

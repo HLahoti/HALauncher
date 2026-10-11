@@ -485,6 +485,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
             gridCategories = searchGridCategories,
             onGridChange = viewModel::setSearchAsGrid,
             contactPhotos = viewModel.contactPhotos,
+            fileThumbnails = viewModel.fileThumbnails,
             pickTitle = when (searchPurpose) {
                 SearchPurpose.PICK_MONEY_APP -> stringResource(R.string.pick_money_app_title, moneySymbol)
                 SearchPurpose.PICK_GALLERY_APP -> stringResource(R.string.pick_gallery_app_title)

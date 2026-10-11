@@ -77,8 +77,10 @@ import com.example.halauncher.config.CategoryFilterConfig
 import com.example.halauncher.config.SearchConfig
 import com.example.halauncher.config.ThemeConfig
 import com.example.halauncher.data.ContactPhotoCache
+import com.example.halauncher.data.FileThumbnailCache
 import com.example.halauncher.model.AccessState
 import com.example.halauncher.model.ContactEntry
+import com.example.halauncher.model.FileEntry
 import com.example.halauncher.model.LaunchableElement
 import com.example.halauncher.model.SearchCategory
 import com.example.halauncher.model.SearchEntry
@@ -91,6 +93,7 @@ import com.example.halauncher.ui.components.liquidGlass
 import com.example.halauncher.ui.components.rememberDrawablePainter
 import com.example.halauncher.util.Haptics
 import kotlin.math.abs
+import kotlinx.coroutines.delay
 
 @Composable
 fun SearchOverlay(
@@ -102,9 +105,10 @@ fun SearchOverlay(
     onCategoryFilterChange: (SearchCategory?) -> Unit,
     onEntryOpened: (SearchEntry) -> Unit,
     modifier: Modifier = Modifier,
-    gridCategories: Set<SearchCategory> = emptySet(),
-    onGridChange: (SearchCategory, Boolean) -> Unit = { _, _ -> },
+    gridCategories: Set<SearchCategory?> = emptySet(),
+    onGridChange: (SearchCategory?, Boolean) -> Unit = { _, _ -> },
     contactPhotos: ContactPhotoCache? = null,
+    fileThumbnails: FileThumbnailCache? = null,
     isFullyIn: Boolean = true,
     reveal: SearchRevealState? = null,
     pickTitle: String? = null,
@@ -122,9 +126,12 @@ fun SearchOverlay(
     val focusRequester = remember { FocusRequester() }
     val listState = rememberLazyListState()
     val gridState = rememberLazyGridState()
-    // Only some tabs can be a grid; every other tab, and picking an app, stays a list.
-    val gridCategory = categoryFilter?.takeIf { it in SearchConfig.GridCategories && !isPicking }
-    val showGrid = gridCategory != null && gridCategory in gridCategories
+    // Filtering only helps when there's more than one kind of result, and picking is already
+    // limited to one kind.
+    val showsCategoryBar = categories.size > 1 && !isPicking
+    // Each tab ("All" included) can be a grid, switched by the toggle beside the bar; picking an
+    // app, or search without the bar, stays a list.
+    val showGrid = showsCategoryBar && categoryFilter in gridCategories
     val searchFieldShape = RoundedCornerShape(percent = 50)
     val placeholderColor = ThemeConfig.Foreground.copy(alpha = SearchConfig.PLACEHOLDER_ALPHA)
     val keyboard = LocalSoftwareKeyboardController.current
@@ -263,9 +270,7 @@ fun SearchOverlay(
                     },
                 ),
             )
-            // Filtering only helps when there's more than one kind of result, and picking is
-            // already limited to one kind.
-            if (categories.size > 1 && !isPicking) {
+            if (showsCategoryBar) {
                 // The bar stays centred; the grid/list toggle sits at the end of its line.
                 Box(
                     modifier = Modifier
@@ -278,14 +283,12 @@ fun SearchOverlay(
                         onSelected = onCategoryFilterChange,
                         modifier = Modifier.align(Alignment.Center),
                     )
-                    if (gridCategory != null) {
-                        LayoutToggle(
-                            category = gridCategory,
-                            asGrid = showGrid,
-                            onChange = { onGridChange(gridCategory, it) },
-                            modifier = Modifier.align(Alignment.CenterEnd),
-                        )
-                    }
+                    LayoutToggle(
+                        category = categoryFilter,
+                        asGrid = showGrid,
+                        onChange = { onGridChange(categoryFilter, it) },
+                        modifier = Modifier.align(Alignment.CenterEnd),
+                    )
                 }
             } else {
                 Spacer(Modifier.height(SearchConfig.ResultsSpacing))
@@ -326,7 +329,7 @@ fun SearchOverlay(
                     }
                     items(results.frequent, key = { it.id }) { entry ->
                         EntryItem(entry = entry, isPicking = false, onOpened = onEntryOpened, onPicked = onEntryPicked) {
-                            EntryGridCellContent(entry, contactPhotos)
+                            EntryGridCellContent(entry, contactPhotos, fileThumbnails)
                         }
                     }
                     if (results.frequent.isNotEmpty() && results.more.isNotEmpty()) {
@@ -336,7 +339,7 @@ fun SearchOverlay(
                     }
                     items(results.more, key = { it.id }) { entry ->
                         EntryItem(entry = entry, isPicking = false, onOpened = onEntryOpened, onPicked = onEntryPicked) {
-                            EntryGridCellContent(entry, contactPhotos)
+                            EntryGridCellContent(entry, contactPhotos, fileThumbnails)
                         }
                     }
                     if (results.isEmpty && activeCalcResult == null && !results.isSearchingDisk && query.isNotBlank()) {
@@ -354,7 +357,7 @@ fun SearchOverlay(
                     }
                     items(results.frequent, key = { it.id }) { entry ->
                         EntryItem(entry = entry, isPicking = isPicking, onOpened = onEntryOpened, onPicked = onEntryPicked) {
-                            EntryRowContent(entry, contactPhotos)
+                            EntryRowContent(entry, contactPhotos, fileThumbnails)
                         }
                     }
                     if (results.frequent.isNotEmpty() && results.more.isNotEmpty()) {
@@ -362,7 +365,7 @@ fun SearchOverlay(
                     }
                     items(results.more, key = { it.id }) { entry ->
                         EntryItem(entry = entry, isPicking = isPicking, onOpened = onEntryOpened, onPicked = onEntryPicked) {
-                            EntryRowContent(entry, contactPhotos)
+                            EntryRowContent(entry, contactPhotos, fileThumbnails)
                         }
                     }
                     if (results.isEmpty && activeCalcResult == null && !results.isSearchingDisk && query.isNotBlank()) {
@@ -526,7 +529,7 @@ private fun EntryItem(
 }
 
 @Composable
-private fun EntryRowContent(entry: SearchEntry, contactPhotos: ContactPhotoCache?) {
+private fun EntryRowContent(entry: SearchEntry, contactPhotos: ContactPhotoCache?, fileThumbnails: FileThumbnailCache?) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -534,7 +537,7 @@ private fun EntryRowContent(entry: SearchEntry, contactPhotos: ContactPhotoCache
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(SearchConfig.ResultIconTextGap),
     ) {
-        EntryIcon(entry, contactPhotos)
+        EntryIcon(entry, contactPhotos, fileThumbnails)
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(SearchConfig.ResultDetailGap),
@@ -547,24 +550,27 @@ private fun EntryRowContent(entry: SearchEntry, contactPhotos: ContactPhotoCache
                 overflow = TextOverflow.Ellipsis,
             )
             // A category-specific secondary line, rendered the same way for every kind of result.
-            // It runs the full width of the row and elides its middle only when it doesn't fit, so
-            // both ends of a long file path stay readable.
+            // It runs the full width of the row, shown whole when it fits; otherwise it drops the
+            // start and keeps as much of the end as fits (for a file path, the nearest folders).
             entry.detail?.let { detail ->
                 Text(
                     text = detail,
                     color = ThemeConfig.Foreground.copy(alpha = SearchConfig.RESULT_DETAIL_ALPHA),
                     style = MaterialTheme.typography.bodyMedium,
                     maxLines = 1,
-                    overflow = TextOverflow.MiddleEllipsis,
+                    overflow = TextOverflow.StartEllipsis,
                 )
             }
         }
     }
 }
 
-/** A grid cell: the entry's icon with its name centred right below it. */
+/**
+ * A grid cell: the entry's icon with its name centred right below it, and under that its
+ * secondary line (a phone number, a file's folder) when [SearchConfig.SHOW_DETAIL_IN_GRID] is on.
+ */
 @Composable
-private fun EntryGridCellContent(entry: SearchEntry, contactPhotos: ContactPhotoCache?) {
+private fun EntryGridCellContent(entry: SearchEntry, contactPhotos: ContactPhotoCache?, fileThumbnails: FileThumbnailCache?) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -572,25 +578,42 @@ private fun EntryGridCellContent(entry: SearchEntry, contactPhotos: ContactPhoto
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(SearchConfig.GridIconTextGap),
     ) {
-        EntryIcon(entry, contactPhotos, size = SearchConfig.GridIconSize)
-        Text(
-            text = entry.name,
-            color = ThemeConfig.Foreground,
-            style = MaterialTheme.typography.bodySmall,
-            textAlign = TextAlign.Center,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
+        EntryIcon(entry, contactPhotos, fileThumbnails, size = SearchConfig.GridIconSize)
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(SearchConfig.ResultDetailGap),
+        ) {
+            Text(
+                text = entry.name,
+                color = ThemeConfig.Foreground,
+                style = MaterialTheme.typography.bodySmall,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            // One line, shortened the same way as a list row's: whole when it fits, else as much of
+            // the end as fits.
+            entry.detail?.takeIf { SearchConfig.SHOW_DETAIL_IN_GRID }?.let { detail ->
+                Text(
+                    text = detail,
+                    color = ThemeConfig.Foreground.copy(alpha = SearchConfig.RESULT_DETAIL_ALPHA),
+                    style = MaterialTheme.typography.labelSmall,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.StartEllipsis,
+                )
+            }
+        }
     }
 }
 
 /**
- * The round glass button beside the category bar that switches the [category] tab between a list
- * and a grid. It shows the layout it's set to, brightened like the bar's thumb while it's a grid.
+ * The round glass button beside the category bar that switches the [category] tab (null for "All")
+ * between a list and a grid. It shows the layout it's set to, brightened like the bar's thumb while it's a grid.
  */
 @Composable
 private fun LayoutToggle(
-    category: SearchCategory,
+    category: SearchCategory?,
     asGrid: Boolean,
     onChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
@@ -620,7 +643,12 @@ private fun LayoutToggle(
         Icon(
             imageVector = if (asGrid) GridLayoutIcon else ListLayoutIcon,
             contentDescription = stringResource(
-                if (category == SearchCategory.CONTACT) R.string.show_contacts_as_grid else R.string.show_apps_as_grid,
+                when (category) {
+                    null -> R.string.show_all_as_grid
+                    SearchCategory.APP -> R.string.show_apps_as_grid
+                    SearchCategory.CONTACT -> R.string.show_contacts_as_grid
+                    SearchCategory.FILE -> R.string.show_files_as_grid
+                },
             ),
             tint = ThemeConfig.Foreground,
             modifier = Modifier.size(SearchConfig.LayoutToggleIconSize),
@@ -677,13 +705,18 @@ private fun CalcResultRow(query: String, result: String, onCopy: (String) -> Uni
 }
 
 /**
- * The entry's own image (app icon, contact photo), or its category icon when it has none. A contact's
- * photo loads from [contactPhotos] as it's shown; until then (or if it can't be read) the category
- * icon stands in.
+ * The entry's own image (app icon, contact photo, file thumbnail), or its category icon when it has
+ * none. A contact's photo loads from [contactPhotos], and a file's thumbnail from [fileThumbnails],
+ * as it's shown; until then (or if there's none) the category icon stands in.
  */
 @Composable
-private fun EntryIcon(entry: SearchEntry, contactPhotos: ContactPhotoCache?, size: Dp = SearchConfig.ResultIconSize) {
-    val icon = entry.icon ?: rememberContactPhoto(entry, contactPhotos)
+private fun EntryIcon(
+    entry: SearchEntry,
+    contactPhotos: ContactPhotoCache?,
+    fileThumbnails: FileThumbnailCache?,
+    size: Dp = SearchConfig.ResultIconSize,
+) {
+    val icon = entry.icon ?: rememberContactPhoto(entry, contactPhotos) ?: rememberFileThumbnail(entry, fileThumbnails)
     // The name next to it already describes the row, so the image itself is decorative.
     if (icon != null) {
         Image(
@@ -715,4 +748,23 @@ private fun rememberContactPhoto(entry: SearchEntry, contactPhotos: ContactPhoto
         if (photo == null && contact != null && contactPhotos != null) photo = contactPhotos.load(contact)
     }
     return photo
+}
+
+/**
+ * [entry]'s file thumbnail: straight away when it's in memory, else once [fileThumbnails] has
+ * loaded it in the background, if the row is still shown after a short pause. Null for anything
+ * that isn't an image, video, audio or PDF file with a thumbnail.
+ */
+@Composable
+private fun rememberFileThumbnail(entry: SearchEntry, fileThumbnails: FileThumbnailCache?): Drawable? {
+    val file = (entry as? FileEntry)?.takeIf { fileThumbnails?.canHaveThumbnail(it) == true }
+    var thumbnail by remember(file, fileThumbnails) { mutableStateOf(file?.let { fileThumbnails?.cached(it) }) }
+    LaunchedEffect(file, fileThumbnails) {
+        if (thumbnail == null && file != null && fileThumbnails != null) {
+            // Cancelled with the row, so results only flashing past never load.
+            delay(SearchConfig.FILE_THUMBNAIL_LOAD_DELAY_MS)
+            thumbnail = fileThumbnails.load(file)
+        }
+    }
+    return thumbnail
 }

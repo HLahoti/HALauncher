@@ -25,7 +25,7 @@ data class FileEntry(
 
     /**
      * The folder path (never the file name, which is already the title), e.g. "Android/media/…".
-     * Shown in full up to the width of the row, which elides the middle only if it doesn't fit.
+     * Shown in full when it fits; otherwise the start is cut and as much of the end as fits is kept.
      */
     override val detail: String?
         get() = folder?.trim('/')?.takeIf { it.isNotEmpty() }

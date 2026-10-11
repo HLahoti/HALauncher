@@ -3,15 +3,9 @@ package com.example.halauncher.data
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.BitmapShader
-import android.graphics.Canvas
-import android.graphics.Matrix
-import android.graphics.Paint
-import android.graphics.Shader
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.net.Uri
-import android.os.Build
 import android.util.Log
 import android.util.LruCache
 import androidx.annotation.WorkerThread
@@ -19,9 +13,7 @@ import com.example.halauncher.config.IconCacheConfig
 import com.example.halauncher.model.ContactEntry
 import java.io.File
 import java.io.IOException
-import java.security.MessageDigest
 import kotlin.math.ceil
-import kotlin.math.max
 import kotlin.math.min
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -75,8 +67,10 @@ class ContactPhotoCache(context: Context) {
             // Another caller may have loaded it while this one waited for a slot.
             memory.get(key) ?: run {
                 val file = photoFile(key)
-                val bitmap = readPhoto(file) ?: render(photoUri)?.also { writePhoto(it, file) } ?: return@run null
-                BitmapDrawable(resources, toDisplayBitmap(bitmap)).also { memory.put(key, it) }
+                val bitmap = CachedBitmaps.read(file)
+                    ?: render(photoUri)?.also { CachedBitmaps.write(it, file, IconCacheConfig.CONTACT_PHOTO_QUALITY) }
+                    ?: return@run null
+                BitmapDrawable(resources, CachedBitmaps.toDisplayBitmap(bitmap)).also { memory.put(key, it) }
             }
         }
     }
@@ -96,11 +90,7 @@ class ContactPhotoCache(context: Context) {
         return "${contact.lookupKey}|$photoUri|${contact.photoVersion}|$sizePx"
     }
 
-    /** One file per key; hashed, since lookup keys and URIs can hold any character. */
-    private fun photoFile(key: String): File {
-        val digest = MessageDigest.getInstance("SHA-1").digest(key.toByteArray())
-        return File(dir, digest.joinToString("") { "%02x".format(it) } + PHOTO_SUFFIX)
-    }
+    private fun photoFile(key: String): File = CachedBitmaps.fileFor(dir, key, PHOTO_SUFFIX)
 
     /** Decodes the photo just big enough for [sizePx], then crops it to a centred circle. */
     private fun render(photoUri: Uri): Bitmap? {
@@ -116,7 +106,7 @@ class ContactPhotoCache(context: Context) {
             val options = BitmapFactory.Options().apply { inSampleSize = sample }
             val source = resolver.openInputStream(photoUri)?.use { BitmapFactory.decodeStream(it, null, options) }
                 ?: return null
-            cropToCircle(source, size).also { source.recycle() }
+            CachedBitmaps.cropToRoundedSquare(source, size, cornerRadius = size / 2f).also { source.recycle() }
         } catch (e: IOException) {
             Log.w(TAG, "Couldn't read the contact photo $photoUri", e)
             null
@@ -124,57 +114,6 @@ class ContactPhotoCache(context: Context) {
             // Contacts permission revoked since the contact was loaded.
             null
         }
-    }
-
-    private fun cropToCircle(source: Bitmap, size: Int): Bitmap {
-        val scale = size.toFloat() / min(source.width, source.height)
-        val matrix = Matrix().apply {
-            setScale(scale, scale)
-            postTranslate((size - source.width * scale) / 2f, (size - source.height * scale) / 2f)
-        }
-        val shader = BitmapShader(source, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP).apply { setLocalMatrix(matrix) }
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply { this.shader = shader }
-        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        val radius = max(size, 1) / 2f
-        Canvas(bitmap).drawCircle(radius, radius, radius, paint)
-        return bitmap
-    }
-
-    private fun readPhoto(file: File): Bitmap? {
-        if (!file.isFile) return null
-        val options = BitmapFactory.Options().apply {
-            // Decoded straight into graphics memory, skipping a heap copy.
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) inPreferredConfig = Bitmap.Config.HARDWARE
-        }
-        return BitmapFactory.decodeFile(file.path, options)
-    }
-
-    private fun writePhoto(bitmap: Bitmap, file: File) {
-        try {
-            dir.mkdirs()
-            // Photos compress far smaller lossy, and at this size the loss doesn't show. Before
-            // Android 11 only PNG keeps the circle's transparent corners.
-            val (format, quality) = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                Bitmap.CompressFormat.WEBP_LOSSY to IconCacheConfig.CONTACT_PHOTO_QUALITY
-            } else {
-                Bitmap.CompressFormat.PNG to 100
-            }
-            // Written aside and renamed, so a reader never sees a half-written file.
-            val temp = File(dir, "${file.name}.tmp")
-            temp.outputStream().use { bitmap.compress(format, quality, it) }
-            if (!temp.renameTo(file)) temp.delete()
-        } catch (e: IOException) {
-            // Only the disk copy is lost; it's rendered again next time.
-            Log.w(TAG, "Couldn't cache a contact photo", e)
-        }
-    }
-
-    /** Hardware bitmaps (Android 8+) are kept only in graphics memory, with no heap copy. */
-    private fun toDisplayBitmap(bitmap: Bitmap): Bitmap {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || bitmap.config == Bitmap.Config.HARDWARE) return bitmap
-        val hardware = bitmap.copy(Bitmap.Config.HARDWARE, false) ?: return bitmap
-        bitmap.recycle()
-        return hardware
     }
 
     private companion object {
