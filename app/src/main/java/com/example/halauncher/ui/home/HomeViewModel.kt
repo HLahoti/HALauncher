@@ -95,6 +95,8 @@ data class SearchResults(
     val more: List<SearchEntry> = emptyList(),
     /** The disk layer hasn't answered the current query yet. */
     val isSearchingDisk: Boolean = false,
+    /** [more] is the newest files on the device (the Files tab with nothing typed), not matches. */
+    val moreAreRecentlyAdded: Boolean = false,
 ) {
     val isEmpty: Boolean get() = frequent.isEmpty() && more.isEmpty()
     fun firstOrNull(): SearchEntry? = frequent.firstOrNull() ?: more.firstOrNull()
@@ -287,9 +289,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     /** The category search is limited to, or null for all of them. */
     val categoryFilter: StateFlow<SearchCategory?> = _categoryFilter.asStateFlow()
 
-    /** Categories with at least one indexed entry, as of the last index update. */
-    @Volatile
-    private var indexedCategories: List<SearchCategory> = emptyList()
+    private val _indexedCounts = MutableStateFlow<Map<SearchCategory, Int>>(emptyMap())
+    /**
+     * How many entries each category has in the index, as of the last index update; categories
+     * with none are left out. The Contacts and Files tabs show theirs while nothing is typed, so
+     * it's clear everything is there to search.
+     */
+    val indexedCounts: StateFlow<Map<SearchCategory, Int>> = _indexedCounts.asStateFlow()
 
     private val _availableCategories = MutableStateFlow<List<SearchCategory>>(emptyList())
     /**
@@ -334,6 +340,17 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             // with the Apps category selected, list every app after the recents, so someone who
             // just wants to browse all their apps can.
             val listAll = blank && input.category == SearchCategory.APP
+            // And the Files tab lists the newest files after the recents, so it shows real files
+            // even before the user has opened any.
+            if (blank && input.category == SearchCategory.FILE) {
+                emit(SearchResults(frequent = frequent, isSearchingDisk = true))
+                val shownIds = frequent.mapTo(mutableSetOf()) { it.id }
+                val recent = withContext(Dispatchers.IO) {
+                    fileProvider.loadRecentlyAdded(SearchLayersConfig.RECENTLY_ADDED_FILES + shownIds.size)
+                }.filter { it.id !in shownIds }.take(SearchLayersConfig.RECENTLY_ADDED_FILES)
+                emit(SearchResults(frequent = frequent, more = recent, moreAreRecentlyAdded = true))
+                return@transformLatest
+            }
             if (blank && !listAll) {
                 emit(SearchResults(frequent = frequent))
                 return@transformLatest
@@ -538,14 +555,14 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Re-reads which categories are indexed, then republishes the filter's categories. */
+    /** Re-reads how much of each category is indexed, then republishes the filter's categories. */
     private fun publishIndexedCategories() {
-        indexedCategories = searchEngine.availableCategories()
+        _indexedCounts.value = searchEngine.entryCounts()
         publishCategories()
     }
 
     private fun publishCategories() {
-        val indexed = indexedCategories
+        val indexed = _indexedCounts.value.keys
         val categories = SearchCategory.entries.filter { it in indexed || !hasAccess(it) }
         _availableCategories.value = categories
         // The default stays even before its category is indexed, so it isn't lost at startup.

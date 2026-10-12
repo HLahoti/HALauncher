@@ -54,8 +54,9 @@ class SearchEngine(
     @WorkerThread
     fun checkpoint() = index.checkpoint()
 
+    /** How many entries each category has in the disk index; categories with none are left out. */
     @WorkerThread
-    fun availableCategories(): List<SearchCategory> = index.categories()
+    fun entryCounts(): Map<SearchCategory, Int> = index.counts()
 
     /**
      * Builds the frequent layer: the [SearchLayersConfig.FREQUENT_LAYER_SIZE] best entries by

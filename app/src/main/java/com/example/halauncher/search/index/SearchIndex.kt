@@ -258,12 +258,17 @@ class SearchIndex(private val database: SearchDatabase, private val codecs: Sear
 
     /** Categories with at least one stored entry, in declaration order. */
     @WorkerThread
-    fun categories(): List<SearchCategory> {
-        val present = mutableSetOf<String>()
-        database.readableDatabase.rawQuery("SELECT DISTINCT $COL_CATEGORY FROM $ENTRIES", null).use { cursor ->
-            while (cursor.moveToNext()) present += cursor.getString(0)
+    fun categories(): List<SearchCategory> = counts().keys.toList()
+
+    /** How many entries each category holds, in declaration order; empty categories are left out. */
+    @WorkerThread
+    fun counts(): Map<SearchCategory, Int> {
+        val counts = mutableMapOf<String, Int>()
+        val sql = "SELECT $COL_CATEGORY, COUNT(*) FROM $ENTRIES GROUP BY $COL_CATEGORY"
+        database.readableDatabase.rawQuery(sql, null).use { cursor ->
+            while (cursor.moveToNext()) counts[cursor.getString(0)] = cursor.getInt(1)
         }
-        return SearchCategory.entries.filter { it.name in present }
+        return SearchCategory.entries.mapNotNull { category -> counts[category.name]?.let { category to it } }.toMap()
     }
 
     private fun query(where: String?, args: Array<String>, orderBy: String?, limit: Int?): List<SearchEntry> {

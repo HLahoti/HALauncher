@@ -100,6 +100,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     val searchCategories by viewModel.availableCategories.collectAsStateWithLifecycle()
     val categoryFilter by viewModel.categoryFilter.collectAsStateWithLifecycle()
     val showPermissionsPrompt by viewModel.showPermissionsPrompt.collectAsStateWithLifecycle()
+    val indexedCounts by viewModel.indexedCounts.collectAsStateWithLifecycle()
     val installedApps by viewModel.installedApps.collectAsStateWithLifecycle()
     val pinnedApps by viewModel.pinnedApps.collectAsStateWithLifecycle()
     val pinnedPackages by viewModel.pinnedPackages.collectAsStateWithLifecycle()
@@ -517,6 +518,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 onReview = viewModel::openSetup,
                 onDismissSummary = viewModel::dismissPermissionsPrompt,
             ),
+            indexedCounts = indexedCounts,
         )
     }
 }

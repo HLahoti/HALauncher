@@ -271,6 +271,12 @@ object SearchLayersConfig {
     /** How many ranked disk results are shown under "More results". */
     const val DISK_RESULT_LIMIT = 50
 
+    /**
+     * How many of the newest files the Files tab lists under "Recently added" while nothing is
+     * typed, so the tab shows real files before the user has opened any.
+     */
+    const val RECENTLY_ADDED_FILES = 10
+
     /** Days of open history kept. Older opens stop counting and are deleted. */
     const val INTERACTION_RETENTION_DAYS = 120
 

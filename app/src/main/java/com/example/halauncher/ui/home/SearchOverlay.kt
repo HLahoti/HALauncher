@@ -63,6 +63,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
@@ -92,6 +93,7 @@ import com.example.halauncher.ui.components.launchSafely
 import com.example.halauncher.ui.components.liquidGlass
 import com.example.halauncher.ui.components.rememberDrawablePainter
 import com.example.halauncher.util.Haptics
+import java.text.NumberFormat
 import kotlin.math.abs
 import kotlinx.coroutines.delay
 
@@ -116,6 +118,7 @@ fun SearchOverlay(
     calcResult: String? = null,
     onCalcResultSelected: (String) -> Unit = {},
     permissions: SearchPermissions = SearchPermissions(),
+    indexedCounts: Map<SearchCategory, Int> = emptyMap(),
 ) {
     // When picking (e.g. an app for the money button), results are chosen, not opened.
     val isPicking = pickTitle != null
@@ -135,6 +138,23 @@ fun SearchOverlay(
     val searchFieldShape = RoundedCornerShape(percent = 50)
     val placeholderColor = ThemeConfig.Foreground.copy(alpha = SearchConfig.PLACEHOLDER_ALPHA)
     val keyboard = LocalSoftwareKeyboardController.current
+    // With nothing typed, the Contacts and Files tabs say how much is there to search, so a tab
+    // with no recents yet doesn't look empty or broken.
+    val readyCount = indexedCounts[categoryFilter].takeIf {
+        query.isBlank() && !isPicking && when (categoryFilter) {
+            SearchCategory.CONTACT -> permissions.contacts.isGranted
+            SearchCategory.FILE -> permissions.files.isGranted
+            else -> false
+        }
+    }
+    // The newest files are worth a label even with nothing above them; matches only need one
+    // to set them apart from the recents.
+    val moreLabel = when {
+        results.more.isEmpty() -> null
+        results.moreAreRecentlyAdded -> R.string.recently_added
+        results.frequent.isNotEmpty() -> R.string.more_results
+        else -> null
+    }
 
     val focusManager = LocalFocusManager.current
     // Only once search has fully come in; a swipe that's still bringing it in may yet let go.
@@ -322,6 +342,11 @@ fun SearchOverlay(
                     state = gridState,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
+                    if (readyCount != null && categoryFilter != null) {
+                        item(key = READY_COUNT_KEY, span = { GridItemSpan(maxLineSpan) }) {
+                            ReadyCountHint(categoryFilter, readyCount)
+                        }
+                    }
                     if (activeCalcResult != null) {
                         item(key = CALC_RESULT_KEY, span = { GridItemSpan(maxLineSpan) }) {
                             CalcResultRow(query = query, result = activeCalcResult, onCopy = onCalcResultSelected)
@@ -332,9 +357,9 @@ fun SearchOverlay(
                             EntryGridCellContent(entry, contactPhotos, fileThumbnails)
                         }
                     }
-                    if (results.frequent.isNotEmpty() && results.more.isNotEmpty()) {
+                    if (moreLabel != null) {
                         item(key = MORE_RESULTS_KEY, span = { GridItemSpan(maxLineSpan) }) {
-                            SectionLabel(stringResource(R.string.more_results))
+                            SectionLabel(stringResource(moreLabel))
                         }
                     }
                     items(results.more, key = { it.id }) { entry ->
@@ -350,6 +375,9 @@ fun SearchOverlay(
                 }
             } else {
                 LazyColumn(state = listState, modifier = Modifier.fillMaxWidth()) {
+                    if (readyCount != null && categoryFilter != null) {
+                        item(key = READY_COUNT_KEY) { ReadyCountHint(categoryFilter, readyCount) }
+                    }
                     if (activeCalcResult != null) {
                         item(key = CALC_RESULT_KEY) {
                             CalcResultRow(query = query, result = activeCalcResult, onCopy = onCalcResultSelected)
@@ -360,8 +388,8 @@ fun SearchOverlay(
                             EntryRowContent(entry, contactPhotos, fileThumbnails)
                         }
                     }
-                    if (results.frequent.isNotEmpty() && results.more.isNotEmpty()) {
-                        item(key = MORE_RESULTS_KEY) { SectionLabel(stringResource(R.string.more_results)) }
+                    if (moreLabel != null) {
+                        item(key = MORE_RESULTS_KEY) { SectionLabel(stringResource(moreLabel)) }
                     }
                     items(results.more, key = { it.id }) { entry ->
                         EntryItem(entry = entry, isPicking = isPicking, onOpened = onEntryOpened, onPicked = onEntryPicked) {
@@ -408,6 +436,7 @@ private class SearchDismissScroll(private val reveal: SearchRevealState) : Neste
 private const val MORE_RESULTS_KEY = "section-more"
 private const val NO_RESULTS_KEY = "section-none"
 private const val CALC_RESULT_KEY = "section-calc"
+private const val READY_COUNT_KEY = "section-ready"
 
 @Composable
 private fun SectionLabel(text: String) {
@@ -418,6 +447,21 @@ private fun SectionLabel(text: String) {
         modifier = Modifier
             .padding(SearchConfig.SectionLabelPadding)
             .semantics { heading() },
+    )
+}
+
+/**
+ * "1,248 contacts ready · Type a name to search": shows that [category] can be read and is all
+ * indexed, while there's nothing typed to search it with.
+ */
+@Composable
+private fun ReadyCountHint(category: SearchCategory, count: Int) {
+    val plurals = if (category == SearchCategory.CONTACT) R.plurals.contacts_ready else R.plurals.files_ready
+    Text(
+        text = pluralStringResource(plurals, count, NumberFormat.getIntegerInstance().format(count)),
+        color = ThemeConfig.Foreground.copy(alpha = SearchConfig.SECTION_LABEL_ALPHA),
+        style = MaterialTheme.typography.bodyMedium,
+        modifier = Modifier.padding(SearchConfig.SectionLabelPadding),
     )
 }
 

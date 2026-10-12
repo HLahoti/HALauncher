@@ -93,10 +93,35 @@ class FileSearchProvider(
         }
     }
 
+    /**
+     * The [limit] most recently modified files, newest first, leaving out the same files a full
+     * sync would (hidden ones, and denylisted folders while that setting is on).
+     */
+    @WorkerThread
+    fun loadRecentlyAdded(limit: Int): List<FileEntry> {
+        if (!hasAccess()) return emptyList()
+        return try {
+            queryFiles(
+                excludeDenylisted = denylistEnabled(),
+                sortOrder = "${MediaStore.MediaColumns.DATE_MODIFIED} DESC",
+                limit = limit,
+            )
+        } catch (e: SecurityException) {
+            emptyList()
+        }
+    }
+
+    /**
+     * @param sortOrder MediaStore's row order; with a [limit], reading stops once that many files
+     *   are kept, so only the first rows are ever read (LIMIT itself isn't accepted the same way on
+     *   every Android version, and hidden files are skipped after the query anyway).
+     */
     private fun queryFiles(
         excludeDenylisted: Boolean,
         extraSelection: String? = null,
         extraArgs: List<String> = emptyList(),
+        sortOrder: String? = null,
+        limit: Int = Int.MAX_VALUE,
     ): List<FileEntry> {
         val collection = MediaStore.Files.getContentUri(EXTERNAL_VOLUME)
         val hasRelativePath = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
@@ -125,14 +150,14 @@ class FileSearchProvider(
 
         val files = mutableListOf<FileEntry>()
         val args = argsList.takeIf { it.isNotEmpty() }?.toTypedArray()
-        context.contentResolver.query(collection, projection, selection, args, null)?.use { cursor ->
+        context.contentResolver.query(collection, projection, selection, args, sortOrder)?.use { cursor ->
             val idCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
             val nameCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DISPLAY_NAME)
             val mimeCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.MIME_TYPE)
             val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.SIZE)
             val modifiedCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DATE_MODIFIED)
             val pathCol = if (hasRelativePath) cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.RELATIVE_PATH) else -1
-            while (cursor.moveToNext()) {
+            while (files.size < limit && cursor.moveToNext()) {
                 val name = cursor.getString(nameCol)?.trim()
                 // Skip unnamed rows and hidden (dot) files.
                 if (name.isNullOrEmpty() || name.startsWith('.')) continue

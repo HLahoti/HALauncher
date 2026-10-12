@@ -46,6 +46,7 @@
     <string name="show_files_as_grid">Show files as a grid</string>
     <string name="more_results">More results</string>
     <string name="no_results">No results</string>
+    <string name="recently_added">Recently added</string>
     <string name="copy_calc_result">Copy %1$s to clipboard</string>
     <string name="calc_result_copied">Copied %1$s</string>
     <string name="permission_contacts_not_requested">Allow contacts access to find people here.</string>
@@ -145,5 +146,13 @@
     <plurals name="pinned_full">
         <item quantity="one">%1$d of %2$d pinned · Unpin one to add another</item>
         <item quantity="other">%1$d of %2$d pinned · Unpin one to add another</item>
+    </plurals>
+    <plurals name="contacts_ready">
+        <item quantity="one">%1$s contact ready · Type a name to search</item>
+        <item quantity="other">%1$s contacts ready · Type a name to search</item>
+    </plurals>
+    <plurals name="files_ready">
+        <item quantity="one">%1$s file ready · Type a file name to search</item>
+        <item quantity="other">%1$s files ready · Type a file name to search</item>
     </plurals>
 </resources>
