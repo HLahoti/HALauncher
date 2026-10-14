@@ -50,7 +50,7 @@ import com.example.halauncher.ui.components.liquidGlass
  * itself the very first time the app opens, and can be reopened from settings ("Set-up &
  * permissions") to grant anything that was skipped or later turned off elsewhere.
  *
- * Same glass look as the settings panel and the how-to guide: a scrim over the (blurred) home
+ * Same glass look as the settings panel: a scrim over the (blurred) home
  * screen, a titled header, one card per item, and a Done button at the end. Each card shows whether
  * that item is already set up (a check and "Enabled") or offers a button to set it up now; because
  * the status is re-read every time the launcher resumes, an item granted in a system screen flips to
@@ -58,12 +58,12 @@ import com.example.halauncher.ui.components.liquidGlass
  * warning box on its card, and its button turns it back on (via system Settings if Android no
  * longer shows the dialog).
  *
- * On the first run it's step 1 of 2, ahead of the how-to guide, so its button reads "Next".
+ * On the first run it's step 1 of 2, ahead of the hands-on tour, so its button reads "Next".
  *
  * @param isDefaultHome whether HALauncher is already the device's default home app.
  * @param contactsAccess where the contacts permission stands.
  * @param filesAccess where file access stands.
- * @param isOnboarding whether this is the first-run walkthrough, with the how-to guide to follow.
+ * @param isOnboarding whether this is the first-run walkthrough, with the hands-on tour to follow.
  * @param onSetDefaultHome opens the system prompt to make HALauncher the default home app.
  * @param onGrantContacts asks for the contacts permission.
  * @param onGrantFiles asks for file access.
@@ -261,7 +261,7 @@ private fun SetupItem(
 }
 
 /**
- * The glass pill heading a full-screen page (setup, the how-to guide): its [title], and on the first
+ * The glass pill heading a full-screen page (setup): its [title], and on the first
  * run which [step] of the walkthrough this is.
  */
 @Composable
@@ -295,7 +295,7 @@ internal fun GlassPageHeader(title: String, step: String? = null) {
     }
 }
 
-/** A full-width glass button ending a page (setup, the how-to guide). */
+/** A full-width glass button ending a page (setup). */
 @Composable
 internal fun GlassPageButton(label: String, onClick: () -> Unit) {
     Box(
@@ -315,7 +315,7 @@ internal fun GlassPageButton(label: String, onClick: () -> Unit) {
     }
 }
 
-/** Pages in the first-run walkthrough: setup, then the how-to guide. */
+/** Steps in the first-run walkthrough: setup, then the hands-on tour. */
 internal const val ONBOARDING_STEPS = 2
 
 /** Size of the "Enabled" check icon. */

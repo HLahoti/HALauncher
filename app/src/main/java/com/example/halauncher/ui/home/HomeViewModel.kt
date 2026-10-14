@@ -226,9 +226,16 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     /** Whether the long-press settings panel is showing. */
     val isSettingsOpen: StateFlow<Boolean> = _isSettingsOpen.asStateFlow()
 
-    private val _isHowToOpen = MutableStateFlow(false)
-    /** Whether the "How to use this app" card is showing (on first launch, or opened from settings). */
-    val isHowToOpen: StateFlow<Boolean> = _isHowToOpen.asStateFlow()
+    private val _tourStep = MutableStateFlow<TourStep?>(null)
+    /**
+     * The step of the hands-on tour under way (on first launch, or replayed from settings), or null
+     * when there's no tour. Each step is finished by doing it for real, not by tapping Next.
+     */
+    val tourStep: StateFlow<TourStep?> = _tourStep.asStateFlow()
+
+    private val _tourSteps = MutableStateFlow<List<TourStep>>(emptyList())
+    /** The steps this run of the tour expects to show, in order, for its progress dots. */
+    val tourSteps: StateFlow<List<TourStep>> = _tourSteps.asStateFlow()
 
     private val _isSetupOpen = MutableStateFlow(false)
     /**
@@ -239,9 +246,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _isOnboarding = MutableStateFlow(!settingsStore.setupSeen && !settingsStore.onboardingSeen)
     /**
-     * Whether the first-run walkthrough is under way: setup, then the how-to guide. While it is, the
-     * two pages are labelled as steps and setup's button reads "Next" rather than "Done". Ends once
-     * the guide is closed; reopening either page from settings doesn't start it again.
+     * Whether the first-run walkthrough is under way: setup, then the hands-on tour. While it is,
+     * setup is labelled as a step and its button reads "Next" rather than "Done". Ends once the tour
+     * finishes or is skipped; reopening setup or the tour from settings doesn't start it again.
      */
     val isOnboarding: StateFlow<Boolean> = _isOnboarding.asStateFlow()
 
@@ -515,15 +522,15 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
         refreshPermissionsPrompt()
         // The first time the launcher ever opens, walk the user through setup (making it the default
-        // home, and the permissions search uses); the how-to card follows once setup is finished. On
-        // an upgrade from a build that only had the how-to, setup counts as unseen, so it's offered
-        // now and the how-to won't come back a second time. After that neither returns on its own,
-        // though setup can be reopened from settings.
+        // home, and the permissions search uses); the tour follows once setup is finished. On an
+        // upgrade from a build that only had the how-to guide, setup counts as unseen, so it's offered
+        // now and the tour won't come after it. After that neither returns on its own, though both
+        // can be reopened from settings.
         when {
             !settingsStore.setupSeen -> _isSetupOpen.value = true
             !settingsStore.onboardingSeen -> {
-                _isHowToOpen.value = true
                 settingsStore.onboardingSeen = true
+                startTour()
             }
         }
     }
@@ -727,6 +734,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun openPinPicker() {
         if (_settingsLocked.value) return
+        advanceTour(TourStep.SPHERE)
         closeSearch()
         _isSettingsOpen.value = false
         _isPinPickerOpen.value = true
@@ -741,24 +749,58 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         closeSearch()
         _isPinPickerOpen.value = false
         _isSettingsOpen.value = true
+        advanceTour(TourStep.SETTINGS)
     }
 
     fun closeSettings() {
         _isSettingsOpen.value = false
     }
 
-    /** Opens the "How to use this app" card, closing any other overlay (e.g. from the settings panel). */
-    fun openHowTo() {
+    /**
+     * Starts the hands-on tour on the bare home screen, closing any other overlay (e.g. when it's
+     * replayed from the settings panel). Steps that can't be done right now are left out.
+     */
+    fun startTour() {
         closeSearch()
         _isPinPickerOpen.value = false
         _isSettingsOpen.value = false
-        _isHowToOpen.value = true
+        val steps = TourStep.entries.filter(::tourStepApplies)
+        _tourSteps.value = steps
+        _tourStep.value = steps.first()
     }
 
-    /** Closes the how-to card; on the first run that's the end of the walkthrough. */
-    fun closeHowTo() {
-        _isHowToOpen.value = false
+    /** Ends the tour, finished or skipped; on the first run that's the end of the walkthrough. */
+    fun endTour() {
+        _tourStep.value = null
         _isOnboarding.value = false
+    }
+
+    /** Search has finished coming in (not just started to): the tour's swipe-up step is done. */
+    fun onSearchSettledOpen() {
+        if (_searchPurpose.value == SearchPurpose.FIND) advanceTour(TourStep.SEARCH)
+    }
+
+    /** The user turned the sphere by hand: the tour's sphere step is done. */
+    fun onSphereTurned() = advanceTour(TourStep.SPHERE)
+
+    /**
+     * Moves the tour on from [done], if that's the step it's on, to the next one that can be done
+     * now; with none left, the tour ends. Steps inside search only count while search is open, so
+     * leaving search early skips straight to the home-screen steps.
+     */
+    private fun advanceTour(done: TourStep) {
+        if (_tourStep.value != done) return
+        val steps = _tourSteps.value
+        val next = steps.drop(steps.indexOf(done) + 1)
+            .firstOrNull { tourStepApplies(it) && (!it.inSearch || _isSearchOpen.value) }
+        if (next == null) endTour() else _tourStep.value = next
+    }
+
+    /** Whether [step] can be done: filtering needs a second category, and pinning needs settings unlocked. */
+    private fun tourStepApplies(step: TourStep): Boolean = when (step) {
+        TourStep.FILTER -> _availableCategories.value.size > 1
+        TourStep.SPHERE -> pinnedApps.value.size >= 2 || !_settingsLocked.value
+        TourStep.SEARCH, TourStep.CLOSE_SEARCH, TourStep.SETTINGS -> true
     }
 
     /**
@@ -769,21 +811,21 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         closeSearch()
         _isPinPickerOpen.value = false
         _isSettingsOpen.value = false
-        closeHowTo()
+        endTour()
         refreshPermissionStatus()
         _isSetupOpen.value = true
     }
 
     /**
      * Finishes setup (its Done button, or a back gesture): closes it and remembers it's been shown, so
-     * it doesn't come up again on its own. On the very first run it's followed by the how-to card.
+     * it doesn't come up again on its own. On the very first run it's followed by the tour.
      */
     fun finishSetup() {
         settingsStore.setupSeen = true
         _isSetupOpen.value = false
         if (!settingsStore.onboardingSeen) {
             settingsStore.onboardingSeen = true
-            _isHowToOpen.value = true
+            startTour()
         }
     }
 
@@ -845,19 +887,23 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         pinnedAppsStore.save(updated)
     }
 
-    /** Back to the bare home screen: closes search, the pin picker, the settings panel, the how-to card and setup. */
+    /**
+     * Back to the bare home screen: closes search, the pin picker, the settings panel and setup. A
+     * tour under way carries on from there.
+     */
     fun resetHome() {
         closeSearch()
         closePinPicker()
         closeSettings()
-        closeHowTo()
         closeSetup()
     }
 
     fun onCategoryFilterChanged(category: SearchCategory?) {
         // Picking an app for a button stays limited to apps.
         if (_searchPurpose.value != SearchPurpose.FIND) return
+        if (_categoryFilter.value == category) return
         _categoryFilter.value = category
+        advanceTour(TourStep.FILTER)
     }
 
     fun closeSearch() {
@@ -865,6 +911,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         _searchPurpose.value = SearchPurpose.FIND
         _searchQuery.value = ""
         _categoryFilter.value = _defaultSearchCategory.value
+        // Leaving search finishes the tour's step for closing it, and passes any others in search.
+        _tourStep.value?.takeIf { it.inSearch }?.let(::advanceTour)
     }
 
     /** Sets the category search opens filtered to (null for "All"); applies the next time search opens. */

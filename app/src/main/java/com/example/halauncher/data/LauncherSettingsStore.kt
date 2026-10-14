@@ -21,7 +21,7 @@ class LauncherSettingsStore(context: Context) {
 
     /**
      * Whether the first-run setup (default home + the permissions search uses) has been shown once
-     * already. It comes up by itself the first time the launcher opens, ahead of the how-to card;
+     * already. It comes up by itself the first time the launcher opens, ahead of the hands-on tour;
      * after that it's only reachable from settings ("Set-up & permissions").
      */
     var setupSeen: Boolean
@@ -29,8 +29,8 @@ class LauncherSettingsStore(context: Context) {
         set(value) = prefs.edit { putBoolean(KEY_SETUP_SEEN, value) }
 
     /**
-     * Whether the "How to use this app" card has been shown once already. It comes up by itself the
-     * first time the launcher opens (just after setup); after that it's only reachable from settings.
+     * Whether the hands-on tour has been started once already. It comes up by itself the first time
+     * the launcher opens (just after setup); after that it's only reachable from settings.
      */
     var onboardingSeen: Boolean
         get() = prefs.getBoolean(KEY_ONBOARDING_SEEN, false)
