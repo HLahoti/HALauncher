@@ -106,6 +106,14 @@ data class SearchResults(
     val suggestions: List<Suggestions> = emptyList(),
 ) {
     val isEmpty: Boolean get() = frequent.isEmpty() && more.isEmpty() && suggestions.isEmpty()
+
+    /**
+     * How many matches of each category are listed: the frequent layer's, plus the disk's once
+     * it has answered. Categories with none are left out.
+     */
+    val matchCounts: Map<SearchCategory, Int>
+        get() = (frequent + more).groupingBy { it.category }.eachCount()
+
     fun firstOrNull(): SearchEntry? =
         frequent.firstOrNull() ?: more.firstOrNull() ?: suggestions.firstOrNull()?.entries?.firstOrNull()
 

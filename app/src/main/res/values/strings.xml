@@ -147,6 +147,8 @@
     </plurals>
     <!-- The index status in search, e.g. "142 apps · 1,248 contacts · 8,910 files ready". -->
     <string name="index_ready">%1$s ready</string>
+    <!-- With a query, how many matches of each kind are listed, e.g. "3 apps · 2 files found". -->
+    <string name="matches_found">%1$s found</string>
     <plurals name="app_count">
         <item quantity="one">%1$s app</item>
         <item quantity="other">%1$s apps</item>

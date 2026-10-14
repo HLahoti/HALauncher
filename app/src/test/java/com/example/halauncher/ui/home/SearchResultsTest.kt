@@ -48,4 +48,24 @@ class SearchResultsTest {
         val results = SearchResults(frequent = listOf(mom, sam))
         assertSame(results, results.exclusive())
     }
+
+    @Test
+    fun matchCountsAreTheRecentsUntilTheDiskAnswers() {
+        val maps = TestEntry("Maps")
+        val waiting = SearchResults(frequent = listOf(mom, maps), isSearchingDisk = true)
+        assertEquals(mapOf(SearchCategory.CONTACT to 1, SearchCategory.APP to 1), waiting.matchCounts)
+
+        val notes = TestEntry("Notes.pdf", SearchCategory.FILE)
+        val answered = SearchResults(frequent = listOf(mom, maps), more = listOf(sam, priya, notes))
+        assertEquals(
+            mapOf(SearchCategory.CONTACT to 3, SearchCategory.APP to 1, SearchCategory.FILE to 1),
+            answered.matchCounts,
+        )
+    }
+
+    @Test
+    fun matchCountsLeaveOutSuggestions() {
+        val results = SearchResults(suggestions = listOf(Suggestions(SuggestionKind.FAVOURITES, listOf(mom))))
+        assertEquals(emptyMap<SearchCategory, Int>(), results.matchCounts)
+    }
 }

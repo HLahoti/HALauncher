@@ -3,6 +3,7 @@ package com.example.halauncher.ui.home
 import android.content.res.Resources
 import android.graphics.drawable.Drawable
 import android.widget.Toast
+import androidx.annotation.StringRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -152,6 +153,16 @@ fun SearchOverlay(
         }
         if (count != null && readable && (categoryFilter == null || categoryFilter == category)) category to count else null
     }.takeIf { !isPicking }.orEmpty()
+    // Once something's typed, the line counts the matches listed instead: the recents at first,
+    // then the disk's too once it answers. With no matches it's left out; "No results" says so.
+    val isQueryBlank = query.isBlank()
+    val statusCounts = if (isQueryBlank) {
+        readyCounts
+    } else {
+        val matches = results.matchCounts
+        SearchCategory.entries.mapNotNull { category -> matches[category]?.let { category to it } }
+            .takeIf { !isPicking }.orEmpty()
+    }
     // Matches only need a label to set them apart from the recents above them.
     val showsMoreLabel = results.frequent.isNotEmpty() && results.more.isNotEmpty()
 
@@ -319,7 +330,9 @@ fun SearchOverlay(
                     modifier = Modifier.padding(bottom = SearchConfig.ResultsSpacing),
                 )
             }
-            if (readyCounts.isNotEmpty()) IndexStatus(readyCounts)
+            if (statusCounts.isNotEmpty()) {
+                IndexStatus(statusCounts, if (isQueryBlank) R.string.index_ready else R.string.matches_found)
+            }
             // A new query or category starts the list from the top, and so does coming back:
             // search stays composed while hidden, so the list would otherwise keep its place.
             LaunchedEffect(query, categoryFilter, showGrid) {
@@ -470,10 +483,11 @@ private fun SectionLabel(text: String) {
 
 /**
  * "142 apps · 1,248 contacts · 8,910 files ready": how many entries of each category in [counts]
- * the index holds, so it's clear search has everything it should.
+ * the index holds, so it's clear search has everything it should. With a query, [summary] is
+ * [R.string.matches_found] and [counts] are the matches listed: "3 apps · 2 files found".
  */
 @Composable
-private fun IndexStatus(counts: List<Pair<SearchCategory, Int>>) {
+private fun IndexStatus(counts: List<Pair<SearchCategory, Int>>, @StringRes summary: Int) {
     val numbers = NumberFormat.getIntegerInstance()
     val parts = counts.map { (category, count) ->
         val plurals = when (category) {
@@ -484,7 +498,7 @@ private fun IndexStatus(counts: List<Pair<SearchCategory, Int>>) {
         pluralStringResource(plurals, count, numbers.format(count))
     }
     Text(
-        text = stringResource(R.string.index_ready, parts.joinToString(" · ")),
+        text = stringResource(summary, parts.joinToString(" · ")),
         color = ThemeConfig.Foreground.copy(alpha = SearchConfig.SECTION_LABEL_ALPHA),
         style = MaterialTheme.typography.labelMedium,
         modifier = Modifier.padding(start = SearchConfig.SectionLabelPadding, bottom = SearchConfig.ResultsSpacing),
