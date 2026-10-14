@@ -26,6 +26,8 @@ import com.example.halauncher.data.FileThumbnailCache
 import com.example.halauncher.data.LauncherSettingsStore
 import com.example.halauncher.data.PinnedAppsStore
 import com.example.halauncher.data.QuickActionAppStore
+import com.example.halauncher.data.ShortcutIconCache
+import com.example.halauncher.data.ShortcutProvider
 import com.example.halauncher.model.AccessState
 import com.example.halauncher.model.AppInfo
 import com.example.halauncher.model.HomeTextColor
@@ -40,6 +42,7 @@ import com.example.halauncher.search.index.InteractionLog
 import com.example.halauncher.search.index.SearchDatabase
 import com.example.halauncher.search.index.SearchEntryCodecs
 import com.example.halauncher.search.index.SearchIndex
+import com.example.halauncher.search.index.ShortcutEntryCodec
 import com.example.halauncher.search.ranking.ContextMatchRanker
 import com.example.halauncher.search.sync.IndexUpdater
 import com.example.halauncher.service.DefaultHome
@@ -158,11 +161,17 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val contactProvider = ContactProvider(application)
     private val settingsStore = LauncherSettingsStore(application)
     private val fileProvider = FileSearchProvider(application) { settingsStore.reduceIndexSize }
+    private val shortcutProvider = ShortcutProvider(application, appRepository::cachedApp)
 
     private val searchEngine = run {
         val database = SearchDatabase(application)
         val codecs = SearchEntryCodecs(
-            listOf(AppEntryCodec(appRepository::cachedApp), ContactEntryCodec, FileEntryCodec),
+            listOf(
+                AppEntryCodec(appRepository::cachedApp),
+                ContactEntryCodec,
+                FileEntryCodec,
+                ShortcutEntryCodec(appRepository::cachedApp),
+            ),
         )
         SearchEngine(
             index = SearchIndex(database, codecs),
@@ -179,7 +188,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
      * Keeps the disk index current in the background on a low-priority thread. All index writes
      * and frequent-layer rebuilds run on its [IndexUpdater.dispatcher], so they never overlap.
      */
-    private val indexUpdater = IndexUpdater(application, searchEngine, appRepository, contactProvider, fileProvider)
+    private val indexUpdater =
+        IndexUpdater(application, searchEngine, appRepository, contactProvider, fileProvider, shortcutProvider)
 
     private val prefs = application.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
@@ -310,6 +320,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     /** File thumbnails for search, loaded as files are shown. */
     val fileThumbnails: FileThumbnailCache get() = fileProvider.thumbnails
 
+    /** App shortcut icons for search, loaded as shortcuts are shown. */
+    val shortcutIcons: ShortcutIconCache get() = shortcutProvider.icons
+
     /**
      * The in-memory frequent layer. The published trie is only read and changed on the main
      * thread: per-keystroke search runs there, and opened entries are inserted there in place.
@@ -394,9 +407,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             val frequent = searchEngine.quickSearch(cursor, input.query, input.category)
             val blank = input.query.isBlank()
             // With nothing typed the disk layer normally stays out of it (only recents show). But
-            // with the Apps category selected, list every app after the recents, so someone who
-            // just wants to browse all their apps can.
-            val listAll = blank && input.category == SearchCategory.APP
+            // with the Apps or Shortcuts category selected, list every one after the recents, so
+            // someone who just wants to browse them can.
+            val listAll = blank && (input.category == SearchCategory.APP || input.category == SearchCategory.SHORTCUT)
             // And the Contacts and Files tabs list suggestions after the recents (favourite and
             // recently updated contacts, the newest files), so they show real entries even before
             // the user has opened any.
@@ -457,7 +470,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     fileProvider.loadRecentlyAdded(it)
                 },
             )
-            SearchCategory.APP -> emptyList()
+            SearchCategory.APP, SearchCategory.SHORTCUT -> emptyList()
         }
         return groups.filter { it.entries.isNotEmpty() }
     }
@@ -617,6 +630,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         SearchCategory.APP -> true
         SearchCategory.CONTACT -> contactProvider.hasPermission()
         SearchCategory.FILE -> fileProvider.hasAccess()
+        SearchCategory.SHORTCUT -> shortcutProvider.hasAccess()
     }
 
     /**
@@ -654,7 +668,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun publishCategories() {
         val indexed = _indexedCounts.value.keys
-        val categories = SearchCategory.entries.filter { it in indexed || !hasAccess(it) }
+        // A tab whose permission is missing stays, to ask for it. Shortcuts need no permission,
+        // only the launcher being the default home app, so their tab waits until there are some.
+        val categories = SearchCategory.entries.filter {
+            it in indexed || (it != SearchCategory.SHORTCUT && !hasAccess(it))
+        }
         _availableCategories.value = categories
         // The default stays even before its category is indexed, so it isn't lost at startup.
         val filter = _categoryFilter.value

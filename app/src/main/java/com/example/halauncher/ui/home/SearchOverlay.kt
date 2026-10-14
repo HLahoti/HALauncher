@@ -82,12 +82,14 @@ import com.example.halauncher.config.SearchConfig
 import com.example.halauncher.config.ThemeConfig
 import com.example.halauncher.data.ContactPhotoCache
 import com.example.halauncher.data.FileThumbnailCache
+import com.example.halauncher.data.ShortcutIconCache
 import com.example.halauncher.model.AccessState
 import com.example.halauncher.model.ContactEntry
 import com.example.halauncher.model.FileEntry
 import com.example.halauncher.model.LaunchableElement
 import com.example.halauncher.model.SearchCategory
 import com.example.halauncher.model.SearchEntry
+import com.example.halauncher.model.ShortcutEntry
 import com.example.halauncher.ui.components.ClickToLaunch
 import com.example.halauncher.ui.components.GridLayoutIcon
 import com.example.halauncher.ui.components.ListLayoutIcon
@@ -114,6 +116,7 @@ fun SearchOverlay(
     onGridChange: (SearchCategory?, Boolean) -> Unit = { _, _ -> },
     contactPhotos: ContactPhotoCache? = null,
     fileThumbnails: FileThumbnailCache? = null,
+    shortcutIcons: ShortcutIconCache? = null,
     isFullyIn: Boolean = true,
     reveal: SearchRevealState? = null,
     pickTitle: String? = null,
@@ -150,6 +153,7 @@ fun SearchOverlay(
             SearchCategory.APP -> true
             SearchCategory.CONTACT -> permissions.contacts.isGranted
             SearchCategory.FILE -> permissions.files.isGranted
+            SearchCategory.SHORTCUT -> true
         }
         if (count != null && readable && (categoryFilter == null || categoryFilter == category)) category to count else null
     }.takeIf { !isPicking }.orEmpty()
@@ -362,7 +366,7 @@ fun SearchOverlay(
                     }
                     items(results.frequent, key = { it.id }) { entry ->
                         EntryItem(entry = entry, isPicking = false, onOpened = onEntryOpened, onPicked = onEntryPicked) {
-                            EntryGridCellContent(entry, contactPhotos, fileThumbnails)
+                            EntryGridCellContent(entry, contactPhotos, fileThumbnails, shortcutIcons)
                         }
                     }
                     if (showsMoreLabel) {
@@ -372,7 +376,7 @@ fun SearchOverlay(
                     }
                     items(results.more, key = { it.id }) { entry ->
                         EntryItem(entry = entry, isPicking = false, onOpened = onEntryOpened, onPicked = onEntryPicked) {
-                            EntryGridCellContent(entry, contactPhotos, fileThumbnails)
+                            EntryGridCellContent(entry, contactPhotos, fileThumbnails, shortcutIcons)
                         }
                     }
                     results.suggestions.forEach { group ->
@@ -381,7 +385,7 @@ fun SearchOverlay(
                         }
                         items(group.entries, key = { it.id }) { entry ->
                             EntryItem(entry = entry, isPicking = false, onOpened = onEntryOpened, onPicked = onEntryPicked) {
-                                EntryGridCellContent(entry, contactPhotos, fileThumbnails)
+                                EntryGridCellContent(entry, contactPhotos, fileThumbnails, shortcutIcons)
                             }
                         }
                     }
@@ -400,7 +404,7 @@ fun SearchOverlay(
                     }
                     items(results.frequent, key = { it.id }) { entry ->
                         EntryItem(entry = entry, isPicking = isPicking, onOpened = onEntryOpened, onPicked = onEntryPicked) {
-                            EntryRowContent(entry, contactPhotos, fileThumbnails)
+                            EntryRowContent(entry, contactPhotos, fileThumbnails, shortcutIcons)
                         }
                     }
                     if (showsMoreLabel) {
@@ -408,14 +412,14 @@ fun SearchOverlay(
                     }
                     items(results.more, key = { it.id }) { entry ->
                         EntryItem(entry = entry, isPicking = isPicking, onOpened = onEntryOpened, onPicked = onEntryPicked) {
-                            EntryRowContent(entry, contactPhotos, fileThumbnails)
+                            EntryRowContent(entry, contactPhotos, fileThumbnails, shortcutIcons)
                         }
                     }
                     results.suggestions.forEach { group ->
                         item(key = suggestionsKey(group.kind)) { SectionLabel(stringResource(group.kind.label)) }
                         items(group.entries, key = { it.id }) { entry ->
                             EntryItem(entry = entry, isPicking = isPicking, onOpened = onEntryOpened, onPicked = onEntryPicked) {
-                                EntryRowContent(entry, contactPhotos, fileThumbnails)
+                                EntryRowContent(entry, contactPhotos, fileThumbnails, shortcutIcons)
                             }
                         }
                     }
@@ -494,6 +498,7 @@ private fun IndexStatus(counts: List<Pair<SearchCategory, Int>>, @StringRes summ
             SearchCategory.APP -> R.plurals.app_count
             SearchCategory.CONTACT -> R.plurals.contact_count
             SearchCategory.FILE -> R.plurals.file_count
+            SearchCategory.SHORTCUT -> R.plurals.shortcut_count
         }
         pluralStringResource(plurals, count, numbers.format(count))
     }
@@ -553,7 +558,7 @@ private fun SearchPermissionNotice(
                 modifier = modifier,
             )
         }
-        SearchCategory.APP -> Unit
+        SearchCategory.APP, SearchCategory.SHORTCUT -> Unit
         null -> {
             val contactsOff = !permissions.contacts.isGranted
             val filesOff = !permissions.files.isGranted
@@ -606,6 +611,7 @@ private fun EntryItem(
             displayContent = { currentContent() },
             launchIntent = entry.link,
             fallbackIntents = entry.fallbackLinks,
+            launchDirectly = entry::launchDirectly,
             actionLabel = label,
         )
     }
@@ -629,7 +635,12 @@ private fun apkInstallNote(resources: Resources, file: FileEntry): String =
         ?: resources.getString(R.string.apk_install_from_file_manager, file.name)
 
 @Composable
-private fun EntryRowContent(entry: SearchEntry, contactPhotos: ContactPhotoCache?, fileThumbnails: FileThumbnailCache?) {
+private fun EntryRowContent(
+    entry: SearchEntry,
+    contactPhotos: ContactPhotoCache?,
+    fileThumbnails: FileThumbnailCache?,
+    shortcutIcons: ShortcutIconCache?,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -637,7 +648,7 @@ private fun EntryRowContent(entry: SearchEntry, contactPhotos: ContactPhotoCache
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(SearchConfig.ResultIconTextGap),
     ) {
-        EntryIcon(entry, contactPhotos, fileThumbnails)
+        EntryIcon(entry, contactPhotos, fileThumbnails, shortcutIcons)
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(SearchConfig.ResultDetailGap),
@@ -670,7 +681,12 @@ private fun EntryRowContent(entry: SearchEntry, contactPhotos: ContactPhotoCache
  * secondary line (a phone number, a file's folder) when [SearchConfig.SHOW_DETAIL_IN_GRID] is on.
  */
 @Composable
-private fun EntryGridCellContent(entry: SearchEntry, contactPhotos: ContactPhotoCache?, fileThumbnails: FileThumbnailCache?) {
+private fun EntryGridCellContent(
+    entry: SearchEntry,
+    contactPhotos: ContactPhotoCache?,
+    fileThumbnails: FileThumbnailCache?,
+    shortcutIcons: ShortcutIconCache?,
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -678,7 +694,7 @@ private fun EntryGridCellContent(entry: SearchEntry, contactPhotos: ContactPhoto
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(SearchConfig.GridIconTextGap),
     ) {
-        EntryIcon(entry, contactPhotos, fileThumbnails, size = SearchConfig.GridIconSize)
+        EntryIcon(entry, contactPhotos, fileThumbnails, shortcutIcons, size = SearchConfig.GridIconSize)
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(SearchConfig.ResultDetailGap),
@@ -748,6 +764,7 @@ private fun LayoutToggle(
                     SearchCategory.APP -> R.string.show_apps_as_grid
                     SearchCategory.CONTACT -> R.string.show_contacts_as_grid
                     SearchCategory.FILE -> R.string.show_files_as_grid
+                    SearchCategory.SHORTCUT -> R.string.show_shortcuts_as_grid
                 },
             ),
             tint = ThemeConfig.Foreground,
@@ -805,18 +822,23 @@ private fun CalcResultRow(query: String, result: String, onCopy: (String) -> Uni
 }
 
 /**
- * The entry's own image (app icon, contact photo, file thumbnail), or its category icon when it has
- * none. A contact's photo loads from [contactPhotos], and a file's thumbnail from [fileThumbnails],
- * as it's shown; until then (or if there's none) the category icon stands in.
+ * The entry's own image (app icon, contact photo, file thumbnail, shortcut icon), or its category
+ * icon when it has none. A contact's photo loads from [contactPhotos], a file's thumbnail from
+ * [fileThumbnails], and a shortcut's icon from [shortcutIcons], as it's shown; until then (or if
+ * there's none) the category icon stands in.
  */
 @Composable
 private fun EntryIcon(
     entry: SearchEntry,
     contactPhotos: ContactPhotoCache?,
     fileThumbnails: FileThumbnailCache?,
+    shortcutIcons: ShortcutIconCache?,
     size: Dp = SearchConfig.ResultIconSize,
 ) {
-    val icon = entry.icon ?: rememberContactPhoto(entry, contactPhotos) ?: rememberFileThumbnail(entry, fileThumbnails)
+    val icon = entry.icon
+        ?: rememberContactPhoto(entry, contactPhotos)
+        ?: rememberFileThumbnail(entry, fileThumbnails)
+        ?: rememberShortcutIcon(entry, shortcutIcons)
     // The name next to it already describes the row, so the image itself is decorative.
     if (icon != null) {
         Image(
@@ -848,6 +870,20 @@ private fun rememberContactPhoto(entry: SearchEntry, contactPhotos: ContactPhoto
         if (photo == null && contact != null && contactPhotos != null) photo = contactPhotos.load(contact)
     }
     return photo
+}
+
+/**
+ * [entry]'s app shortcut icon: straight away when it's in memory, else once [shortcutIcons] has
+ * loaded it in the background. Null for anything that isn't a shortcut with an icon.
+ */
+@Composable
+private fun rememberShortcutIcon(entry: SearchEntry, shortcutIcons: ShortcutIconCache?): Drawable? {
+    val shortcut = entry as? ShortcutEntry
+    var icon by remember(shortcut, shortcutIcons) { mutableStateOf(shortcut?.let { shortcutIcons?.cached(it) }) }
+    LaunchedEffect(shortcut, shortcutIcons) {
+        if (icon == null && shortcut != null && shortcutIcons != null) icon = shortcutIcons.load(shortcut)
+    }
+    return icon
 }
 
 /**

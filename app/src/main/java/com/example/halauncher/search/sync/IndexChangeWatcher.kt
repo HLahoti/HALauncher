@@ -2,6 +2,7 @@ package com.example.halauncher.search.sync
 
 import android.content.Context
 import android.content.pm.LauncherApps
+import android.content.pm.ShortcutInfo
 import android.database.ContentObserver
 import android.net.Uri
 import android.os.Handler
@@ -19,6 +20,8 @@ import com.example.halauncher.model.SearchCategory
  * - Contacts: an observer on the contacts provider (it doesn't say what changed, so it's a full
  *   re-sync, which only writes differences).
  * - Files: an observer on MediaStore, which reports each changed file's id.
+ * - App shortcuts: the same launcher callback, when an app changes its shortcuts (a full re-sync,
+ *   since it reports the app's whole list). A change to an app re-syncs them too.
  *
  * Contacts and files are only observed while the launcher can read them; call [refresh] after a
  * permission changes. Callbacks arrive on [handler]'s thread.
@@ -29,6 +32,7 @@ class IndexChangeWatcher(
     private val pending: PendingChanges,
     private val canReadContacts: () -> Boolean,
     private val canReadFiles: () -> Boolean,
+    private val canReadShortcuts: () -> Boolean,
     private val onChange: () -> Unit,
 ) {
     private val appContext = context.applicationContext
@@ -46,10 +50,16 @@ class IndexChangeWatcher(
             appsChanged(packageNames.asList())
         override fun onPackagesUnavailable(packageNames: Array<out String>, user: UserHandle, replacing: Boolean) =
             appsChanged(packageNames.asList())
+        override fun onShortcutsChanged(packageName: String, shortcuts: MutableList<ShortcutInfo>, user: UserHandle) {
+            if (!IndexUpdaterConfig.WATCH_SHORTCUTS || !canReadShortcuts()) return
+            pending.requestFullSync(SearchCategory.SHORTCUT)
+            onChange()
+        }
     }
 
     fun start() {
-        if (IndexUpdaterConfig.WATCH_APPS && launcherApps != null && !watchingApps) {
+        val wantsCallback = IndexUpdaterConfig.WATCH_APPS || IndexUpdaterConfig.WATCH_SHORTCUTS
+        if (wantsCallback && launcherApps != null && !watchingApps) {
             launcherApps.registerCallback(appsCallback, handler)
             watchingApps = true
         }
@@ -88,7 +98,10 @@ class IndexChangeWatcher(
     }
 
     private fun appsChanged(packageNames: Collection<String>) {
-        pending.appsChanged(packageNames)
+        if (IndexUpdaterConfig.WATCH_APPS) pending.appsChanged(packageNames)
+        // An app installed, updated or removed brings, changes or takes its shortcuts with it.
+        if (IndexUpdaterConfig.WATCH_SHORTCUTS && canReadShortcuts()) pending.requestFullSync(SearchCategory.SHORTCUT)
+        if (pending.isEmpty) return
         onChange()
     }
 

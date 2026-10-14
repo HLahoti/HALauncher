@@ -9,6 +9,7 @@ import com.example.halauncher.config.IndexUpdaterConfig
 import com.example.halauncher.data.AppRepository
 import com.example.halauncher.data.ContactProvider
 import com.example.halauncher.data.FileSearchProvider
+import com.example.halauncher.data.ShortcutProvider
 import com.example.halauncher.model.AppInfo
 import com.example.halauncher.model.FileEntry
 import com.example.halauncher.model.SearchCategory
@@ -72,6 +73,7 @@ class IndexUpdater(
     private val apps: AppRepository,
     private val contacts: ContactProvider,
     private val files: FileSearchProvider,
+    private val shortcuts: ShortcutProvider,
 ) {
     private val thread = HandlerThread(THREAD_NAME, IndexUpdaterConfig.THREAD_PRIORITY).apply { start() }
     private val handler = Handler(thread.looper)
@@ -88,6 +90,7 @@ class IndexUpdater(
         pending = pending,
         canReadContacts = contacts::hasPermission,
         canReadFiles = files::hasAccess,
+        canReadShortcuts = shortcuts::hasAccess,
         onChange = ::wake,
     )
 
@@ -216,6 +219,10 @@ class IndexUpdater(
             }
             if (SearchCategory.CONTACT in batch.fullSync) add {
                 changes += IndexChange.ReplaceAll(SearchCategory.CONTACT, contacts.loadEntries())
+            }
+            // After apps, so shortcuts are matched against the freshly loaded ones.
+            if (SearchCategory.SHORTCUT in batch.fullSync) add {
+                changes += IndexChange.ReplaceAll(SearchCategory.SHORTCUT, shortcuts.loadEntries())
             }
             if (SearchCategory.FILE in batch.fullSync) {
                 add { changes += IndexChange.ReplaceAll(SearchCategory.FILE, files.loadEntries()) }

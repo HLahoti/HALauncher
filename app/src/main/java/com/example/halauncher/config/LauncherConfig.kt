@@ -319,6 +319,9 @@ object IndexUpdaterConfig {
     /** Re-index files when MediaStore reports changes (needs All files access). */
     const val WATCH_FILES = true
 
+    /** Re-index app shortcuts when an app changes its own (needs to be the default home app). */
+    const val WATCH_SHORTCUTS = true
+
     // --- Debouncing and batching ---
 
     /**
@@ -454,6 +457,7 @@ object RankingConfig {
         SearchCategory.APP to 0.1,
         SearchCategory.CONTACT to 0.05,
         SearchCategory.FILE to 0.0,
+        SearchCategory.SHORTCUT to 0.02,
     )
 }
 
@@ -518,6 +522,15 @@ object IconCacheConfig {
 
     /** WebP quality of the photos kept on disk (Android 11+). */
     const val CONTACT_PHOTO_QUALITY = 90
+
+    /** Size app shortcut icons are rendered at: the largest search draws them (a grid cell), so they're never scaled up. */
+    val ShortcutIconSize get() = maxOf(SearchConfig.ResultIconSize, SearchConfig.GridIconSize)
+
+    /** Memory kept for the most recently shown app shortcut icons (about 60 at a typical density). */
+    const val SHORTCUT_ICON_MEMORY_BYTES = 6 * 1024 * 1024
+
+    /** How many app shortcut icons may load at once, so a fast scroll doesn't flood the system. */
+    const val SHORTCUT_ICON_LOAD_PARALLELISM = 2
 
     /** Size file thumbnails are stored at: the largest search draws them (a grid cell), so they're never scaled up. */
     val FileThumbnailSize get() = maxOf(SearchConfig.ResultIconSize, SearchConfig.GridIconSize)

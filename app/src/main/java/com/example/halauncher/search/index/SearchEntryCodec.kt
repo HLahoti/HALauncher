@@ -6,6 +6,7 @@ import com.example.halauncher.model.ContactEntry
 import com.example.halauncher.model.FileEntry
 import com.example.halauncher.model.SearchCategory
 import com.example.halauncher.model.SearchEntry
+import com.example.halauncher.model.ShortcutEntry
 import org.json.JSONObject
 
 /**
@@ -111,6 +112,42 @@ object FileEntryCodec : SearchEntryCodec {
             modifiedMillis = json.getLong(MODIFIED),
             folder = json.optStringOrNull(FOLDER),
         )
+    }
+}
+
+/**
+ * Shortcuts are stored by app and shortcut id. The app's name and launch intent come from the
+ * apps loaded this session via [findApp], so a shortcut whose app is gone isn't rebuilt.
+ */
+class ShortcutEntryCodec(private val findApp: (packageName: String) -> AppInfo?) : SearchEntryCodec {
+    override val category = SearchCategory.SHORTCUT
+
+    override fun encode(entry: SearchEntry): String {
+        val shortcut = entry as ShortcutEntry
+        return JSONObject()
+            .put(PACKAGE, shortcut.packageName)
+            .put(SHORTCUT_ID, shortcut.shortcutId)
+            .put(ICON_VERSION, shortcut.iconVersion)
+            .toString()
+    }
+
+    override fun decode(name: String, payload: String): SearchEntry? {
+        val json = JSONObject(payload)
+        val app = findApp(json.getString(PACKAGE)) ?: return null
+        return ShortcutEntry(
+            packageName = app.packageName,
+            shortcutId = json.getString(SHORTCUT_ID),
+            name = name,
+            appName = app.name,
+            link = app.link,
+            iconVersion = json.optLong(ICON_VERSION),
+        )
+    }
+
+    private companion object {
+        const val PACKAGE = "package"
+        const val SHORTCUT_ID = "id"
+        const val ICON_VERSION = "iconVersion"
     }
 }
 

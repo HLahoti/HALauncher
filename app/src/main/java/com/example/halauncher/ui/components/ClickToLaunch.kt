@@ -25,16 +25,16 @@ fun ClickToLaunch(
     Box(
         modifier = modifier.clickable(onClickLabel = element.actionLabel, role = Role.Button) {
             val intents = listOf(element.launchIntent) + element.fallbackIntents
-            if (context.launchSafely(intents, element.actionLabel)) onLaunched()
+            if (element.launchDirectly(context) || context.launchSafely(intents, element.actionLabel)) onLaunched()
         },
     ) {
         element.displayContent()
     }
 }
 
-/** Opens a search entry: its link, else the first fallback that works. */
+/** Opens a search entry: directly if it can be, else its link, else the first fallback that works. */
 fun Context.launchSafely(entry: SearchEntry, label: String): Boolean =
-    launchSafely(listOf(entry.link) + entry.fallbackLinks, label)
+    entry.launchDirectly(this) || launchSafely(listOf(entry.link) + entry.fallbackLinks, label)
 
 /**
  * Starts the first of [intents] that some activity can handle; if none can, shows a toast.

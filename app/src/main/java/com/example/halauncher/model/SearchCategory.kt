@@ -8,4 +8,5 @@ enum class SearchCategory {
     APP,
     CONTACT,
     FILE,
+    SHORTCUT,
 }

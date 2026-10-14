@@ -20,6 +20,7 @@ val SearchCategory.icon: ImageVector
         SearchCategory.APP -> AppsIcon
         SearchCategory.CONTACT -> Icons.Default.Person
         SearchCategory.FILE -> FileIcon
+        SearchCategory.SHORTCUT -> ShortcutIcon
     }
 
 /** Spoken name of the category, e.g. for the badge on a search result. */
@@ -29,10 +30,11 @@ val SearchCategory.labelRes: Int
         SearchCategory.APP -> R.string.category_app
         SearchCategory.CONTACT -> R.string.category_contact
         SearchCategory.FILE -> R.string.category_file
+        SearchCategory.SHORTCUT -> R.string.category_shortcut
     }
 
-// material-icons-core has no app-grid or file glyph, so these two reproduce the Material
-// "Apps" and "Insert Drive File" icons rather than pulling in the large extended icon set.
+// material-icons-core has no app-grid, file or shortcut glyph, so these reproduce the Material
+// "Apps", "Insert Drive File" and "Shortcut" icons rather than pulling in the large extended icon set.
 
 private val AppsIcon: ImageVector by lazy {
     materialIcon(
@@ -47,6 +49,13 @@ private val FileIcon: ImageVector by lazy {
         name = "InsertDriveFile",
         pathData = "M6,2c-1.1,0 -1.99,0.9 -1.99,2L4,20c0,1.1 0.89,2 1.99,2H18c1.1,0 2,-0.9 2,-2V8" +
             "l-6,-6H6zM13,9V3.5L18.5,9H13z",
+    )
+}
+
+private val ShortcutIcon: ImageVector by lazy {
+    materialIcon(
+        name = "Shortcut",
+        pathData = "M21,11l-6,-6v5H8c-2.76,0 -5,2.24 -5,5v4h2v-4c0,-1.65 1.35,-3 3,-3h7v5L21,11z",
     )
 }
 
