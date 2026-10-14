@@ -528,9 +528,9 @@ private fun TimeDisplay(time: String) {
     val context = LocalContext.current
     val label = stringResource(R.string.open_alarms)
     // Resolving the clock app queries PackageManager, so do it once rather than every minute.
-    val alarmIntent = remember(context) { IntentFactory.alarmIntent(context) }
+    val alarmIntents = remember(context) { IntentFactory.alarmIntents(context) }
     val palette = LocalHomePalette.current
-    val element = remember(time, label, alarmIntent, palette) {
+    val element = remember(time, label, alarmIntents, palette) {
         LaunchableElement(
             displayContent = {
                 Text(
@@ -543,8 +543,9 @@ private fun TimeDisplay(time: String) {
                     ),
                 )
             },
-            launchIntent = alarmIntent,
+            launchIntent = alarmIntents.first(),
             actionLabel = label,
+            fallbackIntents = alarmIntents.drop(1),
         )
     }
     ClickToLaunch(element)

@@ -3,6 +3,9 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Tapping the time opens the clock's alarm list. AOSP-based clocks (OnePlus, Oppo, …) only
+         accept that from apps holding this. Granted at install; it shows no prompt. -->
+    <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
     <!-- Contacts appear in search. Requested the first time search opens. -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <!-- File names appear in search. Android 11+: "All files access", granted by the user in
@@ -13,8 +16,8 @@
         android:maxSdkVersion="29" />
 
     <!-- Package visibility (Android 11+): let PackageManager see launchable apps, the
-         clock app's alarm screen, the calendar, the contacts app, the dialer and apps that
-         open files. -->
+         clock app (by its alarm and timer actions), the calendar, the contacts app, the dialer
+         and apps that open files. -->
     <queries>
         <intent>
             <action android:name="android.intent.action.MAIN" />
@@ -22,6 +25,15 @@
         </intent>
         <intent>
             <action android:name="android.intent.action.SHOW_ALARMS" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SET_ALARM" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SHOW_TIMERS" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SET_TIMER" />
         </intent>
         <intent>
             <action android:name="android.intent.action.VIEW" />

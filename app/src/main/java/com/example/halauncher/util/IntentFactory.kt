@@ -2,14 +2,16 @@ package com.example.halauncher.util
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
+import android.content.pm.PackageManager
+import android.content.pm.ResolveInfo
+import android.os.Build
 import android.provider.AlarmClock
 import android.provider.CalendarContract
 import android.provider.MediaStore
 
 /** Builds the intents the home screen launches. All package names live here. */
 object IntentFactory {
-
-    private const val GOOGLE_CLOCK_PACKAGE = "com.google.android.deskclock"
 
     private const val SAMSUNG_CLOCK_PACKAGE = "com.sec.android.app.clockpackage"
     private const val SAMSUNG_CLOCK_ACTIVITY = "$SAMSUNG_CLOCK_PACKAGE.ClockPackage"
@@ -18,40 +20,59 @@ object IntentFactory {
     private const val SAMSUNG_EXTRA_SELECT_TAB = "clockpackage.select.tab"
     private const val SAMSUNG_TAB_ALARM = 0
 
-    /** Clock apps we can open but have no known way to open at a specific tab. */
-    private val OTHER_CLOCK_PACKAGES = listOf(
-        "com.android.deskclock",
-        "com.oneplus.deskclock",
-        "com.coloros.alarmclock",
+    /** Standard actions only a clock app handles, used to find it whatever its package name. */
+    private val CLOCK_ACTIONS = listOf(
+        AlarmClock.ACTION_SHOW_ALARMS,
+        AlarmClock.ACTION_SET_ALARM,
+        AlarmClock.ACTION_SHOW_TIMERS,
+        AlarmClock.ACTION_SET_TIMER,
     )
 
     /**
-     * Opens the device's clock app, on its Alarm tab where we know how:
-     * 1. Samsung Clock: its main screen with the Alarm tab selected. Its
-     *    [AlarmClock.ACTION_SHOW_ALARMS] handler only shows a widget alarm picker.
-     * 2. Google Clock: [AlarmClock.ACTION_SHOW_ALARMS], which opens its Alarm tab.
-     * 3. Another known clock app: its normal launch screen.
-     * 4. Whatever app handles [AlarmClock.ACTION_SHOW_ALARMS].
-     *
-     * ACTION_SET_ALARM is avoided: it needs the SET_ALARM permission and creates an alarm.
+     * Intents that open the device's clock app, best first; the launch uses the first that works:
+     * 1. The Alarm tab. On Samsung Clock, its main screen with the Alarm tab selected (its
+     *    [AlarmClock.ACTION_SHOW_ALARMS] handler only shows a widget alarm picker). Elsewhere,
+     *    [AlarmClock.ACTION_SHOW_ALARMS], which opens the Alarm tab of Google Clock, AOSP Clock
+     *    and the clocks built on it (OnePlus, Oppo, …). Those only accept it from apps holding the
+     *    SET_ALARM permission, which the manifest declares.
+     * 2. The main screen of whichever app handles the standard alarm or timer actions, a
+     *    preinstalled one first. Opening an app's main screen needs no permission, so this works
+     *    with any clock app, whatever it is called.
      */
-    fun alarmIntent(context: Context): Intent {
+    fun alarmIntents(context: Context): List<Intent> {
         val pm = context.packageManager
 
         val samsungClock = Intent(Intent.ACTION_MAIN)
             .addCategory(Intent.CATEGORY_LAUNCHER)
             .setClassName(SAMSUNG_CLOCK_PACKAGE, SAMSUNG_CLOCK_ACTIVITY)
             .putExtra(SAMSUNG_EXTRA_SELECT_TAB, SAMSUNG_TAB_ALARM)
-        if (samsungClock.resolveActivity(pm) != null) return samsungClock
-
-        val googleClock = Intent(AlarmClock.ACTION_SHOW_ALARMS).setPackage(GOOGLE_CLOCK_PACKAGE)
-        if (googleClock.resolveActivity(pm) != null) return googleClock
-
-        OTHER_CLOCK_PACKAGES.firstNotNullOfOrNull { pm.getLaunchIntentForPackage(it) }
-            ?.let { return it }
-
-        return Intent(AlarmClock.ACTION_SHOW_ALARMS)
+        // Not Intent.resolveActivity: given an explicit component it returns it unchecked, so this
+        // would pass on every phone and open nothing where Samsung Clock isn't installed.
+        val alarmScreen = if (pm.queryActivities(samsungClock).isNotEmpty()) {
+            samsungClock
+        } else {
+            Intent(AlarmClock.ACTION_SHOW_ALARMS)
+        }
+        return listOfNotNull(alarmScreen, clockAppLaunchIntent(pm))
     }
+
+    /** The launch intent of the app handling [CLOCK_ACTIONS], preinstalled apps first. */
+    private fun clockAppLaunchIntent(pm: PackageManager): Intent? =
+        CLOCK_ACTIONS.asSequence()
+            .flatMap { pm.queryActivities(Intent(it)) }
+            .map { it.activityInfo.applicationInfo }
+            .sortedByDescending { it.flags and ApplicationInfo.FLAG_SYSTEM != 0 }
+            .map { it.packageName }
+            .distinct()
+            .firstNotNullOfOrNull { pm.getLaunchIntentForPackage(it) }
+
+    private fun PackageManager.queryActivities(intent: Intent): List<ResolveInfo> =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            queryIntentActivities(intent, PackageManager.ResolveInfoFlags.of(0))
+        } else {
+            @Suppress("DEPRECATION")
+            queryIntentActivities(intent, 0)
+        }
 
     /** Opens the phone app's keypad, empty, ready to dial a number (nothing is called). */
     fun dialerIntent(): Intent = Intent(Intent.ACTION_DIAL)
