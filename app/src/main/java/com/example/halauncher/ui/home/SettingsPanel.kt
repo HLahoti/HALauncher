@@ -79,7 +79,7 @@ import kotlin.math.roundToInt
  * @param onHapticIntensityChange saves the tick strength (0f–1f); every haptic reads it on its next buzz.
  * @param onDefaultSearchCategoryChange saves the category search opens on (null for "All").
  * @param onHomeTextColorChange saves the home screen's content colour (auto, light or dark).
- * @param onHowToUse opens the "How to use this app" guide; stays available even while settings are locked.
+ * @param onHowToUse replays the hands-on tour; stays available even while settings are locked.
  * @param onOpenSetup opens the "Set-up & permissions" screen; stays available even while settings are locked.
  * @param contactsAccess where the contacts permission stands; the set-up row warns while it's off.
  * @param filesAccess where file access stands; the set-up row warns while it's off.
@@ -264,7 +264,7 @@ fun SettingsPanel(
 }
 
 /**
- * A glass card that just does something when tapped (no state), e.g. opening the how-to guide. A
+ * A glass card that just does something when tapped (no state), e.g. replaying the tour. A
  * [warning] (e.g. a permission that's off) shows in a small box under the description.
  */
 @Composable

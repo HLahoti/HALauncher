@@ -44,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.graphicsLayer
@@ -106,7 +107,8 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     val pinnedPackages by viewModel.pinnedPackages.collectAsStateWithLifecycle()
     val isPinPickerOpen by viewModel.isPinPickerOpen.collectAsStateWithLifecycle()
     val isSettingsOpen by viewModel.isSettingsOpen.collectAsStateWithLifecycle()
-    val isHowToOpen by viewModel.isHowToOpen.collectAsStateWithLifecycle()
+    val tourStep by viewModel.tourStep.collectAsStateWithLifecycle()
+    val tourSteps by viewModel.tourSteps.collectAsStateWithLifecycle()
     val isSetupOpen by viewModel.isSetupOpen.collectAsStateWithLifecycle()
     val isDefaultHome by viewModel.isDefaultHome.collectAsStateWithLifecycle()
     val isOnboarding by viewModel.isOnboarding.collectAsStateWithLifecycle()
@@ -141,9 +143,11 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     val searchFullyIn by remember { derivedStateOf { searchReveal.value >= 1f } }
     LaunchedEffect(isSearchOpen) { searchReveal.animateTo(isSearchOpen) }
 
-    // Ask for contacts the first time search opens, when it's clear why they're wanted.
+    // Ask for contacts the first time search opens, when it's clear why they're wanted. Search
+    // being fully in (not just starting to come in) also finishes the tour's swipe-up step.
     val searchSettledOpen = isSearchOpen && searchFullyIn
     LaunchedEffect(searchSettledOpen) {
+        if (searchSettledOpen) viewModel.onSearchSettledOpen()
         if (searchSettledOpen && viewModel.shouldRequestContactsPermission()) {
             requestContactsAccess()
         }
@@ -164,17 +168,17 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     BackHandler(enabled = isSearchOpen) { viewModel.closeSearch() }
     BackHandler(enabled = isPinPickerOpen) { viewModel.closePinPicker() }
     BackHandler(enabled = isSettingsOpen) { viewModel.closeSettings() }
-    BackHandler(enabled = isHowToOpen) { viewModel.closeHowTo() }
     BackHandler(enabled = isSetupOpen) { viewModel.finishSetup() }
 
     // Frosts the home content behind an overlay (Android 12+; a no-op before that), deepening
     // as search comes in. Once the overlay is fully in, the blurred content is frozen: it isn't
     // re-recorded, and the blur isn't changed, so it's neither redrawn nor blurred again until
     // the overlay starts to leave.
-    val overlayOpen = isSearchOpen || isPinPickerOpen || isSettingsOpen || isHowToOpen || isSetupOpen
+    val overlayOpen = isSearchOpen || isPinPickerOpen || isSettingsOpen || isSetupOpen
+    // Back on the bare home screen skips the tour.
+    BackHandler(enabled = tourStep != null && !overlayOpen) { viewModel.endTour() }
     val pinPickerBlur = animateFloatAsState(if (isPinPickerOpen) 1f else 0f, label = "pinPickerBlur")
     val settingsBlur = animateFloatAsState(if (isSettingsOpen) 1f else 0f, label = "settingsBlur")
-    val howToBlur = animateFloatAsState(if (isHowToOpen) 1f else 0f, label = "howToBlur")
     val setupBlur = animateFloatAsState(if (isSetupOpen) 1f else 0f, label = "setupBlur")
     val currentOverlayOpen by rememberUpdatedState(overlayOpen)
     val homeLayer = rememberGraphicsLayer()
@@ -207,6 +211,8 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     val lock = rememberDoubleTapLock()
     val currentDoubleTapToLock by rememberUpdatedState(doubleTapToLock)
     val haptics = remember(context) { Haptics(context) }
+    // Where the sphere is, so the tour can spotlight it.
+    var sphereBounds by remember { mutableStateOf<Rect?>(null) }
 
     val searchLabel = stringResource(R.string.search_apps)
     val settingsLabel = stringResource(R.string.open_launcher_settings)
@@ -267,7 +273,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                     .fillMaxSize()
                     // Read in the draw phase, not in composition, so a swipe redraws without recomposing.
                     .drawWithContent {
-                        val coverage = max(max(max(max(pinPickerBlur.value, settingsBlur.value), howToBlur.value), setupBlur.value), searchReveal.value)
+                        val coverage = max(max(max(pinPickerBlur.value, settingsBlur.value), setupBlur.value), searchReveal.value)
                         val frozen = coverage >= 1f && homeBlur.recorded && homeLayer.size == size.toIntSize()
                         if (!frozen) {
                             homeLayer.record { this@drawWithContent.drawContent() }
@@ -394,12 +400,14 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
 
             // Hidden under overlays once they're fully in, so its touch area (and its exclusion from
             // the back gesture) can't intercept theirs.
-            if (!isPinPickerOpen && !isSettingsOpen && !isHowToOpen && !isSetupOpen && !(isSearchOpen && searchFullyIn)) {
+            if (!isPinPickerOpen && !isSettingsOpen && !isSetupOpen && !(isSearchOpen && searchFullyIn)) {
                 PinnedAppsSphere(
                     apps = pinnedApps,
                     onAppOpened = viewModel::onEntryOpened,
                     onEdit = viewModel::openPinPicker,
                     locked = settingsLocked,
+                    onTurned = viewModel::onSphereTurned,
+                    onBounds = { sphereBounds = it },
                     // Makes way for search as it comes in.
                     modifier = Modifier
                         .systemBarsPadding()
@@ -432,16 +440,12 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 onHapticIntensityChange = viewModel::setHapticIntensity,
                 onDefaultSearchCategoryChange = viewModel::setDefaultSearchCategory,
                 onHomeTextColorChange = viewModel::setHomeTextColor,
-                onHowToUse = viewModel::openHowTo,
+                onHowToUse = viewModel::startTour,
                 onOpenSetup = viewModel::openSetup,
                 contactsAccess = contactsAccess,
                 filesAccess = filesAccess,
                 onDone = viewModel::closeSettings,
             )
-        }
-
-        AnimatedVisibility(visible = isHowToOpen, enter = fadeIn(), exit = fadeOut()) {
-            HowToUse(isOnboarding = isOnboarding, onDone = viewModel::resetHome)
         }
 
         AnimatedVisibility(visible = isSetupOpen, enter = fadeIn(), exit = fadeOut()) {
@@ -519,6 +523,24 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 onDismissSummary = viewModel::dismissPermissionsPrompt,
             ),
             indexedCounts = indexedCounts,
+        )
+
+        // Over everything, but it only takes touches on its Skip button. Each step shows only where
+        // it can be done: inside search (and not while picking a button's app), or on the bare home
+        // screen; it waits out anything else in front.
+        val tourStepInSearch = tourStep?.inSearch == true
+        GuidedTour(
+            step = tourStep,
+            steps = tourSteps,
+            visible = if (tourStepInSearch) {
+                isSearchOpen && searchPurpose == SearchPurpose.FIND && !isPinPickerOpen && !isSettingsOpen && !isSetupOpen
+            } else {
+                !overlayOpen
+            },
+            reveal = { searchReveal.value },
+            sphereBounds = sphereBounds,
+            sphereCanTurn = pinnedApps.size >= 2,
+            onSkip = viewModel::endTour,
         )
     }
 }

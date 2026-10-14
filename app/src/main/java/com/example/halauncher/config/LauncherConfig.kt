@@ -757,3 +757,69 @@ object HapticsConfig {
     const val FALLBACK_LONG_PRESS_MS = 30L
     const val FALLBACK_LONG_PRESS_AMPLITUDE = 180
 }
+
+/** The hands-on tour: a spotlight and a ghost finger acting out each gesture over the real screen. */
+object TourConfig {
+    /** Darkness of the scrim around the spotlight on the home screen (search brings its own). */
+    const val SCRIM_ALPHA = 0.55f
+
+    /** Darkness of the caption's glass: dark enough to read over search's results. */
+    const val CAPTION_GLASS_TINT = 0.8f
+
+    /** Room left around the spotlit sphere. */
+    val SpotlightPadding = 8.dp
+
+    /** Width of the spotlight along a swipe's path, and the diameter of a hold's. */
+    val SpotlightWidth = 80.dp
+
+    /** Radius of the ghost fingertip. */
+    val FingerRadius = 20.dp
+
+    /** Opacity of the fingertip, and of the soft halo around it. */
+    const val FINGER_ALPHA = 0.9f
+    const val HALO_ALPHA = 0.25f
+
+    /** Opacity of the trail a swipe leaves behind the fingertip. */
+    const val TRAIL_ALPHA = 0.35f
+
+    /** Width of the ring that fills in around a held fingertip. */
+    val HoldRingWidth = 3.dp
+
+    /** One loop of a gesture's demo, including the pause before it repeats. */
+    const val GESTURE_LOOP_MS = 2_200
+
+    /** Length of the swipe up to search, and of the drag on the sphere. */
+    val SwipeLength = 200.dp
+    val SphereDragLength = 160.dp
+
+    /** How far above the caption the swipe up starts, and the hold for settings sits. */
+    val SwipeStartAboveCaption = 48.dp
+    val HoldAboveCaption = 140.dp
+
+    /**
+     * Where the swipe up and the hold for settings sit across the screen, as a fraction of its width:
+     * right of the quick actions, and left of the sphere and its label.
+     */
+    const val SWIPE_X_FRACTION = 0.27f
+    const val HOLD_X_FRACTION = 0.28f
+
+    /** Clearance kept between the swipe up and the sphere. */
+    val SphereClearance = 48.dp
+
+    /** Where search's results start, below the field and the filter bar; its gestures play out below this. */
+    val SearchContentTop = 180.dp
+
+    /** Gap between the gestures' area and the caption. */
+    val CaptionGap = 16.dp
+
+    /** Size of the progress dots, and the gap between them. */
+    val DotSize = 6.dp
+    val DotGap = 6.dp
+
+    /** Opacity of a progress dot for a step not yet reached. */
+    const val DOT_DIM_ALPHA = 0.35f
+
+    /** Inner padding of the Skip pill. */
+    val SkipHorizontalPadding = 12.dp
+    val SkipVerticalPadding = 6.dp
+}

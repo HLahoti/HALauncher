@@ -43,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -51,6 +52,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -65,6 +68,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.toSize
 import com.example.halauncher.R
 import com.example.halauncher.config.SphereConfig
 import com.example.halauncher.model.AppInfo
@@ -103,6 +107,8 @@ import kotlin.math.sin
  * recomposing; composition only changes when the front app does.
  *
  * @param modifier should fill the screen; only the sphere itself takes touches.
+ * @param onTurned called each time a drag by hand turns the sphere (for the tour).
+ * @param onBounds where the whole sphere is in root coordinates, including the part off screen.
  */
 @Composable
 fun PinnedAppsSphere(
@@ -111,6 +117,8 @@ fun PinnedAppsSphere(
     onEdit: () -> Unit,
     modifier: Modifier = Modifier,
     locked: Boolean = false,
+    onTurned: () -> Unit = {},
+    onBounds: (Rect) -> Unit = {},
 ) {
     val context = LocalContext.current
     val resources = LocalResources.current
@@ -124,6 +132,7 @@ fun PinnedAppsSphere(
     val currentApps by rememberUpdatedState(apps)
     val currentOnAppOpened by rememberUpdatedState(onAppOpened)
     val currentOnEdit by rememberUpdatedState(onEdit)
+    val currentOnTurned by rememberUpdatedState(onTurned)
     // Read live inside the gesture handlers, which are keyed on the pin count and so don't restart
     // when the lock flips.
     val currentLocked by rememberUpdatedState(locked)
@@ -195,6 +204,8 @@ fun PinnedAppsSphere(
             modifier = Modifier
                 .offset(x = centerX - radius, y = centerY - radius)
                 .size(radius * 2)
+                // Its own position and size, since bounds in root would be clipped to the screen.
+                .onGloballyPositioned { onBounds(Rect(it.positionInRoot(), it.size.toSize())) }
                 .systemGestureExclusion()
                 .liquidGlass(
                     CircleShape,
@@ -253,6 +264,7 @@ fun PinnedAppsSphere(
                             scope.launch { rotation.snapTo(turned) }
                         },
                         onDragEnd = {
+                            currentOnTurned()
                             val velocity = -tracker.calculateVelocity().y / arcPerApp
                             val target = (rotation.value + velocity * SphereConfig.FLING_SECONDS).roundToInt()
                             scope.launch {
