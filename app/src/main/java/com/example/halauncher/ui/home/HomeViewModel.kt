@@ -407,9 +407,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             val frequent = searchEngine.quickSearch(cursor, input.query, input.category)
             val blank = input.query.isBlank()
             // With nothing typed the disk layer normally stays out of it (only recents show). But
-            // with the Apps or Shortcuts category selected, list every one after the recents, so
-            // someone who just wants to browse them can.
-            val listAll = blank && (input.category == SearchCategory.APP || input.category == SearchCategory.SHORTCUT)
+            // with the Apps category selected, list every app after the recents, so someone who
+            // just wants to browse all their apps can.
+            val listAll = blank && input.category == SearchCategory.APP
             // And the Contacts and Files tabs list suggestions after the recents (favourite and
             // recently updated contacts, the newest files), so they show real entries even before
             // the user has opened any.
@@ -430,6 +430,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             val more = withContext(Dispatchers.IO) {
                 val started = SystemClock.elapsedRealtime()
                 // A blank query has nothing to rank against, so list everything A–Z instead.
+                // Only the apps themselves, not the shortcuts listed with them, which would bury them.
                 if (blank) {
                     searchEngine.listAll(input.category, excludeIds = shownIds).also {
                         Log.d(PERF_TAG, "listAll ${input.category}: ${it.size} in ${SystemClock.elapsedRealtime() - started} ms")
@@ -668,11 +669,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun publishCategories() {
         val indexed = _indexedCounts.value.keys
-        // A tab whose permission is missing stays, to ask for it. Shortcuts need no permission,
-        // only the launcher being the default home app, so their tab waits until there are some.
-        val categories = SearchCategory.entries.filter {
-            it in indexed || (it != SearchCategory.SHORTCUT && !hasAccess(it))
-        }
+        // A tab whose permission is missing stays, to ask for it. Shortcuts are listed with the apps.
+        val categories = SearchCategory.entries.filter { it.hasOwnTab && (it in indexed || !hasAccess(it)) }
         _availableCategories.value = categories
         // The default stays even before its category is indexed, so it isn't lost at startup.
         val filter = _categoryFilter.value

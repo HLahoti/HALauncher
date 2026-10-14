@@ -155,7 +155,7 @@ fun SearchOverlay(
             SearchCategory.FILE -> permissions.files.isGranted
             SearchCategory.SHORTCUT -> true
         }
-        if (count != null && readable && (categoryFilter == null || categoryFilter == category)) category to count else null
+        if (count != null && readable && (categoryFilter == null || categoryFilter == category.tab)) category to count else null
     }.takeIf { !isPicking }.orEmpty()
     // Once something's typed, the line counts the matches listed instead: the recents at first,
     // then the disk's too once it answers. With no matches it's left out; "No results" says so.
@@ -761,10 +761,10 @@ private fun LayoutToggle(
             contentDescription = stringResource(
                 when (category) {
                     null -> R.string.show_all_as_grid
-                    SearchCategory.APP -> R.string.show_apps_as_grid
+                    // Shortcuts have no tab of their own; they're in the apps'.
+                    SearchCategory.APP, SearchCategory.SHORTCUT -> R.string.show_apps_as_grid
                     SearchCategory.CONTACT -> R.string.show_contacts_as_grid
                     SearchCategory.FILE -> R.string.show_files_as_grid
-                    SearchCategory.SHORTCUT -> R.string.show_shortcuts_as_grid
                 },
             ),
             tint = ThemeConfig.Foreground,

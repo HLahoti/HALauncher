@@ -193,17 +193,17 @@ class SearchIndex(private val database: SearchDatabase, private val codecs: Sear
 
     /**
      * Entries whose name matches the FTS [matchExpression] (see FtsQuery), optionally limited to
-     * [category], as undecoded [Hit]s. Returns at most [limit], shortest names first: those are
+     * [categories], as undecoded [Hit]s. Returns at most [limit], shortest names first: those are
      * the likelier strong matches, and the caller ranks them properly afterwards.
      */
     @WorkerThread
-    fun matchHits(matchExpression: String, category: SearchCategory?, limit: Int): List<Hit> {
+    fun matchHits(matchExpression: String, categories: Collection<SearchCategory>?, limit: Int): List<Hit> {
         val sql = buildString {
             append("SELECT docid, $COL_ENTRY_ID, $COL_NAME, $COL_CATEGORY FROM $ENTRIES WHERE $ENTRIES MATCH ?")
-            if (category != null) append(" AND $COL_CATEGORY = ?")
+            if (categories != null) append(" AND $COL_CATEGORY IN (${categories.joinToString(",") { "?" }})")
             append(" ORDER BY length($COL_NAME) LIMIT ").append(limit)
         }
-        val args = listOfNotNull(matchExpression, category?.name).toTypedArray()
+        val args = (listOf(matchExpression) + categories.orEmpty().map { it.name }).toTypedArray()
         return database.readableDatabase.rawQuery(sql, args).use { cursor ->
             val hits = ArrayList<Hit>(cursor.count)
             while (cursor.moveToNext()) {
@@ -236,8 +236,8 @@ class SearchIndex(private val database: SearchDatabase, private val codecs: Sear
 
     /** Decoded entries matching [matchExpression]; see [matchHits]. */
     @WorkerThread
-    fun match(matchExpression: String, category: SearchCategory?, limit: Int): List<SearchEntry> =
-        decode(matchHits(matchExpression, category, limit))
+    fun match(matchExpression: String, categories: Collection<SearchCategory>?, limit: Int): List<SearchEntry> =
+        decode(matchHits(matchExpression, categories, limit))
 
     /** Every entry (optionally of one [category]) A–Z, up to [limit]. */
     @WorkerThread

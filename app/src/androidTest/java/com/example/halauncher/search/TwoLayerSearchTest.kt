@@ -71,7 +71,7 @@ class TwoLayerSearchTest {
     fun tearDown() = database.close()
 
     private fun matchIds(query: String, category: SearchCategory? = null) =
-        index.match(FtsQuery.prefixMatch(searchTerms(query))!!, category, limit = 100).map { it.id }.toSet()
+        index.match(FtsQuery.prefixMatch(searchTerms(query))!!, category?.let(::listOf), limit = 100).map { it.id }.toSet()
 
     @Test
     fun prefixMatchesAnyWordOfTheName() {

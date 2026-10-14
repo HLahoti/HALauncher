@@ -188,8 +188,8 @@ fun SettingsPanel(
                     SettingChoice(
                         title = stringResource(R.string.setting_default_search_category_title),
                         description = stringResource(R.string.setting_default_search_category_description),
-                        // null ("All") first, then the categories in their declared order.
-                        options = remember { listOf<SearchCategory?>(null) + SearchCategory.entries },
+                        // null ("All") first, then the tabs in their declared order.
+                        options = remember { listOf<SearchCategory?>(null) + SearchCategory.entries.filter { it.hasOwnTab } },
                         selected = defaultSearchCategory,
                         enabled = enabled,
                         optionLabel = { category ->

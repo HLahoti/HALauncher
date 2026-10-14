@@ -68,7 +68,8 @@ class LauncherSettingsStore(context: Context) {
         get() = when (val stored = prefs.getString(KEY_DEFAULT_SEARCH_CATEGORY, null)) {
             null -> SearchCategory.APP
             ALL_VALUE -> null
-            else -> SearchCategory.entries.firstOrNull { it.name == stored } ?: SearchCategory.APP
+            // A category without a tab of its own (shortcuts) opens the tab it's listed under.
+            else -> SearchCategory.entries.firstOrNull { it.name == stored }?.tab ?: SearchCategory.APP
         }
         set(value) = prefs.edit { putString(KEY_DEFAULT_SEARCH_CATEGORY, value?.name ?: ALL_VALUE) }
 

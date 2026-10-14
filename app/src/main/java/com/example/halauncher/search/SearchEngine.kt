@@ -109,16 +109,18 @@ class SearchEngine(
     /**
      * Frequent-layer matches: entries whose name starts with [query]. Per keystroke, [cursor]
      * walks only the characters that changed since its last query, and with no [category] the
-     * result is the trie's own list: nothing is copied or allocated.
+     * result is the trie's own list: nothing is copied or allocated. A [category] is a search tab,
+     * so it includes the categories listed under it (shortcuts under apps).
      */
     fun quickSearch(cursor: Trie<SearchEntry>.Cursor, query: String, category: SearchCategory?): List<SearchEntry> {
         val matches = cursor.search(query)
-        return if (category == null) matches else matches.filter { it.category == category }
+        return if (category == null) matches else matches.filter { it.category.tab == category }
     }
 
     /**
      * Disk-layer matches for [query], ranked, leaving out [excludeIds] (what the frequent layer
      * already showed). A blank query has none: with nothing typed, only the frequent layer shows.
+     * A [category] is a search tab, as in [quickSearch].
      *
      * Candidates are ranked by name and usage first; only the [SearchLayersConfig.DISK_RESULT_LIMIT]
      * that make the cut have their payloads read and decoded.
@@ -128,7 +130,7 @@ class SearchEngine(
         val terms = searchTerms(query)
         val match = FtsQuery.prefixMatch(terms) ?: return emptyList()
 
-        val hits = index.matchHits(match, category, SearchLayersConfig.DISK_CANDIDATE_LIMIT)
+        val hits = index.matchHits(match, category?.let(SearchCategory::listedUnder), SearchLayersConfig.DISK_CANDIDATE_LIMIT)
             .filter { it.id !in excludeIds }
         val now = clock()
         val histories = interactions.historiesFor(hits.map { it.id }, now)

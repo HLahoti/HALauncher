@@ -61,7 +61,9 @@ class ShortcutProvider(
     @RequiresApi(Build.VERSION_CODES.N_MR1)
     private fun toEntry(info: ShortcutInfo): ShortcutEntry? {
         val app = findApp(info.`package`) ?: return null
-        val label = listOf(info.shortLabel, info.longLabel)
+        // The long label where there is one: the short one is written to sit under an icon, so it
+        // can be too vague to search for on its own ("Start" for "Start stopwatch").
+        val label = listOf(info.longLabel, info.shortLabel)
             .firstNotNullOfOrNull { it?.toString()?.trim()?.takeIf(String::isNotEmpty) }
             ?: return null
         return ShortcutEntry(
