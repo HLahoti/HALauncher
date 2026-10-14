@@ -146,24 +146,14 @@
         <item quantity="one">%1$d of %2$d pinned · Unpin one to add another</item>
         <item quantity="other">%1$d of %2$d pinned · Unpin one to add another</item>
     </plurals>
-    <!-- The index status in search, e.g. "142 apps · 1,248 contacts · 8,910 files ready". -->
-    <string name="index_ready">%1$s ready</string>
-    <!-- With a query, how many matches of each kind are listed, e.g. "3 apps · 2 files found". -->
-    <string name="matches_found">%1$s found</string>
-    <plurals name="app_count">
-        <item quantity="one">%1$s app</item>
-        <item quantity="other">%1$s apps</item>
+    <!-- The index status in search, e.g. "41,136 items indexed". -->
+    <plurals name="items_indexed">
+        <item quantity="one">%1$s item indexed</item>
+        <item quantity="other">%1$s items indexed</item>
     </plurals>
-    <plurals name="contact_count">
-        <item quantity="one">%1$s contact</item>
-        <item quantity="other">%1$s contacts</item>
-    </plurals>
-    <plurals name="file_count">
-        <item quantity="one">%1$s file</item>
-        <item quantity="other">%1$s files</item>
-    </plurals>
-    <plurals name="shortcut_count">
-        <item quantity="one">%1$s shortcut</item>
-        <item quantity="other">%1$s shortcuts</item>
+    <!-- With a query, how many matches are listed, e.g. "5 results found". -->
+    <plurals name="results_found">
+        <item quantity="one">%1$s result found</item>
+        <item quantity="other">%1$s results found</item>
     </plurals>
 </resources>

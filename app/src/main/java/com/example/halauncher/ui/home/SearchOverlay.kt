@@ -3,7 +3,7 @@ package com.example.halauncher.ui.home
 import android.content.res.Resources
 import android.graphics.drawable.Drawable
 import android.widget.Toast
-import androidx.annotation.StringRes
+import androidx.annotation.PluralsRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -144,10 +144,10 @@ fun SearchOverlay(
     val searchFieldShape = RoundedCornerShape(percent = 50)
     val placeholderColor = ThemeConfig.Foreground.copy(alpha = SearchConfig.PLACEHOLDER_ALPHA)
     val keyboard = LocalSoftwareKeyboardController.current
-    // Every tab says how much it's searching (on "All", each readable source), so it's clear the
-    // index is there and working, even on a tab with no recents yet. A source that can't be read
-    // has its permission notice instead.
-    val readyCounts = SearchCategory.entries.mapNotNull { category ->
+    // Every tab says how much it's searching (on "All", every readable source together), so it's
+    // clear the index is there and working, even on a tab with no recents yet. A source that can't
+    // be read has its permission notice instead.
+    val readableCounts = SearchCategory.entries.mapNotNull { category ->
         val count = indexedCounts[category]
         val readable = when (category) {
             SearchCategory.APP -> true
@@ -155,17 +155,15 @@ fun SearchOverlay(
             SearchCategory.FILE -> permissions.files.isGranted
             SearchCategory.SHORTCUT -> true
         }
-        if (count != null && readable && (categoryFilter == null || categoryFilter == category.tab)) category to count else null
-    }.takeIf { !isPicking }.orEmpty()
+        if (count != null && readable && (categoryFilter == null || categoryFilter == category.tab)) count else null
+    }
     // Once something's typed, the line counts the matches listed instead: the recents at first,
     // then the disk's too once it answers. With no matches it's left out; "No results" says so.
     val isQueryBlank = query.isBlank()
-    val statusCounts = if (isQueryBlank) {
-        readyCounts
-    } else {
-        val matches = results.matchCounts
-        SearchCategory.entries.mapNotNull { category -> matches[category]?.let { category to it } }
-            .takeIf { !isPicking }.orEmpty()
+    val statusCount = when {
+        isPicking -> null
+        isQueryBlank -> readableCounts.takeIf { it.isNotEmpty() }?.sum()
+        else -> results.matchCounts.values.sum().takeIf { it > 0 }
     }
     // Matches only need a label to set them apart from the recents above them.
     val showsMoreLabel = results.frequent.isNotEmpty() && results.more.isNotEmpty()
@@ -334,8 +332,8 @@ fun SearchOverlay(
                     modifier = Modifier.padding(bottom = SearchConfig.ResultsSpacing),
                 )
             }
-            if (statusCounts.isNotEmpty()) {
-                IndexStatus(statusCounts, if (isQueryBlank) R.string.index_ready else R.string.matches_found)
+            if (statusCount != null) {
+                IndexStatus(statusCount, if (isQueryBlank) R.plurals.items_indexed else R.plurals.results_found)
             }
             // A new query or category starts the list from the top, and so does coming back:
             // search stays composed while hidden, so the list would otherwise keep its place.
@@ -486,24 +484,14 @@ private fun SectionLabel(text: String) {
 }
 
 /**
- * "142 apps · 1,248 contacts · 8,910 files ready": how many entries of each category in [counts]
- * the index holds, so it's clear search has everything it should. With a query, [summary] is
- * [R.string.matches_found] and [counts] are the matches listed: "3 apps · 2 files found".
+ * "41,136 items indexed": how many entries the index holds for the current tab, so it's clear
+ * search has everything it should. With a query, [summary] is [R.plurals.results_found] and
+ * [count] is the matches listed: "5 results found".
  */
 @Composable
-private fun IndexStatus(counts: List<Pair<SearchCategory, Int>>, @StringRes summary: Int) {
-    val numbers = NumberFormat.getIntegerInstance()
-    val parts = counts.map { (category, count) ->
-        val plurals = when (category) {
-            SearchCategory.APP -> R.plurals.app_count
-            SearchCategory.CONTACT -> R.plurals.contact_count
-            SearchCategory.FILE -> R.plurals.file_count
-            SearchCategory.SHORTCUT -> R.plurals.shortcut_count
-        }
-        pluralStringResource(plurals, count, numbers.format(count))
-    }
+private fun IndexStatus(count: Int, @PluralsRes summary: Int) {
     Text(
-        text = stringResource(summary, parts.joinToString(" · ")),
+        text = pluralStringResource(summary, count, NumberFormat.getIntegerInstance().format(count)),
         color = ThemeConfig.Foreground.copy(alpha = SearchConfig.SECTION_LABEL_ALPHA),
         style = MaterialTheme.typography.labelMedium,
         modifier = Modifier.padding(start = SearchConfig.SectionLabelPadding, bottom = SearchConfig.ResultsSpacing),
