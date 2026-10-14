@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>HALauncher</title>
-  <meta name="description" content="A calm, fast home screen for Android. Swipe up to search apps, contacts and files, spin your favourite apps on a sphere, and do quick maths without opening a calculator.">
+  <meta name="description" content="A calm, fast home screen for Android. Swipe up to search apps, contacts, files and app shortcuts, spin your favourite apps on a sphere, and do quick maths without opening a calculator.">
   <meta name="theme-color" content="#0b0d14">
   <meta name="color-scheme" content="dark">
   <meta property="og:title" content="HALauncher — a calm home screen for Android">
@@ -31,7 +31,7 @@
     <section class="hero">
       <div class="hero-copy">
         <h1 class="load-in">A home screen that gets out of your way.</h1>
-        <p class="lede load-in">Swipe up to find any app, contact or file. Spin your favourite apps on a sphere. Type a sum and get the answer. That's it — no clutter, no ads, no account.</p>
+        <p class="lede load-in">Swipe up to find any app, contact, file or shortcut. Spin your favourite apps on a sphere. Type a sum and get the answer. That's it — no clutter, no ads, no account.</p>
         <div class="cta load-in">
           <a class="btn btn-primary" href="https://github.com/HLahoti/HALauncher/releases/latest/download/HALauncher.apk" data-download>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-5-5m5 5 5-5M5 21h14"/></svg>
@@ -50,18 +50,36 @@
 
       <div class="hero-phone load-in">
         <div class="phone phone-float">
-          <video class="screen" src="assets/demo.mp4" poster="assets/demo-poster.webp" autoplay muted loop playsinline preload="metadata" aria-label="HALauncher demo: spinning the app sphere, then swiping up to search"></video>
+          <video class="screen" src="assets/demo.mp4" poster="assets/demo-poster.webp" autoplay muted loop playsinline preload="metadata" aria-label="HALauncher demo: spinning the app sphere, then swiping up and typing “ma” to find an app, two contacts and two documents"></video>
         </div>
       </div>
     </section>
 
     <section class="features" aria-label="Features">
       <article class="feature reveal">
-        <div class="feature-shot"><div class="phone"><img class="screen" src="assets/screen-search.webp" alt="Search results for “ma”: the Maps app, two contacts and a PDF" width="720" height="1600" loading="lazy"></div></div>
+        <div class="feature-shot"><div class="phone"><img class="screen" src="assets/screen-search.webp" alt="Search results for “ma”: the Maps app, two contacts with photos and two PDFs with previews" width="720" height="1600" loading="lazy"></div></div>
         <div class="feature-copy">
           <p class="eyebrow">Search</p>
           <h2>One swipe finds everything.</h2>
-          <p>Swipe up anywhere and start typing. Apps, contacts and files land in a single list, best match first. Swipe sideways to narrow it to just apps, people or files.</p>
+          <p>Swipe up anywhere and start typing. Apps, contacts, files and app shortcuts land in a single list, best match first, with a count of what turned up. Swipe sideways to narrow it to just apps, people or files.</p>
+        </div>
+      </article>
+
+      <article class="feature reveal">
+        <div class="feature-shot"><div class="phone"><img class="screen" src="assets/screen-shortcuts.webp" alt="Searching “new” lists app shortcuts: New tab in Chrome, New event in Calendar, Create new alarm in Clock and more" width="720" height="1600" loading="lazy"></div></div>
+        <div class="feature-copy">
+          <p class="eyebrow">App shortcuts</p>
+          <h2>Skip straight to the thing you wanted.</h2>
+          <p>The actions apps tuck behind a long-press — a new browser tab, a selfie, your Downloads folder, a chat you're in the middle of — turn up in search alongside the apps themselves. The ones you use join your recents.</p>
+        </div>
+      </article>
+
+      <article class="feature reveal">
+        <div class="feature-shot"><div class="phone"><img class="screen" src="assets/screen-files.webp" alt="The Files tab as a grid of recently added photos and documents, each with a preview" width="720" height="1600" loading="lazy"></div></div>
+        <div class="feature-copy">
+          <p class="eyebrow">At a glance</p>
+          <h2>See it before you open it.</h2>
+          <p>Contacts show their photos and files show a preview, so the right one stands out. Before you type, the Contacts tab lists your favourites and recently updated people, and the Files tab your newest files. Any tab can be a list or a grid.</p>
         </div>
       </article>
 
@@ -84,16 +102,34 @@
       </article>
 
       <article class="feature reveal">
-        <div class="feature-shot"><div class="phone"><img class="screen" src="assets/screen-settings.webp" alt="Settings: lock settings, double-tap to lock, default search category and reduce index size" width="720" height="1600" loading="lazy"></div></div>
+        <div class="feature-shot"><div class="phone"><img class="screen" src="assets/screen-home.webp" alt="Home screen with the clock and date, six quick buttons and the app sphere" width="720" height="1600" loading="lazy"></div></div>
         <div class="feature-copy">
-          <p class="eyebrow">Settings</p>
-          <h2>Set it up once. Lock it in.</h2>
-          <p>Double-tap the home screen to lock your phone, pick where search starts, and freeze every setting so nothing changes by accident. Long-press an empty spot to open them.</p>
+          <p class="eyebrow">Home screen</p>
+          <h2>Everyday things, a tap away.</h2>
+          <p>Tap the time for your alarms and the date for your calendar. Quick buttons open the camera, gallery, phone, messages, payments and browser — long-press the date, gallery, messages or payments button to pick which app it opens. The clock and icons turn dark on light wallpapers so they stay easy to read.</p>
         </div>
       </article>
 
       <article class="feature reveal">
-        <div class="feature-shot"><div class="phone"><img class="screen" src="assets/screen-setup.webp" alt="First-run setup asking to set HALauncher as home and allow contacts and file access" width="720" height="1600" loading="lazy"></div></div>
+        <div class="feature-shot"><div class="phone"><img class="screen" src="assets/screen-tour.webp" alt="The hands-on tour: a fingertip shows the swipe up to search, with the hint “Swipe up to search”" width="720" height="1600" loading="lazy"></div></div>
+        <div class="feature-copy">
+          <p class="eyebrow">Hands-on tour</p>
+          <h2>Learn it by doing it.</h2>
+          <p>A short tour plays over your real home screen. A fingertip shows each swipe and press, and the tour moves on once you've done it yourself. Replay it from settings any time.</p>
+        </div>
+      </article>
+
+      <article class="feature reveal">
+        <div class="feature-shot"><div class="phone"><img class="screen" src="assets/screen-settings.webp" alt="Settings: double-tap to lock, default search category, home screen colour and reduce index size" width="720" height="1600" loading="lazy"></div></div>
+        <div class="feature-copy">
+          <p class="eyebrow">Settings</p>
+          <h2>Set it up once. Lock it in.</h2>
+          <p>Double-tap the home screen to lock your phone, pick where search starts, choose the home screen's colour, and freeze every setting so nothing changes by accident. Long-press an empty spot to open them.</p>
+        </div>
+      </article>
+
+      <article class="feature reveal">
+        <div class="feature-shot"><div class="phone"><img class="screen" src="assets/screen-setup.webp" alt="Setup showing HALauncher set as home and contacts and file access enabled" width="720" height="1600" loading="lazy"></div></div>
         <div class="feature-copy">
           <p class="eyebrow">Private</p>
           <h2>Nothing leaves your phone.</h2>
@@ -113,10 +149,14 @@
       <div class="gallery" tabindex="0" aria-label="Screenshots, scroll sideways">
         <figure><div class="phone"><img class="screen" src="assets/screen-home.webp" alt="Home screen with clock, quick buttons and the app sphere" width="720" height="1600" loading="lazy"></div><figcaption>Home</figcaption></figure>
         <figure><div class="phone"><img class="screen" src="assets/screen-search.webp" alt="Search results" width="720" height="1600" loading="lazy"></div><figcaption>Search</figcaption></figure>
+        <figure><div class="phone"><img class="screen" src="assets/screen-shortcuts.webp" alt="App shortcuts in search" width="720" height="1600" loading="lazy"></div><figcaption>App shortcuts</figcaption></figure>
+        <figure><div class="phone"><img class="screen" src="assets/screen-contacts.webp" alt="The Contacts tab with favourites and recently updated contacts" width="720" height="1600" loading="lazy"></div><figcaption>Contacts</figcaption></figure>
+        <figure><div class="phone"><img class="screen" src="assets/screen-files.webp" alt="The Files tab as a grid of previews" width="720" height="1600" loading="lazy"></div><figcaption>Files</figcaption></figure>
         <figure><div class="phone"><img class="screen" src="assets/screen-calc.webp" alt="Calculator answer in search" width="720" height="1600" loading="lazy"></div><figcaption>Quick maths</figcaption></figure>
         <figure><div class="phone"><img class="screen" src="assets/screen-picker.webp" alt="Pinned apps editor" width="720" height="1600" loading="lazy"></div><figcaption>Pin apps</figcaption></figure>
+        <figure><div class="phone"><img class="screen" src="assets/screen-choose.webp" alt="Choosing which app the payments button opens" width="720" height="1600" loading="lazy"></div><figcaption>Choose your apps</figcaption></figure>
         <figure><div class="phone"><img class="screen" src="assets/screen-settings.webp" alt="Settings panel" width="720" height="1600" loading="lazy"></div><figcaption>Settings</figcaption></figure>
-        <figure><div class="phone"><img class="screen" src="assets/screen-guide.webp" alt="Built-in guide to gestures" width="720" height="1600" loading="lazy"></div><figcaption>Built-in guide</figcaption></figure>
+        <figure><div class="phone"><img class="screen" src="assets/screen-tour.webp" alt="The hands-on tour" width="720" height="1600" loading="lazy"></div><figcaption>Hands-on tour</figcaption></figure>
         <figure><div class="phone"><img class="screen" src="assets/screen-setup.webp" alt="First-run setup" width="720" height="1600" loading="lazy"></div><figcaption>Setup</figcaption></figure>
       </div>
     </section>
@@ -138,7 +178,7 @@
         <li>
           <span class="step-num">3</span>
           <h3>Make it home</h3>
-          <p>Open HALauncher and tap <strong>Set as home</strong>. The short setup walks you through the rest.</p>
+          <p>Open HALauncher and tap <strong>Set as home</strong>. A short setup and a hands-on tour walk you through the rest.</p>
         </li>
       </ol>
 
