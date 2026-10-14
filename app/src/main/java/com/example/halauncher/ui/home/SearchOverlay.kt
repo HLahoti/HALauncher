@@ -1,6 +1,8 @@
 package com.example.halauncher.ui.home
 
+import android.content.res.Resources
 import android.graphics.drawable.Drawable
+import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -593,8 +595,24 @@ private fun EntryItem(
             actionLabel = label,
         )
     }
-    ClickToLaunch(element, modifier = Modifier.fillMaxWidth(), onLaunched = { onOpened(entry) })
+    val context = LocalContext.current
+    val resources = LocalResources.current
+    ClickToLaunch(
+        element,
+        modifier = Modifier.fillMaxWidth(),
+        onLaunched = {
+            onOpened(entry)
+            // An APK opens the file manager rather than the installer; say what to tap there.
+            if (entry is FileEntry && entry.isApk) {
+                Toast.makeText(context, apkInstallNote(resources, entry), Toast.LENGTH_LONG).show()
+            }
+        },
+    )
 }
+
+private fun apkInstallNote(resources: Resources, file: FileEntry): String =
+    file.detail?.let { resources.getString(R.string.apk_install_from_folder, file.name, it) }
+        ?: resources.getString(R.string.apk_install_from_file_manager, file.name)
 
 @Composable
 private fun EntryRowContent(entry: SearchEntry, contactPhotos: ContactPhotoCache?, fileThumbnails: FileThumbnailCache?) {

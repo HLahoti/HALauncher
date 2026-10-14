@@ -2,13 +2,14 @@ package com.example.halauncher.model
 
 import android.content.Intent
 import android.net.Uri
+import android.provider.DocumentsContract
 
 /**
  * A file on shared storage (Downloads, Documents, DCIM, …), found through MediaStore.
  *
  * Opens in whichever app handles its type, e.g. a PDF viewer for a PDF; if none does, any
  * app that accepts generic files. The receiving app gets temporary read access to this
- * one file only.
+ * one file only. An APK is the exception: see [isApk].
  */
 data class FileEntry(
     val mediaId: Long,
@@ -30,10 +31,44 @@ data class FileEntry(
     override val detail: String?
         get() = folder?.trim('/')?.takeIf { it.isNotEmpty() }
 
-    override val link: Intent get() = viewIntent(mimeType ?: ANY_TYPE)
+    /**
+     * An app package. The installer only accepts one from an app that declares
+     * REQUEST_INSTALL_PACKAGES, which the launcher doesn't (Google Play restricts it), so it
+     * would close without a word. An APK opens its folder in the file manager instead, and
+     * the user taps it there.
+     */
+    val isApk: Boolean
+        get() = mimeType == APK_TYPE || name.endsWith(".apk", ignoreCase = true)
+
+    override val link: Intent
+        get() = if (isApk) apkLinks.first() else viewIntent(mimeType ?: ANY_TYPE)
 
     override val fallbackLinks: List<Intent>
-        get() = if (mimeType != null && mimeType != ANY_TYPE) listOf(viewIntent(ANY_TYPE)) else emptyList()
+        get() = when {
+            isApk -> apkLinks.drop(1)
+            mimeType != null && mimeType != ANY_TYPE -> listOf(viewIntent(ANY_TYPE))
+            else -> emptyList()
+        }
+
+    /**
+     * Where an APK sends the user, best first: its folder in the system file manager, else
+     * the top of internal storage, else whichever file manager opens from the app drawer.
+     * The folder is assumed to be on internal storage; Android only reports it from 10 on.
+     */
+    private val apkLinks: List<Intent>
+        get() = listOfNotNull(
+            folder?.trim('/')?.takeIf { it.isNotEmpty() }?.let { path ->
+                Intent(Intent.ACTION_VIEW).setDataAndType(
+                    DocumentsContract.buildDocumentUri(STORAGE_AUTHORITY, "$PRIMARY_ROOT:$path"),
+                    DocumentsContract.Document.MIME_TYPE_DIR,
+                )
+            },
+            Intent(Intent.ACTION_VIEW).setDataAndType(
+                DocumentsContract.buildRootUri(STORAGE_AUTHORITY, PRIMARY_ROOT),
+                DocumentsContract.Root.MIME_TYPE_ITEM,
+            ),
+            Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_FILES),
+        )
 
     private fun viewIntent(type: String): Intent =
         Intent(Intent.ACTION_VIEW)
@@ -42,6 +77,11 @@ data class FileEntry(
 
     companion object {
         private const val ANY_TYPE = "*/*"
+        private const val APK_TYPE = "application/vnd.android.package-archive"
+
+        /** The system provider for shared storage, and its id for internal storage. */
+        private const val STORAGE_AUTHORITY = "com.android.externalstorage.documents"
+        private const val PRIMARY_ROOT = "primary"
 
         /** The search-entry id of the file with MediaStore id [mediaId]. */
         fun idFor(mediaId: Long): String = "file:$mediaId"

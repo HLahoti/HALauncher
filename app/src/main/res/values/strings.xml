@@ -36,6 +36,8 @@
     <string name="open_app">Open %1$s</string>
     <string name="search_apps">Search apps, files and more</string>
     <string name="launch_failed">%1$s: no app found</string>
+    <string name="apk_install_from_folder">Tap %1$s in %2$s to install it</string>
+    <string name="apk_install_from_file_manager">Tap %1$s in your file manager to install it</string>
     <string name="category_all">All</string>
     <string name="category_app">App</string>
     <string name="category_contact">Contact</string>
