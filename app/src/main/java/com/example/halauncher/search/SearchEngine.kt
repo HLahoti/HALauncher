@@ -23,8 +23,8 @@ import com.example.halauncher.search.ranking.UsageHistory
  *    showed.
  *
  * Opening an entry is recorded in the [interactions] log, which the next [buildFrequentLayer]
- * ranks by. An entry opened from the disk results also joins the current layer straight away,
- * in place, through [addToFrequentLayer].
+ * ranks by. An opened entry also goes to the front of the current layer straight away, in
+ * place, through [moveToFrontOfFrequentLayer].
  *
  * Nothing here runs by itself: the background IndexUpdater applies source changes through
  * [applyChanges] and callers rebuild the frequent layer after it reports an update.
@@ -59,49 +59,49 @@ class SearchEngine(
     fun entryCounts(): Map<SearchCategory, Int> = index.counts()
 
     /**
-     * Builds the frequent layer: the [SearchLayersConfig.FREQUENT_LAYER_SIZE] best entries by
-     * usage, most relevant first (so an empty query lists them in that order), plus every
-     * [pinned] entry (things opened this session, which must not drop out mid-session). While
-     * there's too little history to fill it, it's topped up from [seed] (apps, on a fresh install).
+     * Builds the frequent layer: every [pinned] entry first, in the order given (things opened
+     * this session, most recent first, which must not drop out or sink mid-session), then the
+     * best entries by usage, most relevant first, up to [SearchLayersConfig.FREQUENT_LAYER_SIZE]
+     * in all. An empty query lists them in that order. While there's too little history to fill
+     * it, it's topped up from [seed] (apps, on a fresh install).
      */
     @WorkerThread
     fun buildFrequentLayer(seed: List<SearchEntry>, pinned: List<SearchEntry> = emptyList()): Trie<SearchEntry> {
         val now = clock()
         val histories = interactions.allHistories(now)
         val context = RankingContext(query = "", terms = emptyList(), nowMillis = now)
+        val chosenIds = mutableSetOf<String>()
+        val pins = pinned.filter { chosenIds.add(it.id) }
         val frequent = index.byIds(histories.keys).values
+            .filter { it.id !in chosenIds }
             .map { entry -> entry to ranker.score(context, RankingCandidate(entry, histories.getValue(entry.id))) }
             .sortedByDescending { (_, score) -> score }
             .map { (entry, _) -> entry }
-            .take(SearchLayersConfig.FREQUENT_LAYER_SIZE)
+            .take((SearchLayersConfig.FREQUENT_LAYER_SIZE - pins.size).coerceAtLeast(0))
+        frequent.mapTo(chosenIds) { it.id }
 
-        val chosenIds = frequent.mapTo(mutableSetOf()) { it.id }
-        val extraPins = pinned.filter { chosenIds.add(it.id) }
-        val room = SearchLayersConfig.FREQUENT_LAYER_SIZE - frequent.size - extraPins.size
+        val room = SearchLayersConfig.FREQUENT_LAYER_SIZE - pins.size - frequent.size
         val topUp = if (SearchLayersConfig.SEED_FREQUENT_LAYER && room > 0) {
             seed.filter { it.id !in chosenIds }.take(room)
         } else {
             emptyList()
         }
-        return trieOf(frequent + extraPins + topUp)
+        return trieOf(pins + frequent + topUp)
     }
 
     /**
-     * Adds [entry] to [layer] in place, so something just opened from the disk results answers
-     * instantly from now on. This touches only the nodes along the entry's name: O(name length),
-     * no rebuild. It can take the layer past its size limit until the next [buildFrequentLayer]
-     * re-ranks everything.
+     * Puts [entry] first in [layer], in place: something just opened leads the recents, and
+     * something opened from the disk results answers instantly from now on. This touches only
+     * the nodes along the entry's name, no rebuild. It can take the layer past its size limit
+     * until the next [buildFrequentLayer].
      *
      * The trie isn't thread-safe, so call this on the thread that searches [layer] (or before the
      * layer is shared).
      *
-     * @return false if the entry was already in the layer.
+     * @return false if the entry was already first.
      */
-    fun addToFrequentLayer(layer: Trie<SearchEntry>, entry: SearchEntry): Boolean {
-        if (layer.contains(entry.name) { it.id == entry.id }) return false
-        layer.insert(entry.name, entry)
-        return true
-    }
+    fun moveToFrontOfFrequentLayer(layer: Trie<SearchEntry>, entry: SearchEntry): Boolean =
+        layer.moveToFront(entry.name, entry) { it.id == entry.id }
 
     private fun trieOf(entries: List<SearchEntry>) =
         Trie<SearchEntry>().apply { entries.forEach { insert(it.name, it) } }
@@ -153,6 +153,13 @@ class SearchEngine(
     @WorkerThread
     fun listAll(category: SearchCategory?, excludeIds: Set<String>): List<SearchEntry> =
         index.all(category, SearchLayersConfig.DISK_CANDIDATE_LIMIT).filter { it.id !in excludeIds }
+
+    /** The indexed entries with these [ids], in the same order; ids not in the index are left out. */
+    @WorkerThread
+    fun entriesByIds(ids: List<String>): List<SearchEntry> {
+        val found = index.byIds(ids)
+        return ids.mapNotNull(found::get)
+    }
 
     /**
      * Remembers that the user opened [entry], for the next [buildFrequentLayer] and ranking. Also

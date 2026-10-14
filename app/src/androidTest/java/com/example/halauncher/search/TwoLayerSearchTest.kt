@@ -186,20 +186,30 @@ class TwoLayerSearchTest {
         val cursor = layer.cursor()
         assertTrue(engine.quickSearch(cursor, "quar", category = null).isEmpty())
 
-        assertTrue(engine.addToFrequentLayer(layer, report))
-        // Added in place: found by any prefix of its name, alongside what was there, even by a
-        // cursor whose last walk had dead-ended on this very query.
+        assertTrue(engine.moveToFrontOfFrequentLayer(layer, report))
+        // Added in place, in front: found by any prefix of its name, ahead of what was there, even
+        // by a cursor whose last walk had dead-ended on this very query.
         assertEquals(listOf(report.id), engine.quickSearch(cursor, "quar", category = null).map { it.id })
+        assertEquals(listOf(report.id, maps.id), layer.searchPrefix("").map { it.id })
+        // Opening it again while it's first changes nothing.
+        assertFalse(engine.moveToFrontOfFrequentLayer(layer, report))
+        assertEquals(listOf(report.id, maps.id), layer.searchPrefix("").map { it.id })
+        // Opening something lower down brings it back to the top, without a second copy.
+        assertTrue(engine.moveToFrontOfFrequentLayer(layer, maps))
         assertEquals(listOf(maps.id, report.id), layer.searchPrefix("").map { it.id })
-        // Adding it again changes nothing.
-        assertFalse(engine.addToFrequentLayer(layer, report))
-        assertEquals(listOf(maps.id, report.id), layer.searchPrefix("").map { it.id })
+        assertEquals(listOf(maps.id), layer.searchPrefix("ma").map { it.id })
     }
 
     @Test
     fun pinnedEntriesSurviveARebuild() {
         val layer = engine.buildFrequentLayer(seed = emptyList(), pinned = listOf(report))
         assertEquals(listOf(report.id), layer.searchPrefix("").map { it.id })
+    }
+
+    @Test
+    fun pinnedEntriesLeadTheRebuiltLayerInTheirOwnOrder() {
+        val layer = engine.buildFrequentLayer(seed = listOf(maps, mail), pinned = listOf(report, mail))
+        assertEquals(listOf(report.id, mail.id, maps.id), layer.searchPrefix("").map { it.id })
     }
 
     @Test

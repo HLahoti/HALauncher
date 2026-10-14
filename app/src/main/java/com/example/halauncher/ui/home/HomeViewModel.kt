@@ -10,6 +10,7 @@ import android.content.IntentFilter
 import android.os.SystemClock
 import android.util.Log
 import android.text.format.DateFormat
+import androidx.annotation.WorkerThread
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
@@ -89,17 +90,58 @@ enum class SearchPurpose {
     PICK_CALENDAR_APP,
 }
 
-/** What search shows: instant frequent-layer matches, then ranked disk matches under a divider. */
+/**
+ * What search shows: instant frequent-layer matches, then ranked disk matches under a divider.
+ * An entry appears in one group only (see [exclusive]).
+ */
 data class SearchResults(
     val frequent: List<SearchEntry> = emptyList(),
     val more: List<SearchEntry> = emptyList(),
     /** The disk layer hasn't answered the current query yet. */
     val isSearchingDisk: Boolean = false,
-    /** [more] is the newest files on the device (the Files tab with nothing typed), not matches. */
-    val moreAreRecentlyAdded: Boolean = false,
+    /**
+     * With nothing typed, what's listed after the recents on the Contacts and Files tabs, so they
+     * show real entries before the user has opened any. Each group is non-empty.
+     */
+    val suggestions: List<Suggestions> = emptyList(),
 ) {
-    val isEmpty: Boolean get() = frequent.isEmpty() && more.isEmpty()
-    fun firstOrNull(): SearchEntry? = frequent.firstOrNull() ?: more.firstOrNull()
+    val isEmpty: Boolean get() = frequent.isEmpty() && more.isEmpty() && suggestions.isEmpty()
+    fun firstOrNull(): SearchEntry? =
+        frequent.firstOrNull() ?: more.firstOrNull() ?: suggestions.firstOrNull()?.entries?.firstOrNull()
+
+    /**
+     * These results with each entry kept only in the first group that has it, in display order
+     * ([frequent], [more], then each of [suggestions]), and groups left empty dropped. Each
+     * loader already leaves out what's shown above it; this makes sure of it in one place, since
+     * the user shouldn't see an entry twice and the list needs unique keys.
+     *
+     * With only [frequent] (every keystroke, before the disk answers) it's returned as is: the
+     * frequent layer never holds an entry twice.
+     */
+    fun exclusive(): SearchResults {
+        if (more.isEmpty() && suggestions.isEmpty()) return this
+        val seen = HashSet<String>()
+        fun List<SearchEntry>.unseen() = filter { seen.add(it.id) }
+        return copy(
+            frequent = frequent.unseen(),
+            more = more.unseen(),
+            suggestions = suggestions.map { it.copy(entries = it.entries.unseen()) }.filter { it.entries.isNotEmpty() },
+        )
+    }
+}
+
+/** A labelled group of [SearchResults.suggestions]. */
+data class Suggestions(val kind: SuggestionKind, val entries: List<SearchEntry>)
+
+enum class SuggestionKind {
+    /** Starred contacts. */
+    FAVOURITES,
+
+    /** The most recently added or edited contacts. */
+    RECENTLY_UPDATED,
+
+    /** The newest files on the device. */
+    RECENTLY_ADDED,
 }
 
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
@@ -292,8 +334,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val _indexedCounts = MutableStateFlow<Map<SearchCategory, Int>>(emptyMap())
     /**
      * How many entries each category has in the index, as of the last index update; categories
-     * with none are left out. The Contacts and Files tabs show theirs while nothing is typed, so
-     * it's clear everything is there to search.
+     * with none are left out. Search shows them as a status line on every tab, so it's clear
+     * everything is there to search.
      */
     val indexedCounts: StateFlow<Map<SearchCategory, Int>> = _indexedCounts.asStateFlow()
 
@@ -340,15 +382,14 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             // with the Apps category selected, list every app after the recents, so someone who
             // just wants to browse all their apps can.
             val listAll = blank && input.category == SearchCategory.APP
-            // And the Files tab lists the newest files after the recents, so it shows real files
-            // even before the user has opened any.
-            if (blank && input.category == SearchCategory.FILE) {
+            // And the Contacts and Files tabs list suggestions after the recents (favourite and
+            // recently updated contacts, the newest files), so they show real entries even before
+            // the user has opened any.
+            if (blank && (input.category == SearchCategory.CONTACT || input.category == SearchCategory.FILE)) {
                 emit(SearchResults(frequent = frequent, isSearchingDisk = true))
                 val shownIds = frequent.mapTo(mutableSetOf()) { it.id }
-                val recent = withContext(Dispatchers.IO) {
-                    fileProvider.loadRecentlyAdded(SearchLayersConfig.RECENTLY_ADDED_FILES + shownIds.size)
-                }.filter { it.id !in shownIds }.take(SearchLayersConfig.RECENTLY_ADDED_FILES)
-                emit(SearchResults(frequent = frequent, more = recent, moreAreRecentlyAdded = true))
+                val suggestions = withContext(Dispatchers.IO) { loadSuggestions(input.category, shownIds) }
+                emit(SearchResults(frequent = frequent, suggestions = suggestions))
                 return@transformLatest
             }
             if (blank && !listAll) {
@@ -372,7 +413,39 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
             emit(SearchResults(frequent = frequent, more = more))
-        }.stateIn(viewModelScope, SharingStarted.Eagerly, SearchResults())
+        }.map(SearchResults::exclusive).stateIn(viewModelScope, SharingStarted.Eagerly, SearchResults())
+
+    /**
+     * The blank-query suggestions for the Contacts or Files tab, leaving out [shownIds] (the
+     * recents) and anything an earlier group already has.
+     */
+    @WorkerThread
+    private fun loadSuggestions(category: SearchCategory, shownIds: Set<String>): List<Suggestions> {
+        val shown = shownIds.toMutableSet()
+        fun group(kind: SuggestionKind, limit: Int, load: (Int) -> List<SearchEntry>): Suggestions {
+            // Ask for enough to still have [limit] once the ones already shown are left out.
+            val entries = load(limit + shown.size).filter { it.id !in shown }.take(limit)
+            entries.mapTo(shown) { it.id }
+            return Suggestions(kind, entries)
+        }
+        val groups = when (category) {
+            SearchCategory.CONTACT -> listOf(
+                group(SuggestionKind.FAVOURITES, SearchLayersConfig.FAVOURITE_CONTACTS) {
+                    searchEngine.entriesByIds(contactProvider.loadStarredIds(it))
+                },
+                group(SuggestionKind.RECENTLY_UPDATED, SearchLayersConfig.RECENTLY_UPDATED_CONTACTS) {
+                    searchEngine.entriesByIds(contactProvider.loadRecentlyUpdatedIds(it))
+                },
+            )
+            SearchCategory.FILE -> listOf(
+                group(SuggestionKind.RECENTLY_ADDED, SearchLayersConfig.RECENTLY_ADDED_FILES) {
+                    fileProvider.loadRecentlyAdded(it)
+                },
+            )
+            SearchCategory.APP -> emptyList()
+        }
+        return groups.filter { it.entries.isNotEmpty() }
+    }
 
     private data class SearchInput(
         val query: String,
@@ -545,12 +618,15 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     /** Re-ranks the frequent layer from history, keeping everything opened this session. */
     private suspend fun rebuildFrequentLayer() {
         val started = SystemClock.elapsedRealtime()
-        val built = searchEngine.buildFrequentLayer(seed = _installedApps.value, pinned = openedThisSession.value)
+        val pinned = openedThisSession.value
+        val built = searchEngine.buildFrequentLayer(seed = _installedApps.value, pinned = pinned)
         Log.d(PERF_TAG, "Frequent layer built in ${SystemClock.elapsedRealtime() - started} ms")
         layerMutex.withLock {
-            // Anything opened while the rebuild ran is added before publishing. The new trie
-            // isn't shared yet, so inserting here, off the main thread, is safe.
-            openedThisSession.value.forEach { searchEngine.addToFrequentLayer(built, it) }
+            // If anything was opened while the rebuild ran, this session's opens are put back in
+            // order (oldest first, so the latest ends up on top) before publishing. The new trie
+            // isn't shared yet, so changing it here, off the main thread, is safe.
+            val opened = openedThisSession.value
+            if (opened != pinned) opened.asReversed().forEach { searchEngine.moveToFrontOfFrequentLayer(built, it) }
             frequentLayer.value = built
         }
     }
@@ -575,12 +651,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
      * next frequent-layer build) and go back to the plain home screen.
      */
     fun onEntryOpened(entry: SearchEntry) {
-        openedThisSession.update { opened -> if (opened.any { it.id == entry.id }) opened else opened + entry }
-        // Joins the frequent layer now, in place on the main thread where the layer is searched,
-        // so it answers instantly from the next keystroke on.
+        // Most recent first, so it stays on top of the recents through later rebuilds.
+        openedThisSession.update { opened -> listOf(entry) + opened.filterNot { it.id == entry.id } }
+        // Goes to the front of the frequent layer now, in place on the main thread where the layer
+        // is searched, so it leads the recents and answers instantly from the next keystroke on.
         viewModelScope.launch(Dispatchers.Main.immediate) {
             layerMutex.withLock {
-                if (searchEngine.addToFrequentLayer(frequentLayer.value, entry)) frequentLayerVersion.update { it + 1 }
+                if (searchEngine.moveToFrontOfFrequentLayer(frequentLayer.value, entry)) frequentLayerVersion.update { it + 1 }
             }
         }
         viewModelScope.launch(Dispatchers.IO) { searchEngine.recordOpen(entry) }

@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.provider.ContactsContract
 import android.provider.ContactsContract.CommonDataKinds.Phone
 import android.provider.ContactsContract.Contacts
 import androidx.annotation.WorkerThread
@@ -40,6 +41,40 @@ class ContactProvider(private val context: Context) : SearchEntryProvider {
             // Permission revoked between the check and the query.
             emptyList()
         }
+    }
+
+    /** The search ids of up to [limit] starred (favourite) contacts, A–Z. */
+    @WorkerThread
+    fun loadStarredIds(limit: Int): List<String> =
+        loadIds(selection = "${Contacts.STARRED} = 1", sortOrder = "${Contacts.SORT_KEY_PRIMARY} COLLATE NOCASE", limit = limit)
+
+    /** The search ids of the [limit] most recently added or edited contacts, newest first. */
+    @WorkerThread
+    fun loadRecentlyUpdatedIds(limit: Int): List<String> =
+        loadIds(selection = null, sortOrder = "${Contacts.CONTACT_LAST_UPDATED_TIMESTAMP} DESC", limit = limit)
+
+    /**
+     * Just the ids ([ContactEntry.id]) of the contacts asked for, in [sortOrder]; the entries
+     * themselves come from the search index, already complete with their numbers.
+     */
+    private fun loadIds(selection: String?, sortOrder: String, limit: Int): List<String> {
+        if (!hasPermission() || limit <= 0) return emptyList()
+        val uri = Contacts.CONTENT_URI.buildUpon()
+            .appendQueryParameter(ContactsContract.LIMIT_PARAM_KEY, limit.toString())
+            .build()
+        val ids = mutableListOf<String>()
+        try {
+            context.contentResolver.query(uri, arrayOf(Contacts.LOOKUP_KEY), selection, null, sortOrder)?.use { cursor ->
+                val keyCol = cursor.getColumnIndexOrThrow(Contacts.LOOKUP_KEY)
+                while (cursor.moveToNext()) {
+                    cursor.getString(keyCol)?.let { ids += ContactEntry.idFor(it) }
+                }
+            }
+        } catch (e: SecurityException) {
+            // Permission revoked between the check and the query.
+            return emptyList()
+        }
+        return ids
     }
 
     private fun loadContacts(): List<ContactEntry> {

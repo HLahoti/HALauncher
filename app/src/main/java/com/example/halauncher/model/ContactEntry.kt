@@ -24,7 +24,7 @@ data class ContactEntry(
     val photoVersion: Long = 0L,
 ) : SearchEntry {
     // The lookup key survives contact syncs and merges; the numeric id alone may not.
-    override val id: String get() = "contact:$lookupKey"
+    override val id: String get() = idFor(lookupKey)
     override val category: SearchCategory get() = SearchCategory.CONTACT
 
     override val detail: String? get() = phoneNumber
@@ -36,4 +36,9 @@ data class ContactEntry(
         get() = listOfNotNull(
             phoneNumber?.let { Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", it, null)) },
         )
+
+    companion object {
+        /** The [id] of the contact with this lookup key. */
+        fun idFor(lookupKey: String): String = "contact:$lookupKey"
+    }
 }

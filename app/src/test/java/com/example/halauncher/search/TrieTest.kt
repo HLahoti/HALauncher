@@ -30,6 +30,28 @@ class TrieTest {
     }
 
     @Test
+    fun moveToFrontPutsTheValueFirstAlongItsPathOnly() {
+        val trie = trieOf(calendar, camera, chrome)
+        val before = trie.searchPrefix("c")
+
+        assertTrue(trie.moveToFront(chrome.name, chrome) { it === chrome })
+        assertEquals(listOf(chrome, calendar, camera), trie.searchPrefix(""))
+        assertEquals(listOf(chrome, calendar, camera), trie.searchPrefix("c"))
+        assertEquals(listOf(calendar, camera), trie.searchPrefix("ca"))
+        assertEquals(listOf(chrome), trie.searchPrefix("chrome"))
+        // Lists handed out earlier don't change.
+        assertEquals(listOf(calendar, camera, chrome), before)
+        // Already first: nothing to do.
+        assertFalse(trie.moveToFront(chrome.name, chrome) { it === chrome })
+
+        // A value not in the trie yet is added in front.
+        val clock = app("Clock")
+        assertTrue(trie.moveToFront(clock.name, clock) { it === clock })
+        assertEquals(listOf(clock, chrome, calendar, camera), trie.searchPrefix("c"))
+        assertEquals(listOf(clock), trie.searchPrefix("cl"))
+    }
+
+    @Test
     fun prefixNarrowsResultsInInsertionOrder() {
         val trie = trieOf(calendar, camera, chrome)
         assertEquals(listOf(calendar, camera, chrome), trie.searchPrefix("c"))

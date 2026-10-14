@@ -47,6 +47,8 @@
     <string name="more_results">More results</string>
     <string name="no_results">No results</string>
     <string name="recently_added">Recently added</string>
+    <string name="favourites">Favourites</string>
+    <string name="recently_updated">Recently updated</string>
     <string name="copy_calc_result">Copy %1$s to clipboard</string>
     <string name="calc_result_copied">Copied %1$s</string>
     <string name="permission_contacts_not_requested">Allow contacts access to find people here.</string>
@@ -147,12 +149,18 @@
         <item quantity="one">%1$d of %2$d pinned · Unpin one to add another</item>
         <item quantity="other">%1$d of %2$d pinned · Unpin one to add another</item>
     </plurals>
-    <plurals name="contacts_ready">
-        <item quantity="one">%1$s contact ready · Type a name to search</item>
-        <item quantity="other">%1$s contacts ready · Type a name to search</item>
+    <!-- The index status in search, e.g. "142 apps · 1,248 contacts · 8,910 files ready". -->
+    <string name="index_ready">%1$s ready</string>
+    <plurals name="app_count">
+        <item quantity="one">%1$s app</item>
+        <item quantity="other">%1$s apps</item>
     </plurals>
-    <plurals name="files_ready">
-        <item quantity="one">%1$s file ready · Type a file name to search</item>
-        <item quantity="other">%1$s files ready · Type a file name to search</item>
+    <plurals name="contact_count">
+        <item quantity="one">%1$s contact</item>
+        <item quantity="other">%1$s contacts</item>
+    </plurals>
+    <plurals name="file_count">
+        <item quantity="one">%1$s file</item>
+        <item quantity="other">%1$s files</item>
     </plurals>
 </resources>

@@ -94,8 +94,10 @@ class FileSearchProvider(
     }
 
     /**
-     * The [limit] most recently modified files, newest first, leaving out the same files a full
-     * sync would (hidden ones, and denylisted folders while that setting is on).
+     * The [limit] most recently added or modified files, newest first, leaving out the same files
+     * a full sync would (hidden ones, and denylisted folders while that setting is on). A file
+     * copied or restored onto the device can keep an old modified time, so the time MediaStore
+     * first saw it counts too.
      */
     @WorkerThread
     fun loadRecentlyAdded(limit: Int): List<FileEntry> {
@@ -103,7 +105,7 @@ class FileSearchProvider(
         return try {
             queryFiles(
                 excludeDenylisted = denylistEnabled(),
-                sortOrder = "${MediaStore.MediaColumns.DATE_MODIFIED} DESC",
+                sortOrder = "MAX(${MediaStore.MediaColumns.DATE_ADDED}, ${MediaStore.MediaColumns.DATE_MODIFIED}) DESC",
                 limit = limit,
             )
         } catch (e: SecurityException) {

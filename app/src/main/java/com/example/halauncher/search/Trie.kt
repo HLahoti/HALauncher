@@ -43,6 +43,27 @@ class Trie<T> {
     }
 
     /**
+     * Puts [value] first under [word], at each node along the word's path, dropping any value
+     * there that [isSame] says it replaces. Like [insert], it makes new lists: ones already
+     * returned stay as they were.
+     *
+     * @return false if [value] was already first (nothing changed).
+     */
+    fun moveToFront(word: CharSequence, value: T, isSame: (T) -> Boolean): Boolean {
+        if (root.values.firstOrNull()?.let(isSame) == true) return false
+        var node = root
+        node.values = listOf(value) + node.values.filterNot(isSame)
+        for (i in word.indices) {
+            val char = foldForSearch(word[i])
+            if (char == FOLDED_AWAY) continue
+            node = node.children.getOrPut(char) { TrieNode() }
+            node.values = listOf(value) + node.values.filterNot(isSame)
+        }
+        version++
+        return true
+    }
+
+    /**
      * Values whose key starts with [prefix] (surrounding whitespace ignored). An empty prefix
      * matches everything. The returned list is shared and immutable; it's not a copy.
      */
@@ -172,6 +193,6 @@ class Trie<T> {
 private class TrieNode<T> {
     val children: MutableMap<Char, TrieNode<T>> = HashMap()
 
-    /** Never mutated after creation; [Trie.insert] replaces it. Safe to hand out as-is. */
+    /** Never mutated after creation; [Trie.insert] and [Trie.moveToFront] replace it. Safe to hand out as-is. */
     var values: List<T> = emptyList()
 }

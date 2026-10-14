@@ -277,6 +277,15 @@ object SearchLayersConfig {
      */
     const val RECENTLY_ADDED_FILES = 10
 
+    /** How many starred contacts the Contacts tab lists under "Favourites" while nothing is typed. */
+    const val FAVOURITE_CONTACTS = 20
+
+    /**
+     * How many of the most recently added or edited contacts the Contacts tab lists under
+     * "Recently updated" while nothing is typed, after the favourites.
+     */
+    const val RECENTLY_UPDATED_CONTACTS = 10
+
     /** Days of open history kept. Older opens stop counting and are deleted. */
     const val INTERACTION_RETENTION_DAYS = 120
 

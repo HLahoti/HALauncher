@@ -138,23 +138,20 @@ fun SearchOverlay(
     val searchFieldShape = RoundedCornerShape(percent = 50)
     val placeholderColor = ThemeConfig.Foreground.copy(alpha = SearchConfig.PLACEHOLDER_ALPHA)
     val keyboard = LocalSoftwareKeyboardController.current
-    // With nothing typed, the Contacts and Files tabs say how much is there to search, so a tab
-    // with no recents yet doesn't look empty or broken.
-    val readyCount = indexedCounts[categoryFilter].takeIf {
-        query.isBlank() && !isPicking && when (categoryFilter) {
+    // Every tab says how much it's searching (on "All", each readable source), so it's clear the
+    // index is there and working, even on a tab with no recents yet. A source that can't be read
+    // has its permission notice instead.
+    val readyCounts = SearchCategory.entries.mapNotNull { category ->
+        val count = indexedCounts[category]
+        val readable = when (category) {
+            SearchCategory.APP -> true
             SearchCategory.CONTACT -> permissions.contacts.isGranted
             SearchCategory.FILE -> permissions.files.isGranted
-            else -> false
         }
-    }
-    // The newest files are worth a label even with nothing above them; matches only need one
-    // to set them apart from the recents.
-    val moreLabel = when {
-        results.more.isEmpty() -> null
-        results.moreAreRecentlyAdded -> R.string.recently_added
-        results.frequent.isNotEmpty() -> R.string.more_results
-        else -> null
-    }
+        if (count != null && readable && (categoryFilter == null || categoryFilter == category)) category to count else null
+    }.takeIf { !isPicking }.orEmpty()
+    // Matches only need a label to set them apart from the recents above them.
+    val showsMoreLabel = results.frequent.isNotEmpty() && results.more.isNotEmpty()
 
     val focusManager = LocalFocusManager.current
     // Only once search has fully come in; a swipe that's still bringing it in may yet let go.
@@ -320,6 +317,7 @@ fun SearchOverlay(
                     modifier = Modifier.padding(bottom = SearchConfig.ResultsSpacing),
                 )
             }
+            if (readyCounts.isNotEmpty()) IndexStatus(readyCounts)
             // A new query or category starts the list from the top, and so does coming back:
             // search stays composed while hidden, so the list would otherwise keep its place.
             LaunchedEffect(query, categoryFilter, showGrid) {
@@ -342,11 +340,6 @@ fun SearchOverlay(
                     state = gridState,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    if (readyCount != null && categoryFilter != null) {
-                        item(key = READY_COUNT_KEY, span = { GridItemSpan(maxLineSpan) }) {
-                            ReadyCountHint(categoryFilter, readyCount)
-                        }
-                    }
                     if (activeCalcResult != null) {
                         item(key = CALC_RESULT_KEY, span = { GridItemSpan(maxLineSpan) }) {
                             CalcResultRow(query = query, result = activeCalcResult, onCopy = onCalcResultSelected)
@@ -357,14 +350,24 @@ fun SearchOverlay(
                             EntryGridCellContent(entry, contactPhotos, fileThumbnails)
                         }
                     }
-                    if (moreLabel != null) {
+                    if (showsMoreLabel) {
                         item(key = MORE_RESULTS_KEY, span = { GridItemSpan(maxLineSpan) }) {
-                            SectionLabel(stringResource(moreLabel))
+                            SectionLabel(stringResource(R.string.more_results))
                         }
                     }
                     items(results.more, key = { it.id }) { entry ->
                         EntryItem(entry = entry, isPicking = false, onOpened = onEntryOpened, onPicked = onEntryPicked) {
                             EntryGridCellContent(entry, contactPhotos, fileThumbnails)
+                        }
+                    }
+                    results.suggestions.forEach { group ->
+                        item(key = suggestionsKey(group.kind), span = { GridItemSpan(maxLineSpan) }) {
+                            SectionLabel(stringResource(group.kind.label))
+                        }
+                        items(group.entries, key = { it.id }) { entry ->
+                            EntryItem(entry = entry, isPicking = false, onOpened = onEntryOpened, onPicked = onEntryPicked) {
+                                EntryGridCellContent(entry, contactPhotos, fileThumbnails)
+                            }
                         }
                     }
                     if (results.isEmpty && activeCalcResult == null && !results.isSearchingDisk && query.isNotBlank()) {
@@ -375,9 +378,6 @@ fun SearchOverlay(
                 }
             } else {
                 LazyColumn(state = listState, modifier = Modifier.fillMaxWidth()) {
-                    if (readyCount != null && categoryFilter != null) {
-                        item(key = READY_COUNT_KEY) { ReadyCountHint(categoryFilter, readyCount) }
-                    }
                     if (activeCalcResult != null) {
                         item(key = CALC_RESULT_KEY) {
                             CalcResultRow(query = query, result = activeCalcResult, onCopy = onCalcResultSelected)
@@ -388,12 +388,20 @@ fun SearchOverlay(
                             EntryRowContent(entry, contactPhotos, fileThumbnails)
                         }
                     }
-                    if (moreLabel != null) {
-                        item(key = MORE_RESULTS_KEY) { SectionLabel(stringResource(moreLabel)) }
+                    if (showsMoreLabel) {
+                        item(key = MORE_RESULTS_KEY) { SectionLabel(stringResource(R.string.more_results)) }
                     }
                     items(results.more, key = { it.id }) { entry ->
                         EntryItem(entry = entry, isPicking = isPicking, onOpened = onEntryOpened, onPicked = onEntryPicked) {
                             EntryRowContent(entry, contactPhotos, fileThumbnails)
+                        }
+                    }
+                    results.suggestions.forEach { group ->
+                        item(key = suggestionsKey(group.kind)) { SectionLabel(stringResource(group.kind.label)) }
+                        items(group.entries, key = { it.id }) { entry ->
+                            EntryItem(entry = entry, isPicking = isPicking, onOpened = onEntryOpened, onPicked = onEntryPicked) {
+                                EntryRowContent(entry, contactPhotos, fileThumbnails)
+                            }
                         }
                     }
                     if (results.isEmpty && activeCalcResult == null && !results.isSearchingDisk && query.isNotBlank()) {
@@ -436,7 +444,15 @@ private class SearchDismissScroll(private val reveal: SearchRevealState) : Neste
 private const val MORE_RESULTS_KEY = "section-more"
 private const val NO_RESULTS_KEY = "section-none"
 private const val CALC_RESULT_KEY = "section-calc"
-private const val READY_COUNT_KEY = "section-ready"
+
+private fun suggestionsKey(kind: SuggestionKind) = "section-suggested-${kind.name}"
+
+private val SuggestionKind.label: Int
+    get() = when (this) {
+        SuggestionKind.FAVOURITES -> R.string.favourites
+        SuggestionKind.RECENTLY_UPDATED -> R.string.recently_updated
+        SuggestionKind.RECENTLY_ADDED -> R.string.recently_added
+    }
 
 @Composable
 private fun SectionLabel(text: String) {
@@ -451,17 +467,25 @@ private fun SectionLabel(text: String) {
 }
 
 /**
- * "1,248 contacts ready · Type a name to search": shows that [category] can be read and is all
- * indexed, while there's nothing typed to search it with.
+ * "142 apps · 1,248 contacts · 8,910 files ready": how many entries of each category in [counts]
+ * the index holds, so it's clear search has everything it should.
  */
 @Composable
-private fun ReadyCountHint(category: SearchCategory, count: Int) {
-    val plurals = if (category == SearchCategory.CONTACT) R.plurals.contacts_ready else R.plurals.files_ready
+private fun IndexStatus(counts: List<Pair<SearchCategory, Int>>) {
+    val numbers = NumberFormat.getIntegerInstance()
+    val parts = counts.map { (category, count) ->
+        val plurals = when (category) {
+            SearchCategory.APP -> R.plurals.app_count
+            SearchCategory.CONTACT -> R.plurals.contact_count
+            SearchCategory.FILE -> R.plurals.file_count
+        }
+        pluralStringResource(plurals, count, numbers.format(count))
+    }
     Text(
-        text = pluralStringResource(plurals, count, NumberFormat.getIntegerInstance().format(count)),
+        text = stringResource(R.string.index_ready, parts.joinToString(" · ")),
         color = ThemeConfig.Foreground.copy(alpha = SearchConfig.SECTION_LABEL_ALPHA),
-        style = MaterialTheme.typography.bodyMedium,
-        modifier = Modifier.padding(SearchConfig.SectionLabelPadding),
+        style = MaterialTheme.typography.labelMedium,
+        modifier = Modifier.padding(start = SearchConfig.SectionLabelPadding, bottom = SearchConfig.ResultsSpacing),
     )
 }
 
