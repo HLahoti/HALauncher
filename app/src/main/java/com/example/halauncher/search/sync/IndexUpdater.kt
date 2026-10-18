@@ -224,18 +224,39 @@ class IndexUpdater(
             if (SearchCategory.SHORTCUT in batch.fullSync) add {
                 changes += IndexChange.ReplaceAll(SearchCategory.SHORTCUT, shortcuts.loadEntries())
             }
+            // Whatever re-reads every file (a new volume, the "Reduce index size" setting) re-reads
+            // every folder too.
+            val allFolders = SearchCategory.FOLDER in batch.fullSync || SearchCategory.FILE in batch.fullSync
+            var fileFolders: List<String?>? = null
             if (SearchCategory.FILE in batch.fullSync) {
-                add { changes += IndexChange.ReplaceAll(SearchCategory.FILE, files.loadEntries()) }
+                add {
+                    val loaded = files.loadEntries()
+                    fileFolders = loaded.map { (it as FileEntry).folder }
+                    changes += IndexChange.ReplaceAll(SearchCategory.FILE, loaded)
+                }
             } else if (batch.fileIds.isNotEmpty()) add {
                 // Files that still exist are refreshed; ids MediaStore no longer has were deleted.
                 // Denylisted files are neither indexed nor removed: they exist, so they don't count
                 // as deletions, and they're absent from entries, so they aren't upserted.
                 val targeted = files.loadByIds(batch.fileIds)
+                val gone = batch.fileIds.filter { it !in targeted.existingIds }
                 changes += IndexChange.Upsert(SearchCategory.FILE, targeted.entries)
-                changes += IndexChange.Remove(
-                    SearchCategory.FILE,
-                    batch.fileIds.filter { it !in targeted.existingIds }.map(FileEntry::idFor),
-                )
+                changes += IndexChange.Remove(SearchCategory.FILE, gone.map(FileEntry::idFor))
+                // Re-reading every folder costs a pass over every file, so it's done only when the
+                // folders may have changed: something was deleted (folder rows, having no MIME type,
+                // count as gone here, so a folder created or renamed lands here too), or a file
+                // turned up in a folder search doesn't list yet. A photo added to DCIM/Camera
+                // changes nothing.
+                if (!allFolders) {
+                    val holding = files.foldersOf(targeted.entries).map { it.id }
+                    if (gone.isNotEmpty() || engine.entriesByIds(holding).size < holding.size) {
+                        changes += IndexChange.ReplaceAll(SearchCategory.FOLDER, files.loadFolders())
+                    }
+                }
+            }
+            // After files, so a full sync reuses their folders instead of reading them again.
+            if (allFolders) add {
+                changes += IndexChange.ReplaceAll(SearchCategory.FOLDER, files.loadFolders(fileFolders))
             }
         }
         for (load in loads) {

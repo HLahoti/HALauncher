@@ -4,6 +4,7 @@ import android.net.Uri
 import com.example.halauncher.model.AppInfo
 import com.example.halauncher.model.ContactEntry
 import com.example.halauncher.model.FileEntry
+import com.example.halauncher.model.FolderEntry
 import com.example.halauncher.model.SearchCategory
 import com.example.halauncher.model.SearchEntry
 import com.example.halauncher.model.ShortcutEntry
@@ -113,6 +114,19 @@ object FileEntryCodec : SearchEntryCodec {
             folder = json.optStringOrNull(FOLDER),
         )
     }
+}
+
+/** Folders are stored by path; nothing else is needed to rebuild one. */
+object FolderEntryCodec : SearchEntryCodec {
+    private const val PATH = "path"
+
+    override val category = SearchCategory.FOLDER
+
+    override fun encode(entry: SearchEntry): String =
+        JSONObject().put(PATH, (entry as FolderEntry).path).toString()
+
+    override fun decode(name: String, payload: String): SearchEntry =
+        FolderEntry(path = JSONObject(payload).getString(PATH), name = name)
 }
 
 /**

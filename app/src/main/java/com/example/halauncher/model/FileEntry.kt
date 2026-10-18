@@ -2,7 +2,6 @@ package com.example.halauncher.model
 
 import android.content.Intent
 import android.net.Uri
-import android.provider.DocumentsContract
 
 /**
  * A file on shared storage (Downloads, Documents, DCIM, …), found through MediaStore.
@@ -51,24 +50,11 @@ data class FileEntry(
         }
 
     /**
-     * Where an APK sends the user, best first: its folder in the system file manager, else
-     * the top of internal storage, else whichever file manager opens from the app drawer.
-     * The folder is assumed to be on internal storage; Android only reports it from 10 on.
+     * Where an APK sends the user: its folder in the system file manager, or failing that the top of
+     * storage or the file manager (see [StorageLinks.folder]). Android only reports the folder from 10 on.
      */
     private val apkLinks: List<Intent>
-        get() = listOfNotNull(
-            folder?.trim('/')?.takeIf { it.isNotEmpty() }?.let { path ->
-                Intent(Intent.ACTION_VIEW).setDataAndType(
-                    DocumentsContract.buildDocumentUri(STORAGE_AUTHORITY, "$PRIMARY_ROOT:$path"),
-                    DocumentsContract.Document.MIME_TYPE_DIR,
-                )
-            },
-            Intent(Intent.ACTION_VIEW).setDataAndType(
-                DocumentsContract.buildRootUri(STORAGE_AUTHORITY, PRIMARY_ROOT),
-                DocumentsContract.Root.MIME_TYPE_ITEM,
-            ),
-            Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_FILES),
-        )
+        get() = StorageLinks.folder(folder)
 
     private fun viewIntent(type: String): Intent =
         Intent(Intent.ACTION_VIEW)
@@ -78,10 +64,6 @@ data class FileEntry(
     companion object {
         private const val ANY_TYPE = "*/*"
         private const val APK_TYPE = "application/vnd.android.package-archive"
-
-        /** The system provider for shared storage, and its id for internal storage. */
-        private const val STORAGE_AUTHORITY = "com.android.externalstorage.documents"
-        private const val PRIMARY_ROOT = "primary"
 
         /** The search-entry id of the file with MediaStore id [mediaId]. */
         fun idFor(mediaId: Long): String = "file:$mediaId"

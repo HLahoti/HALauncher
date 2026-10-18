@@ -9,6 +9,7 @@ import com.example.halauncher.model.SearchCategory
 import com.example.halauncher.search.index.AppEntryCodec
 import com.example.halauncher.search.index.ContactEntryCodec
 import com.example.halauncher.search.index.FileEntryCodec
+import com.example.halauncher.search.index.FolderEntryCodec
 import com.example.halauncher.search.index.IndexChange
 import com.example.halauncher.search.index.SearchDatabase
 import com.example.halauncher.search.index.SearchEntryCodecs
@@ -52,7 +53,7 @@ class BulkUpdateTest {
     fun setUp() {
         context.deleteDatabase(fileName)
         database = SearchDatabase(context, fileName)
-        index = SearchIndex(database, SearchEntryCodecs(listOf(AppEntryCodec { null }, ContactEntryCodec, FileEntryCodec, ShortcutEntryCodec { null })))
+        index = SearchIndex(database, SearchEntryCodecs(listOf(AppEntryCodec { null }, ContactEntryCodec, FileEntryCodec, FolderEntryCodec, ShortcutEntryCodec { null })))
         index.syncCategory(SearchCategory.FILE, listOf(file(1, "alpha.txt"), file(2, "beta.txt")))
     }
 

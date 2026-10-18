@@ -38,6 +38,7 @@ import com.example.halauncher.search.Trie
 import com.example.halauncher.search.index.AppEntryCodec
 import com.example.halauncher.search.index.ContactEntryCodec
 import com.example.halauncher.search.index.FileEntryCodec
+import com.example.halauncher.search.index.FolderEntryCodec
 import com.example.halauncher.search.index.InteractionLog
 import com.example.halauncher.search.index.SearchDatabase
 import com.example.halauncher.search.index.SearchEntryCodecs
@@ -170,6 +171,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 AppEntryCodec(appRepository::cachedApp),
                 ContactEntryCodec,
                 FileEntryCodec,
+                FolderEntryCodec,
                 ShortcutEntryCodec(appRepository::cachedApp),
             ),
         )
@@ -485,7 +487,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     fileProvider.loadRecentlyAdded(it)
                 },
             )
-            SearchCategory.APP, SearchCategory.SHORTCUT -> emptyList()
+            SearchCategory.APP, SearchCategory.SHORTCUT, SearchCategory.FOLDER -> emptyList()
         }
         return groups.filter { it.entries.isNotEmpty() }
     }
@@ -644,7 +646,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private fun hasAccess(category: SearchCategory): Boolean = when (category) {
         SearchCategory.APP -> true
         SearchCategory.CONTACT -> contactProvider.hasPermission()
-        SearchCategory.FILE -> fileProvider.hasAccess()
+        SearchCategory.FILE, SearchCategory.FOLDER -> fileProvider.hasAccess()
         SearchCategory.SHORTCUT -> shortcutProvider.hasAccess()
     }
 

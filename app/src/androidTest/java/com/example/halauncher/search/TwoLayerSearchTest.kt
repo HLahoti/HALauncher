@@ -9,12 +9,14 @@ import com.example.halauncher.config.SearchLayersConfig
 import com.example.halauncher.model.AppInfo
 import com.example.halauncher.model.ContactEntry
 import com.example.halauncher.model.FileEntry
+import com.example.halauncher.model.FolderEntry
 import com.example.halauncher.model.SearchCategory
 import com.example.halauncher.model.SearchEntry
 import com.example.halauncher.model.ShortcutEntry
 import com.example.halauncher.search.index.AppEntryCodec
 import com.example.halauncher.search.index.ContactEntryCodec
 import com.example.halauncher.search.index.FileEntryCodec
+import com.example.halauncher.search.index.FolderEntryCodec
 import com.example.halauncher.search.index.InteractionLog
 import com.example.halauncher.search.index.SearchDatabase
 import com.example.halauncher.search.index.SearchEntryCodecs
@@ -62,7 +64,7 @@ class TwoLayerSearchTest {
     @Before
     fun setUp() {
         database = SearchDatabase(context, name = null)
-        val codecs = SearchEntryCodecs(listOf(AppEntryCodec(apps::get), ContactEntryCodec, FileEntryCodec, ShortcutEntryCodec(apps::get)))
+        val codecs = SearchEntryCodecs(listOf(AppEntryCodec(apps::get), ContactEntryCodec, FileEntryCodec, FolderEntryCodec, ShortcutEntryCodec(apps::get)))
         index = SearchIndex(database, codecs)
         engine = SearchEngine(index, InteractionLog(database, retentionDays = 120), ContextMatchRanker(), clock = { now })
         engine.sync(SearchCategory.APP, apps.values.toList())
@@ -111,7 +113,7 @@ class TwoLayerSearchTest {
 
     @Test
     fun uninstalledAppsAreDroppedWhenDecoding() {
-        val onlyMaps = SearchIndex(database, SearchEntryCodecs(listOf(AppEntryCodec { if (it == maps.packageName) maps else null }, ContactEntryCodec, FileEntryCodec, ShortcutEntryCodec(apps::get))))
+        val onlyMaps = SearchIndex(database, SearchEntryCodecs(listOf(AppEntryCodec { if (it == maps.packageName) maps else null }, ContactEntryCodec, FileEntryCodec, FolderEntryCodec, ShortcutEntryCodec(apps::get))))
         assertEquals(setOf(maps.id), onlyMaps.all(SearchCategory.APP, limit = 100).map { it.id }.toSet())
     }
 
@@ -219,7 +221,7 @@ class TwoLayerSearchTest {
     fun indexAndHistorySurviveReopeningTheDatabaseFile() {
         val fileName = "persistence-test.db"
         context.deleteDatabase(fileName)
-        val codecs = SearchEntryCodecs(listOf(AppEntryCodec(apps::get), ContactEntryCodec, FileEntryCodec, ShortcutEntryCodec(apps::get)))
+        val codecs = SearchEntryCodecs(listOf(AppEntryCodec(apps::get), ContactEntryCodec, FileEntryCodec, FolderEntryCodec, ShortcutEntryCodec(apps::get)))
         try {
             // First "session": index some entries and open one.
             SearchDatabase(context, fileName).use { db ->
@@ -288,6 +290,15 @@ class TwoLayerSearchTest {
         val work = shortcut(maps, "work", "Directions to work")
         engine.sync(SearchCategory.SHORTCUT, listOf(work))
         assertEquals(listOf(maps.id, work.id), engine.withAppShortcuts(listOf(maps)).map { it.id })
+    }
+
+    @Test
+    fun foldersAreFoundUnderTheFilesTab() {
+        val taxes = FolderEntry("Documents/Taxes 2026/")
+        engine.sync(SearchCategory.FOLDER, listOf(taxes))
+        assertEquals(taxes, index.byIds(listOf(taxes.id))[taxes.id])
+        assertEquals(listOf(taxes.id), engine.deepSearch("taxes", SearchCategory.FILE, excludeIds = emptySet()).map { it.id })
+        assertTrue(engine.deepSearch("taxes", SearchCategory.APP, excludeIds = emptySet()).isEmpty())
     }
 
     @Test

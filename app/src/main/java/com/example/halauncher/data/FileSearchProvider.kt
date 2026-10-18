@@ -7,11 +7,14 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import androidx.annotation.RequiresApi
 import androidx.annotation.WorkerThread
 import androidx.core.content.ContextCompat
 import com.example.halauncher.model.FileEntry
+import com.example.halauncher.model.FolderEntry
 import com.example.halauncher.model.SearchCategory
 import com.example.halauncher.model.SearchEntry
+import java.io.File
 
 /**
  * Every file on shared storage, listed through MediaStore.
@@ -114,6 +117,100 @@ class FileSearchProvider(
     }
 
     /**
+     * Every folder of internal storage that search lists (see [FolderRules]): hidden ones never, and
+     * those [FolderRules.leftOutWhenReduced] while "Reduce index size" is on. Android 10+ only, as
+     * older versions don't report where files are.
+     *
+     * MediaStore has a row for most folders, empty ones included, but not every one: a folder can
+     * hold indexed files without a row of its own (WhatsApp's "Pictures/WhatsApp", say). So the
+     * folders the files are in, and the folders above those, are listed too. A folder row can also
+     * outlive its folder, so rows are checked against storage.
+     *
+     * @param fileFolders the folders of every file ([FileEntry.folder]) when they've just been
+     *   loaded anyway, as in a full file sync; otherwise they're read from MediaStore.
+     */
+    @WorkerThread
+    fun loadFolders(fileFolders: Collection<String?>? = null): List<FolderEntry> {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || !hasAccess()) return emptyList()
+        return try {
+            val folders = LinkedHashMap<String, FolderEntry>()
+            for (folder in queryFolderRows()) folders.putIfAbsent(folder.id, folder)
+            for (path in (fileFolders ?: queryFileFolders()).filterNotNullTo(HashSet())) {
+                for (ancestor in FolderRules.withAncestors(path)) {
+                    FolderEntry(ancestor).let { folders.putIfAbsent(it.id, it) }
+                }
+            }
+            folders.values.filter(::isListed)
+        } catch (e: SecurityException) {
+            emptyList()
+        }
+    }
+
+    /**
+     * The folders [files] are in, and the folders above those, as [loadFolders] would list them: to
+     * tell whether new files have turned up somewhere search doesn't list yet.
+     */
+    fun foldersOf(files: Collection<FileEntry>): List<FolderEntry> =
+        files.mapNotNullTo(HashSet()) { it.folder }
+            .flatMap(FolderRules::withAncestors)
+            .map(::FolderEntry)
+            .distinctBy { it.id }
+            .filter(::isListed)
+
+    private fun isListed(folder: FolderEntry): Boolean =
+        !FolderRules.isHidden(folder.path) && !(denylistEnabled() && FolderRules.leftOutWhenReduced(folder.path))
+
+    /**
+     * MediaStore's folder rows on internal storage. Their paths come from the full path in DATA,
+     * which (unlike RELATIVE_PATH) also tells the storage root apart from a top-level folder.
+     * Folders on other volumes (an SD card) are left out: they can't be opened the same way.
+     */
+    private fun queryFolderRows(): List<FolderEntry> {
+        @Suppress("DEPRECATION") // DATA is still filled in, and readable with all-files access.
+        val dataColumn = MediaStore.MediaColumns.DATA
+        @Suppress("DEPRECATION")
+        val root = Environment.getExternalStorageDirectory().absolutePath.trimEnd('/')
+        val folders = mutableListOf<FolderEntry>()
+        context.contentResolver.query(
+            MediaStore.Files.getContentUri(EXTERNAL_VOLUME),
+            arrayOf(dataColumn, MediaStore.MediaColumns.DISPLAY_NAME),
+            "$FORMAT_COLUMN = $FORMAT_FOLDER",
+            null,
+            null,
+        )?.use { cursor ->
+            while (cursor.moveToNext()) {
+                val data = cursor.getString(0)?.trimEnd('/') ?: continue
+                // A deleted folder's row can linger until MediaStore's next scan; check it's still there.
+                if (!File(data).isDirectory) continue
+                val path = when {
+                    data.equals(root, ignoreCase = true) -> ""
+                    data.startsWith("$root/", ignoreCase = true) -> data.substring(root.length + 1) + "/"
+                    else -> continue
+                }
+                val name = cursor.getString(1)?.trim()?.takeIf { it.isNotEmpty() } ?: FolderEntry.nameOf(path)
+                folders += FolderEntry(path, name)
+            }
+        }
+        return folders
+    }
+
+    /** The distinct folders that files are in (RELATIVE_PATH), read straight from MediaStore. */
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun queryFileFolders(): Set<String> {
+        val folders = HashSet<String>()
+        context.contentResolver.query(
+            MediaStore.Files.getContentUri(EXTERNAL_VOLUME),
+            arrayOf(MediaStore.MediaColumns.RELATIVE_PATH),
+            "${MediaStore.MediaColumns.MIME_TYPE} IS NOT NULL",
+            null,
+            null,
+        )?.use { cursor ->
+            while (cursor.moveToNext()) cursor.getString(0)?.let(folders::add)
+        }
+        return folders
+    }
+
+    /**
      * @param sortOrder MediaStore's row order; with a [limit], reading stops once that many files
      *   are kept, so only the first rows are ever read (LIMIT itself isn't accepted the same way on
      *   every Android version, and hidden files are skipped after the query anyway).
@@ -185,5 +282,12 @@ class FileSearchProvider(
 
         /** Keeps each targeted query under SQLite's bound-parameter limit. */
         const val MAX_IDS_PER_QUERY = 500
+
+        /**
+         * MediaStore's MTP format column, and its code for a folder ("association"). Folders are
+         * the rows with no MIME type, but so is the odd file MediaStore couldn't type.
+         */
+        const val FORMAT_COLUMN = "format"
+        const val FORMAT_FOLDER = 0x3001
     }
 }
