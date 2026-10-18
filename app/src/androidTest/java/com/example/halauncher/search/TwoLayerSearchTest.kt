@@ -5,11 +5,13 @@ import android.graphics.drawable.ColorDrawable
 import android.net.Uri
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.example.halauncher.config.SearchLayersConfig
 import com.example.halauncher.model.AppInfo
 import com.example.halauncher.model.ContactEntry
 import com.example.halauncher.model.FileEntry
 import com.example.halauncher.model.SearchCategory
 import com.example.halauncher.model.SearchEntry
+import com.example.halauncher.model.ShortcutEntry
 import com.example.halauncher.search.index.AppEntryCodec
 import com.example.halauncher.search.index.ContactEntryCodec
 import com.example.halauncher.search.index.FileEntryCodec
@@ -17,6 +19,7 @@ import com.example.halauncher.search.index.InteractionLog
 import com.example.halauncher.search.index.SearchDatabase
 import com.example.halauncher.search.index.SearchEntryCodecs
 import com.example.halauncher.search.index.SearchIndex
+import com.example.halauncher.search.index.ShortcutEntryCodec
 import com.example.halauncher.search.ranking.ContextMatchRanker
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -59,7 +62,7 @@ class TwoLayerSearchTest {
     @Before
     fun setUp() {
         database = SearchDatabase(context, name = null)
-        val codecs = SearchEntryCodecs(listOf(AppEntryCodec(apps::get), ContactEntryCodec, FileEntryCodec))
+        val codecs = SearchEntryCodecs(listOf(AppEntryCodec(apps::get), ContactEntryCodec, FileEntryCodec, ShortcutEntryCodec(apps::get)))
         index = SearchIndex(database, codecs)
         engine = SearchEngine(index, InteractionLog(database, retentionDays = 120), ContextMatchRanker(), clock = { now })
         engine.sync(SearchCategory.APP, apps.values.toList())
@@ -108,7 +111,7 @@ class TwoLayerSearchTest {
 
     @Test
     fun uninstalledAppsAreDroppedWhenDecoding() {
-        val onlyMaps = SearchIndex(database, SearchEntryCodecs(listOf(AppEntryCodec { if (it == maps.packageName) maps else null }, ContactEntryCodec, FileEntryCodec)))
+        val onlyMaps = SearchIndex(database, SearchEntryCodecs(listOf(AppEntryCodec { if (it == maps.packageName) maps else null }, ContactEntryCodec, FileEntryCodec, ShortcutEntryCodec(apps::get))))
         assertEquals(setOf(maps.id), onlyMaps.all(SearchCategory.APP, limit = 100).map { it.id }.toSet())
     }
 
@@ -216,7 +219,7 @@ class TwoLayerSearchTest {
     fun indexAndHistorySurviveReopeningTheDatabaseFile() {
         val fileName = "persistence-test.db"
         context.deleteDatabase(fileName)
-        val codecs = SearchEntryCodecs(listOf(AppEntryCodec(apps::get), ContactEntryCodec, FileEntryCodec))
+        val codecs = SearchEntryCodecs(listOf(AppEntryCodec(apps::get), ContactEntryCodec, FileEntryCodec, ShortcutEntryCodec(apps::get)))
         try {
             // First "session": index some entries and open one.
             SearchDatabase(context, fileName).use { db ->
@@ -242,6 +245,49 @@ class TwoLayerSearchTest {
         } finally {
             context.deleteDatabase(fileName)
         }
+    }
+
+    private fun shortcut(app: AppInfo, id: String, name: String) =
+        ShortcutEntry(app.packageName, id, name, app.name, app.link)
+
+    @Test
+    fun matchedAppsListTheirMostUsedShortcutsUnderThem() {
+        val mapsShortcuts = listOf("Directions home", "Directions to work", "Explore nearby", "Saved places", "Timeline")
+            .mapIndexed { i, name -> shortcut(maps, "s$i", name) }
+        val compose = shortcut(mail, "compose", "Compose")
+        engine.sync(SearchCategory.SHORTCUT, mapsShortcuts + compose)
+        repeat(2) { engine.recordOpen(mapsShortcuts[4]) }
+
+        val expanded = engine.withAppShortcuts(listOf(maps, contact, mail))
+        val cap = SearchLayersConfig.SHORTCUTS_PER_MATCHED_APP
+        // The opened one first, then A–Z, up to the cap, each app's right under it.
+        val expectedMaps = (listOf(mapsShortcuts[4]) + mapsShortcuts.take(4)).take(cap)
+        assertEquals(
+            listOf(maps.id) + expectedMaps.map { it.id } + listOf(contact.id, mail.id, compose.id),
+            expanded.map { it.id },
+        )
+    }
+
+    @Test
+    fun shortcutsShownElsewhereArentAddedAgain() {
+        val home = shortcut(maps, "home", "Directions home")
+        val work = shortcut(maps, "work", "Directions to work")
+        engine.sync(SearchCategory.SHORTCUT, listOf(home, work))
+        // One already listed further down (matched by its own label), one shown in another group.
+        assertEquals(listOf(maps.id, home.id), engine.withAppShortcuts(listOf(maps, home), excludeIds = setOf(work.id)).map { it.id })
+        // Only apps list shortcuts.
+        assertEquals(listOf(contact.id), engine.withAppShortcuts(listOf(contact)).map { it.id })
+    }
+
+    @Test
+    fun reindexedShortcutsReplaceTheOnesListedBefore() {
+        val home = shortcut(maps, "home", "Directions home")
+        engine.sync(SearchCategory.SHORTCUT, listOf(home))
+        assertEquals(listOf(maps.id, home.id), engine.withAppShortcuts(listOf(maps)).map { it.id })
+
+        val work = shortcut(maps, "work", "Directions to work")
+        engine.sync(SearchCategory.SHORTCUT, listOf(work))
+        assertEquals(listOf(maps.id, work.id), engine.withAppShortcuts(listOf(maps)).map { it.id })
     }
 
     @Test

@@ -272,6 +272,19 @@ object SearchLayersConfig {
     const val DISK_RESULT_LIMIT = 50
 
     /**
+     * How many of an app's shortcuts are listed under it when the app matches a search, the most
+     * used first. Some apps offer dozens (a messaging app's recent chats), which would bury
+     * everything else.
+     */
+    const val SHORTCUTS_PER_MATCHED_APP = 3
+
+    /**
+     * How many characters must be typed before matched apps list their shortcuts. One letter
+     * matches so many apps that their shortcuts would crowd out the apps themselves.
+     */
+    const val APP_SHORTCUTS_MIN_QUERY_LENGTH = 2
+
+    /**
      * How many of the newest files the Files tab lists under "Recently added" while nothing is
      * typed, so the tab shows real files before the user has opened any.
      */

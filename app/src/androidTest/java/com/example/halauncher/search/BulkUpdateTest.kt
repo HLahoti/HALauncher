@@ -13,6 +13,7 @@ import com.example.halauncher.search.index.IndexChange
 import com.example.halauncher.search.index.SearchDatabase
 import com.example.halauncher.search.index.SearchEntryCodecs
 import com.example.halauncher.search.index.SearchIndex
+import com.example.halauncher.search.index.ShortcutEntryCodec
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
@@ -51,7 +52,7 @@ class BulkUpdateTest {
     fun setUp() {
         context.deleteDatabase(fileName)
         database = SearchDatabase(context, fileName)
-        index = SearchIndex(database, SearchEntryCodecs(listOf(AppEntryCodec { null }, ContactEntryCodec, FileEntryCodec)))
+        index = SearchIndex(database, SearchEntryCodecs(listOf(AppEntryCodec { null }, ContactEntryCodec, FileEntryCodec, ShortcutEntryCodec { null })))
         index.syncCategory(SearchCategory.FILE, listOf(file(1, "alpha.txt"), file(2, "beta.txt")))
     }
 

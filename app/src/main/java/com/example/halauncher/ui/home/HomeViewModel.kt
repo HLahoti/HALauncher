@@ -425,8 +425,20 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 return@transformLatest
             }
             emit(SearchResults(frequent = frequent, isSearchingDisk = true))
+            // Once enough is typed, in the tabs that list shortcuts (All and Apps), each app found
+            // also lists its shortcuts under it, so "chrome" finds "New incognito tab". The
+            // frequent layer's apps get theirs straight away rather than after the pause.
+            val withShortcuts = !blank &&
+                (input.category == null || input.category == SearchCategory.APP) &&
+                input.query.trim().length >= SearchLayersConfig.APP_SHORTCUTS_MIN_QUERY_LENGTH
+            val shownFrequent = if (withShortcuts) {
+                withContext(Dispatchers.IO) { searchEngine.withAppShortcuts(frequent) }
+                    .also { if (it.size != frequent.size) emit(SearchResults(frequent = it, isSearchingDisk = true)) }
+            } else {
+                frequent
+            }
             delay(SearchLayersConfig.DISK_SEARCH_DELAY_MS)
-            val shownIds = frequent.mapTo(mutableSetOf()) { it.id }
+            val shownIds = shownFrequent.mapTo(mutableSetOf()) { it.id }
             val more = withContext(Dispatchers.IO) {
                 val started = SystemClock.elapsedRealtime()
                 // A blank query has nothing to rank against, so list everything A–Z instead.
@@ -436,12 +448,14 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                         Log.d(PERF_TAG, "listAll ${input.category}: ${it.size} in ${SystemClock.elapsedRealtime() - started} ms")
                     }
                 } else {
-                    searchEngine.deepSearch(input.query, input.category, excludeIds = shownIds).also {
-                        Log.d(PERF_TAG, "deepSearch '${input.query}' ${input.category}: ${it.size} in ${SystemClock.elapsedRealtime() - started} ms")
-                    }
+                    searchEngine.deepSearch(input.query, input.category, excludeIds = shownIds)
+                        .let { if (withShortcuts) searchEngine.withAppShortcuts(it, excludeIds = shownIds) else it }
+                        .also {
+                            Log.d(PERF_TAG, "deepSearch '${input.query}' ${input.category}: ${it.size} in ${SystemClock.elapsedRealtime() - started} ms")
+                        }
                 }
             }
-            emit(SearchResults(frequent = frequent, more = more))
+            emit(SearchResults(frequent = shownFrequent, more = more))
         }.map(SearchResults::exclusive).stateIn(viewModelScope, SharingStarted.Eagerly, SearchResults())
 
     /**

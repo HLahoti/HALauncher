@@ -3,8 +3,10 @@ package com.example.halauncher.search
 import androidx.annotation.WorkerThread
 import com.example.halauncher.config.SearchLayersConfig
 import com.example.halauncher.data.SearchEntryProvider
+import com.example.halauncher.model.AppInfo
 import com.example.halauncher.model.SearchCategory
 import com.example.halauncher.model.SearchEntry
+import com.example.halauncher.model.ShortcutEntry
 import com.example.halauncher.search.index.IndexChange
 import com.example.halauncher.search.index.InteractionLog
 import com.example.halauncher.search.index.SearchIndex
@@ -43,12 +45,72 @@ class SearchEngine(
     /** Brings [category]'s entries in the disk index up to date with already-loaded [entries]. */
     @WorkerThread
     fun sync(category: SearchCategory, entries: List<SearchEntry>): SearchIndex.SyncResult =
-        index.syncCategory(category, entries)
+        index.syncCategory(category, entries).also { forgetShortcutsIfTouched(listOf(category)) }
 
     /** Applies a batch of index changes as one transaction (see [SearchIndex.applyChanges]). */
     @WorkerThread
     fun applyChanges(changes: List<IndexChange>): Map<SearchCategory, SearchIndex.SyncResult> =
-        index.applyChanges(changes)
+        index.applyChanges(changes).also { forgetShortcutsIfTouched(it.keys) }
+
+    /**
+     * Every indexed shortcut, by its app's package, A–Z within each app: what [withAppShortcuts]
+     * picks from. Loaded on first use and dropped whenever apps or shortcuts are re-indexed. A
+     * shortcut is rebuilt only while its app is loaded, so a re-sync of apps refreshes it too.
+     */
+    @Volatile
+    private var shortcutsByApp: Map<String, List<ShortcutEntry>>? = null
+
+    private fun forgetShortcutsIfTouched(categories: Collection<SearchCategory>) {
+        if (SearchCategory.APP in categories || SearchCategory.SHORTCUT in categories) shortcutsByApp = null
+    }
+
+    @WorkerThread
+    private fun loadShortcutsByApp(): Map<String, List<ShortcutEntry>> {
+        shortcutsByApp?.let { return it }
+        val loaded = index.all(SearchCategory.SHORTCUT, limit = Int.MAX_VALUE)
+            .filterIsInstance<ShortcutEntry>()
+            .groupBy { it.packageName }
+        // Nothing decodes before the apps are first loaded; keep asking until something does.
+        if (loaded.isNotEmpty()) shortcutsByApp = loaded
+        return loaded
+    }
+
+    /**
+     * [entries] with each app in it followed by its shortcuts: up to
+     * [SearchLayersConfig.SHORTCUTS_PER_MATCHED_APP] of them, the most used first, then A–Z. So
+     * finding an app also finds what it offers on a long press of its icon. Shortcuts already in
+     * [entries] or in [excludeIds] (shown elsewhere) aren't added again, and the cap counts only
+     * the ones added.
+     */
+    @WorkerThread
+    fun withAppShortcuts(entries: List<SearchEntry>, excludeIds: Set<String> = emptySet()): List<SearchEntry> {
+        val apps = entries.filterIsInstance<AppInfo>()
+        if (apps.isEmpty()) return entries
+        val byApp = loadShortcutsByApp()
+        val shown = HashSet<String>(excludeIds).apply { entries.mapTo(this) { it.id } }
+        val candidates = apps.associate { app ->
+            app.packageName to byApp[app.packageName].orEmpty().filter { it.id !in shown }
+        }.filterValues { it.isNotEmpty() }
+        if (candidates.isEmpty()) return entries
+
+        val now = clock()
+        val histories = interactions.historiesFor(candidates.values.flatten().map { it.id }, now)
+        val context = RankingContext(query = "", terms = emptyList(), nowMillis = now)
+        fun score(shortcut: ShortcutEntry) =
+            ranker.score(context, RankingCandidate(shortcut, histories[shortcut.id] ?: UsageHistory.NEVER_OPENED))
+
+        val expanded = ArrayList<SearchEntry>(entries.size + candidates.size * SearchLayersConfig.SHORTCUTS_PER_MATCHED_APP)
+        for (entry in entries) {
+            expanded += entry
+            val shortcuts = (entry as? AppInfo)?.let { candidates[it.packageName] } ?: continue
+            // sortedByDescending is stable, so equal scores (never opened) stay A–Z.
+            shortcuts.sortedByDescending(::score)
+                .filter { it.id !in shown }
+                .take(SearchLayersConfig.SHORTCUTS_PER_MATCHED_APP)
+                .forEach { shown += it.id; expanded += it }
+        }
+        return expanded
+    }
 
     /** Folds the write-ahead log into the database file without blocking anyone. */
     @WorkerThread
