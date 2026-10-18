@@ -246,6 +246,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     /** Whether the long-press settings panel is showing. */
     val isSettingsOpen: StateFlow<Boolean> = _isSettingsOpen.asStateFlow()
 
+    private val _isAboutOpen = MutableStateFlow(false)
+    /**
+     * Whether the About screen is showing, over the settings panel it was opened from. It only shows
+     * while settings is open, and closing settings closes it too.
+     */
+    val isAboutOpen: StateFlow<Boolean> = _isAboutOpen.asStateFlow()
+
     private val _tourStep = MutableStateFlow<TourStep?>(null)
     /**
      * The step of the hands-on tour under way (on first launch, or replayed from settings), or null
@@ -788,12 +795,24 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     fun openSettings() {
         closeSearch()
         _isPinPickerOpen.value = false
+        _isAboutOpen.value = false
         _isSettingsOpen.value = true
         advanceTour(TourStep.SETTINGS)
     }
 
     fun closeSettings() {
         _isSettingsOpen.value = false
+        _isAboutOpen.value = false
+    }
+
+    /** Opens the About screen over settings. */
+    fun openAbout() {
+        _isAboutOpen.value = true
+    }
+
+    /** Closes About, back to settings. */
+    fun closeAbout() {
+        _isAboutOpen.value = false
     }
 
     /**

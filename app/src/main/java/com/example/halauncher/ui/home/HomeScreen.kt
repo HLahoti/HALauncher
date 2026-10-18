@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Phone
@@ -107,6 +108,12 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     val pinnedPackages by viewModel.pinnedPackages.collectAsStateWithLifecycle()
     val isPinPickerOpen by viewModel.isPinPickerOpen.collectAsStateWithLifecycle()
     val isSettingsOpen by viewModel.isSettingsOpen.collectAsStateWithLifecycle()
+    val isAboutOpen by viewModel.isAboutOpen.collectAsStateWithLifecycle()
+    // About is a page of settings: it shows in settings' place, and only while settings is open.
+    val aboutShowing = isSettingsOpen && isAboutOpen
+    // Held here so settings is back where it was after About; it opens at the top each time.
+    val settingsScroll = rememberScrollState()
+    LaunchedEffect(isSettingsOpen) { if (isSettingsOpen) settingsScroll.scrollTo(0) }
     val tourStep by viewModel.tourStep.collectAsStateWithLifecycle()
     val tourSteps by viewModel.tourSteps.collectAsStateWithLifecycle()
     val isSetupOpen by viewModel.isSetupOpen.collectAsStateWithLifecycle()
@@ -167,7 +174,8 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
 
     BackHandler(enabled = isSearchOpen) { viewModel.closeSearch() }
     BackHandler(enabled = isPinPickerOpen) { viewModel.closePinPicker() }
-    BackHandler(enabled = isSettingsOpen) { viewModel.closeSettings() }
+    BackHandler(enabled = isSettingsOpen && !aboutShowing) { viewModel.closeSettings() }
+    BackHandler(enabled = aboutShowing) { viewModel.closeAbout() }
     BackHandler(enabled = isSetupOpen) { viewModel.finishSetup() }
 
     // Frosts the home content behind an overlay (Android 12+; a no-op before that), deepening
@@ -426,7 +434,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
             )
         }
 
-        AnimatedVisibility(visible = isSettingsOpen, enter = fadeIn(), exit = fadeOut()) {
+        AnimatedVisibility(visible = isSettingsOpen && !aboutShowing, enter = fadeIn(), exit = fadeOut()) {
             SettingsPanel(
                 settingsLocked = settingsLocked,
                 doubleTapToLock = doubleTapToLock,
@@ -442,10 +450,16 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 onHomeTextColorChange = viewModel::setHomeTextColor,
                 onHowToUse = viewModel::startTour,
                 onOpenSetup = viewModel::openSetup,
+                onOpenAbout = viewModel::openAbout,
                 contactsAccess = contactsAccess,
                 filesAccess = filesAccess,
                 onDone = viewModel::closeSettings,
+                scrollState = settingsScroll,
             )
+        }
+
+        AnimatedVisibility(visible = aboutShowing, enter = fadeIn(), exit = fadeOut()) {
+            AboutScreen(onDone = viewModel::closeAbout)
         }
 
         AnimatedVisibility(visible = isSetupOpen, enter = fadeIn(), exit = fadeOut()) {

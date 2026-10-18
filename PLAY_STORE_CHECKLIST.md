@@ -92,6 +92,9 @@ export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
   de-obfuscate crash reports.
 - For every future release, **increase `versionCode`** (e.g. 2, 3, …) and update
   `versionName`. Play refuses an upload whose versionCode isn't higher than the last.
+- Rewrite the release notes in `app/src/main/res/values/release_notes.xml` (what's new
+  since the last release, shown in Settings → About) and set `release_notes_version` to the
+  new `versionName`. Until they match, About leaves the notes out.
 
 ## 8. Roll out
 

@@ -61,6 +61,8 @@ android {
     }
     buildFeatures {
         compose = true
+        // BuildConfig.VERSION_NAME, shown in Settings > About.
+        buildConfig = true
     }
     testOptions {
         unitTests.isReturnDefaultValues = true

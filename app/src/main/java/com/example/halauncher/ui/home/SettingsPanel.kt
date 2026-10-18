@@ -1,6 +1,7 @@
 package com.example.halauncher.ui.home
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -81,8 +82,11 @@ import kotlin.math.roundToInt
  * @param onHomeTextColorChange saves the home screen's content colour (auto, light or dark).
  * @param onHowToUse replays the hands-on tour; stays available even while settings are locked.
  * @param onOpenSetup opens the "Set-up & permissions" screen; stays available even while settings are locked.
+ * @param onOpenAbout opens the About screen (version, author, what's new); always available too.
  * @param contactsAccess where the contacts permission stands; the set-up row warns while it's off.
  * @param filesAccess where file access stands; the set-up row warns while it's off.
+ * @param scrollState where the cards are scrolled to, held by the caller so it's kept while About is
+ *   open over settings.
  */
 @Composable
 fun SettingsPanel(
@@ -100,9 +104,11 @@ fun SettingsPanel(
     onHomeTextColorChange: (HomeTextColor) -> Unit,
     onHowToUse: () -> Unit,
     onOpenSetup: () -> Unit,
+    onOpenAbout: () -> Unit,
     contactsAccess: AccessState,
     filesAccess: AccessState,
     onDone: () -> Unit,
+    scrollState: ScrollState = rememberScrollState(),
 ) {
     val context = LocalContext.current
     // Turning the lock toggle on is useless until HALauncher is an active device admin, so offer to.
@@ -148,7 +154,7 @@ fun SettingsPanel(
             }
             Spacer(Modifier.height(SearchConfig.ResultsSpacing))
             Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
+                modifier = Modifier.verticalScroll(scrollState),
                 verticalArrangement = Arrangement.spacedBy(SettingsPanelConfig.CardSpacing),
             ) {
                 // At the very top, always usable so it can be turned back off: the master lock.
@@ -240,8 +246,8 @@ fun SettingsPanel(
                         },
                     )
                 }
-                // Always available, even while locked: re-granting permissions and opening the guide
-                // don't change any of the launcher's own settings.
+                // Always available, even while locked: re-granting permissions, opening the guide and
+                // reading About don't change any of the launcher's own settings.
                 SettingAction(
                     title = stringResource(R.string.setting_setup_title),
                     description = stringResource(R.string.setting_setup_description),
@@ -257,6 +263,11 @@ fun SettingsPanel(
                     title = stringResource(R.string.setting_how_to_title),
                     description = stringResource(R.string.setting_how_to_description),
                     onClick = onHowToUse,
+                )
+                SettingAction(
+                    title = stringResource(R.string.setting_about_title),
+                    description = stringResource(R.string.setting_about_description),
+                    onClick = onOpenAbout,
                 )
             }
         }

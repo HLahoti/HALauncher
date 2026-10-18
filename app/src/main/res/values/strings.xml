@@ -99,6 +99,14 @@
     <string name="setting_setup_description">Set HALauncher as your home screen and manage the contacts and files permissions. Grant anything you skipped, or that was turned off elsewhere.</string>
     <string name="setting_how_to_title">How to use this app</string>
     <string name="setting_how_to_description">A short hands-on tour of the swipes and presses that get around the launcher.</string>
+    <string name="setting_about_title">About</string>
+    <string name="setting_about_description">Which version you have, who made HALauncher, and what\'s new in this release.</string>
+
+    <!-- The About screen, opened from settings. -->
+    <string name="about_title">About</string>
+    <string name="about_version">Version %1$s</string>
+    <string name="about_created_by">Created by Harsh Lahoti</string>
+    <string name="about_whats_new">What\'s new in %1$s</string>
     <string name="setup_title">Set up HALauncher</string>
     <string name="setup_intro">A couple of quick things so the launcher works its best. You can set these up now or later — open \"Set-up &amp; permissions\" in settings any time.</string>
     <string name="setup_default_home_title">Make HALauncher your home screen</string>

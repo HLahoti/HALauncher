@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- What's new in the release named by release_notes_version, compared with the one before,
+         shown in Settings > About. Rewrite both with every release (see PLAY_STORE_CHECKLIST.md).
+         While release_notes_version isn't the app's versionName, About leaves the list out rather
+         than show another release's notes. -->
+    <string name="release_notes_version" translatable="false">1.4</string>
+    <string-array name="release_notes">
+        <item>Search finds app shortcuts: the actions an app offers when you long-press its icon, such as a new tab in Chrome, and on Android 11 and later your recent conversations. They\'re listed with the apps, under the Apps tab.</item>
+        <item>Shortcuts go by their full name where the app gives one, so Clock\'s \"Start\" is found as \"Start stopwatch\".</item>
+        <item>The line under the search field shows a single total: how many items are indexed, or how many results were found once you type.</item>
+        <item>Tapping an APK in search opens its folder in the Files app and tells you what to tap there to install it. Before, nothing happened.</item>
+    </string-array>
+</resources>
