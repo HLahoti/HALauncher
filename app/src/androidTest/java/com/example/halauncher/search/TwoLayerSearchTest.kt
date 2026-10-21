@@ -87,6 +87,17 @@ class TwoLayerSearchTest {
     }
 
     @Test
+    fun frequentLayerMatchesWhatTheDiskLayerMatches() {
+        val everything: List<SearchEntry> = listOf(maps, mail, music, contact, report)
+        val layer = Trie<SearchEntry>().apply { everything.forEach { insert(it.name, it) } }
+        val cursor = layer.cursor()
+        for (query in listOf("map", "ma", "m", "report", "2026", "pdf", "quar rep", "pla mu", "mu pla", "player", "zoe", "MAPLE", "zoë m", "music-p", "x", "ap", "port")) {
+            assertEquals("query '$query'", matchIds(query), layer.searchPrefix(query).map { it.id }.toSet())
+            assertEquals("query '$query'", layer.searchPrefix(query), cursor.search(query))
+        }
+    }
+
+    @Test
     fun accentsAndCaseAreIgnored() {
         assertEquals(setOf(contact.id), matchIds("ZOE"))
     }

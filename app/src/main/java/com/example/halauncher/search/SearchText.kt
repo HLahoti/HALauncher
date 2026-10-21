@@ -55,6 +55,23 @@ fun normalizeForSearch(text: String): String = buildString(text.length) {
     }
 }
 
+/**
+ * Whether a folded character (see [foldForSearch]) is part of a word: a letter or a digit, the
+ * same set [searchTerms] keeps. Everything else separates words. One character at a time, so the
+ * trie can split names and queries into words without allocating.
+ */
+fun isSearchWordChar(folded: Char): Boolean = when (Character.getType(folded)) {
+    Character.UPPERCASE_LETTER.toInt(),
+    Character.LOWERCASE_LETTER.toInt(),
+    Character.TITLECASE_LETTER.toInt(),
+    Character.MODIFIER_LETTER.toInt(),
+    Character.OTHER_LETTER.toInt(),
+    Character.DECIMAL_DIGIT_NUMBER.toInt(),
+    Character.LETTER_NUMBER.toInt(),
+    Character.OTHER_NUMBER.toInt() -> true
+    else -> false
+}
+
 /** The words of [text] as the index sees them: letters and digits, split on everything else. */
 fun searchTerms(text: String): List<String> =
     normalizeForSearch(text).split(NON_WORD).filter { it.isNotEmpty() }

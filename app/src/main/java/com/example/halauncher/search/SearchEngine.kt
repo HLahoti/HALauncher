@@ -169,9 +169,10 @@ class SearchEngine(
         Trie<SearchEntry>().apply { entries.forEach { insert(it.name, it) } }
 
     /**
-     * Frequent-layer matches: entries whose name starts with [query]. Per keystroke, [cursor]
-     * walks only the characters that changed since its last query, and with no [category] the
-     * result is the trie's own list: nothing is copied or allocated. A [category] is a search tab,
+     * Frequent-layer matches: entries with a word starting with each word of [query], as the disk
+     * layer matches them, those whose name starts with it first. Per keystroke, [cursor] walks only
+     * the characters that changed since its last query, and for a one-word query with no
+     * [category] the result is the trie's own list: nothing is copied or allocated. A [category] is a search tab,
      * so it includes the categories listed under it (shortcuts under apps).
      */
     fun quickSearch(cursor: Trie<SearchEntry>.Cursor, query: String, category: SearchCategory?): List<SearchEntry> {

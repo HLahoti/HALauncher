@@ -163,6 +163,100 @@ class TrieTest {
     }
 
     @Test
+    fun anyWordOfTheNameMatches() {
+        val spotify = app("Spotify Music")
+        val sheets = app("Files by Google")
+        val trie = trieOf(spotify, sheets, app("WhatsApp-Business"), app("Quarterly_Report_2026.pdf"))
+        assertEquals(listOf(spotify), trie.searchPrefix("music"))
+        assertEquals(listOf(sheets), trie.searchPrefix("goo"))
+        assertEquals(listOf("WhatsApp-Business"), trie.searchPrefix("busi").map { it.name })
+        assertEquals(listOf("Quarterly_Report_2026.pdf"), trie.searchPrefix("2026").map { it.name })
+        // Only word starts, not the middle of a word.
+        assertEquals(emptyList<AppInfo>(), trie.searchPrefix("usic"))
+    }
+
+    @Test
+    fun everyQueryWordMustStartSomeWordInAnyOrder() {
+        val spotify = app("Spotify Music")
+        val musixmatch = app("Musixmatch")
+        val trie = trieOf(spotify, musixmatch)
+        assertEquals(listOf(spotify), trie.searchPrefix("spo mu"))
+        assertEquals(listOf(spotify), trie.searchPrefix("mu spo"))
+        assertEquals(listOf(spotify), trie.searchPrefix("spotify-mus"))
+        assertEquals(emptyList<AppInfo>(), trie.searchPrefix("spo x"))
+        // Trailing separators add no word.
+        assertSame(trie.searchPrefix("mu"), trie.searchPrefix("mu - "))
+    }
+
+    @Test
+    fun namesStartingWithTheQueryComeFirst() {
+        val spotify = app("Spotify Music")
+        val musixmatch = app("Musixmatch")
+        val trie = trieOf(spotify, musixmatch)
+        assertEquals(listOf(musixmatch, spotify), trie.searchPrefix("mus"))
+        assertEquals(listOf(spotify, musixmatch), trie.searchPrefix(""))
+    }
+
+    @Test
+    fun aValueIsListedOnceEvenWhenSeveralOfItsWordsMatch() {
+        val mega = app("Mega Music Maker")
+        val maps = app("Maps")
+        val trie = trieOf(mega, maps)
+        assertEquals(listOf(mega, maps), trie.searchPrefix("m"))
+        assertEquals(listOf(mega), trie.searchPrefix("mu"))
+        // Two query words may start the same name word, as on disk.
+        assertEquals(listOf(mega, maps), trie.searchPrefix("m m"))
+    }
+
+    @Test
+    fun moveToFrontAlsoLeadsUnderLaterWords() {
+        val spotify = app("Spotify Music")
+        val musixmatch = app("Musixmatch")
+        val player = app("Music Player")
+        val trie = trieOf(musixmatch, player, spotify)
+        assertTrue(trie.moveToFront(spotify.name, spotify) { it === spotify })
+        // Still behind the names that start with "mu", but first among the rest.
+        assertEquals(listOf(musixmatch, player, spotify), trie.searchPrefix("mu"))
+        assertTrue(trie.moveToFront(player.name, player) { it === player })
+        assertEquals(listOf(player, musixmatch, spotify), trie.searchPrefix("mu"))
+        assertEquals(listOf(player, spotify), trie.searchPrefix("music"))
+        assertEquals(listOf(player), trie.searchPrefix("pla"))
+        assertEquals(listOf(player, spotify, musixmatch), trie.searchPrefix(""))
+    }
+
+    @Test
+    fun punctuationAloneMatchesNothingButBlankMatchesAll() {
+        val trie = trieOf(chrome)
+        assertEquals(emptyList<AppInfo>(), trie.searchPrefix("-"))
+        assertEquals(emptyList<AppInfo>(), trie.cursor().search("-"))
+        assertEquals(listOf(chrome), trie.searchPrefix("   "))
+        assertEquals(listOf(chrome), trie.cursor().search("   "))
+    }
+
+    @Test
+    fun matchesExactlyWhatTheDiskIndexWould() {
+        val names = listOf("Spotify Music", "Musixmatch", "Files by Google", "Café Crème", "Mega Music Maker", "Maps", "Zoë Mapleton", "Quarterly_Report_2026.pdf", "Cal Sync")
+        val apps = names.map(::app)
+        val trie = Trie<AppInfo>().apply { apps.forEach { insert(it.name, it) } }
+        val cursor = trie.cursor()
+        val random = java.util.Random(23)
+        val alphabet = "smucafgoepl2 -é"
+        repeat(3_000) {
+            val query = buildString { repeat(random.nextInt(9)) { append(alphabet[random.nextInt(alphabet.length)]) } }
+            val terms = searchTerms(query)
+            val expected = when {
+                query.isBlank() -> apps.toSet()
+                // A query with no words has no disk results either.
+                terms.isEmpty() -> emptySet()
+                else -> apps.filter { a -> terms.all { t -> searchTerms(a.name).any { it.startsWith(t) } } }.toSet()
+            }
+            assertEquals("query '$query'", expected, trie.searchPrefix(query).toSet())
+            assertEquals("query '$query'", trie.searchPrefix(query).size, trie.searchPrefix(query).toSet().size)
+            assertEquals("query '$query'", trie.searchPrefix(query), cursor.search(query))
+        }
+    }
+
+    @Test
     fun accentsAreIgnoredBothWays() {
         val cafe = app("Café")
         val plain = app("resume")
