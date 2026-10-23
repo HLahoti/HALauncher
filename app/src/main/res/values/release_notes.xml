@@ -4,11 +4,12 @@
          shown in Settings > About. Rewrite both with every release (see PLAY_STORE_CHECKLIST.md).
          While release_notes_version isn't the app's versionName, About leaves the list out rather
          than show another release's notes. -->
-    <string name="release_notes_version" translatable="false">1.5</string>
+    <string name="release_notes_version" translatable="false">1.6</string>
     <string-array name="release_notes">
-        <item>Search finds folders as well as files, listed under the Files tab with the folder they\'re in underneath. Tapping one opens it in the Files app; if no app can show it, its path is copied so you can find it yourself.</item>
-        <item>\"Reduce index size\" also leaves out the folders it skips files in, and WhatsApp\'s many weekly voice and video note folders.</item>
-        <item>Typing an app\'s name also lists a few of its shortcuts right under it, the ones you use most first, so \"clock\" finds \"Create new alarm\" too.</item>
-        <item>A new About page in settings shows the version you have and what\'s new in it.</item>
+        <item>Search finds your phone\'s settings: Wi‑Fi, Bluetooth, Display, Battery, Do Not Disturb and about 50 more. Type what you\'re after, like \"brightness\" or \"hotspot\", and tap to go straight to that screen. Only screens your phone can really open are listed.</item>
+        <item>Any word of a name answers straight away, so \"music\" finds \"YT Music\" without waiting for the rest of the search.</item>
+        <item>Apps that change their icon, such as for a festival, open again when tapped instead of saying \"no app found\".</item>
+        <item>Search for \"launcher settings\" to open HALauncher\'s own settings.</item>
+        <item>The empty search field suggests something different to try each time it opens.</item>
     </string-array>
 </resources>
