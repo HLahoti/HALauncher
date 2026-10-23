@@ -163,7 +163,7 @@ object SearchConfig {
     /** Darkness of the search field's glass. */
     const val FIELD_GLASS_TINT = 0.2f
 
-    /** Opacity of the "Search apps and contacts" hint in the empty field. */
+    /** Opacity of the hint in the empty search field. */
     const val PLACEHOLDER_ALPHA = 0.6f
 
     /** Gap above the search field (below the status bar). */

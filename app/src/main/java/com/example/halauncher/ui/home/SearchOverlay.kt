@@ -46,6 +46,8 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -67,6 +69,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
@@ -100,6 +103,7 @@ import com.example.halauncher.ui.components.rememberDrawablePainter
 import com.example.halauncher.util.Haptics
 import java.text.NumberFormat
 import kotlin.math.abs
+import kotlin.random.Random
 import kotlinx.coroutines.delay
 
 @Composable
@@ -143,6 +147,16 @@ fun SearchOverlay(
     val showGrid = showsCategoryBar && categoryFilter in gridCategories
     val searchFieldShape = RoundedCornerShape(percent = 50)
     val placeholderColor = ThemeConfig.Foreground.copy(alpha = SearchConfig.PLACEHOLDER_ALPHA)
+    // The empty field shows a different hint each time search comes in, so its features get
+    // found. It's picked while search is hidden, so it never changes in view. Picking an app for
+    // a button keeps the plain hint: only apps are listed then.
+    val hints = stringArrayResource(R.array.search_hints)
+    var hintIndex by remember { mutableIntStateOf(if (hints.isEmpty()) 0 else hints.indices.random()) }
+    val isHidden by remember(reveal) { derivedStateOf { reveal != null && reveal.value == 0f } }
+    LaunchedEffect(isHidden) {
+        if (isHidden && hints.size > 1) hintIndex = (hintIndex + Random.nextInt(1, hints.size)) % hints.size
+    }
+    val placeholder = hints.getOrNull(hintIndex).takeIf { !isPicking } ?: stringResource(R.string.search_apps)
     val keyboard = LocalSoftwareKeyboardController.current
     // Every tab says how much it's searching (on "All", every readable source together), so it's
     // clear the index is there and working, even on a tab with no recents yet. A source that can't
@@ -281,7 +295,7 @@ fun SearchOverlay(
                     focusedPlaceholderColor = placeholderColor,
                     unfocusedPlaceholderColor = placeholderColor,
                 ),
-                placeholder = { Text(stringResource(R.string.search_apps)) },
+                placeholder = { Text(placeholder, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),

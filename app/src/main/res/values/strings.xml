@@ -35,6 +35,16 @@
     <string name="choose_app">Choose %1$s</string>
     <string name="open_app">Open %1$s</string>
     <string name="search_apps">Search apps, files and more</string>
+    <!-- The empty search field shows one of these each time search opens, a different one from
+         last time, so people discover what search can do. Keep each short enough to fit on one
+         line beside the search icon. When search learns something new, add a hint for it here. -->
+    <string-array name="search_hints">
+        <item>Type an app\'s name, or any word in it</item>
+        <item>Try “clock” to jump to its new alarm</item>
+        <item>Type a name to find a contact</item>
+        <item>Find files and folders by name</item>
+        <item>Do quick maths, like 24*7 or sqrt(2)</item>
+    </string-array>
     <string name="launch_failed">%1$s: no app found</string>
     <string name="apk_install_from_folder">Tap %1$s in %2$s to install it</string>
     <string name="apk_install_from_file_manager">Tap %1$s in your file manager to install it</string>
