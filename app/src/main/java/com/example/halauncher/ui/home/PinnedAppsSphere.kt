@@ -307,7 +307,7 @@ fun PinnedAppsSphere(
                                 .maxByOrNull { (_, slot) -> slot.depth }
                                 ?.first ?: return@detectTapGestures
                             val app = all[hit]
-                            if (context.launchSafely(app.link, resources.getString(R.string.open_app, app.name))) {
+                            if (context.launchSafely(app, resources.getString(R.string.open_app, app.name))) {
                                 currentOnAppOpened(app)
                             }
                         },
@@ -359,7 +359,7 @@ fun PinnedAppsSphere(
                                         contentDescription = app.name
                                         role = Role.Button
                                         onClick(openLabel) {
-                                            if (context.launchSafely(app.link, openLabel)) currentOnAppOpened(app)
+                                            if (context.launchSafely(app, openLabel)) currentOnAppOpened(app)
                                             true
                                         }
                                     }

@@ -33,6 +33,7 @@ import com.example.halauncher.model.AppInfo
 import com.example.halauncher.model.HomeTextColor
 import com.example.halauncher.model.SearchCategory
 import com.example.halauncher.model.SearchEntry
+import com.example.halauncher.model.ShortcutEntry
 import com.example.halauncher.search.SearchEngine
 import com.example.halauncher.search.Trie
 import com.example.halauncher.search.index.AppEntryCodec
@@ -559,7 +560,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             indexUpdater.updates.collect { update ->
                 withContext(indexUpdater.dispatcher) {
-                    update.installedApps?.let { _installedApps.value = it }
+                    update.installedApps?.let { apps ->
+                        _installedApps.value = apps
+                        refreshOpenedThisSession(apps)
+                    }
                     rebuildFrequentLayer()
                     publishIndexedCategories()
                 }
@@ -666,6 +670,27 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         if (changed.isEmpty()) return
         changed.forEach { accessSeen[it] = hasAccess(it) }
         indexUpdater.onAccessChanged(changed)
+    }
+
+    /**
+     * Swaps the apps (and app shortcuts) opened this session for their copies in the freshly
+     * loaded [apps], dropping any whose app is gone. Otherwise the frequent layer would keep
+     * showing the name, icon and launch intent the app had when it was opened, through every
+     * rebuild until the next launch.
+     */
+    private fun refreshOpenedThisSession(apps: List<AppInfo>) {
+        val byPackage = apps.associateBy { it.packageName }
+        openedThisSession.update { opened ->
+            opened.mapNotNull { entry ->
+                when (entry) {
+                    is AppInfo -> byPackage[entry.packageName]
+                    is ShortcutEntry -> byPackage[entry.packageName]?.let { app ->
+                        entry.copy(appName = app.name, link = app.link)
+                    }
+                    else -> entry
+                }
+            }
+        }
     }
 
     /** Re-ranks the frequent layer from history, keeping everything opened this session. */

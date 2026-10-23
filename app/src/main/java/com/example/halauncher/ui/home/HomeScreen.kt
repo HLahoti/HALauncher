@@ -691,7 +691,7 @@ private fun ChosenAppButton(
     // Opens the chosen app (recording it), else asks to choose, else (locked) the default if any.
     val open = {
         when {
-            app != null -> if (context.launchSafely(app.link, openLabel)) onOpened(app)
+            app != null -> if (context.launchSafely(app, openLabel)) onOpened(app)
             choosing -> onChoose()
             defaultIntent != null -> context.launchSafely(defaultIntent, openLabel)
         }

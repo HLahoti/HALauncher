@@ -12,10 +12,10 @@ import android.os.Process
  * incognito tab" or a recent chat. Only the default launcher may read and start them.
  *
  * Opens through LauncherApps ([launchDirectly]); if the app has since removed or disabled the
- * shortcut, opens the app itself ([link]) instead.
+ * shortcut, opens the app itself instead, through its current launch activity, else [link].
  *
  * @property appName the app it belongs to, shown under the shortcut's name.
- * @property link the app's launch intent.
+ * @property link the app's launch intent when the shortcut was loaded.
  * @property iconVersion when the app last changed the shortcut, so a replaced icon isn't mistaken
  * for the cached one.
  */
@@ -32,7 +32,11 @@ data class ShortcutEntry(
 
     override val detail: String? get() = appName
 
-    override fun launchDirectly(context: Context): Boolean {
+    /** Starts the shortcut, or failing that the app as it is now (see [AppInfo.launchDirectly]). */
+    override fun launchDirectly(context: Context): Boolean =
+        startShortcut(context) || AppInfo.launchCurrent(context, packageName)
+
+    private fun startShortcut(context: Context): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N_MR1) return false
         val launcherApps = context.getSystemService(LauncherApps::class.java) ?: return false
         return try {
