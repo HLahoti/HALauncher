@@ -29,6 +29,23 @@ class AppRepository(private val context: Context) : SearchEntryProvider {
     fun cachedApp(packageName: String): AppInfo? = appsByPackage[packageName]
 
     /**
+     * The app whose shortcuts these are: [cachedApp], or the launcher itself, which leaves itself
+     * out of the app list but offers shortcuts of its own (its settings).
+     */
+    fun shortcutApp(packageName: String): AppInfo? =
+        if (packageName == context.packageName) self else cachedApp(packageName)
+
+    private val self: AppInfo by lazy {
+        val pm = context.packageManager
+        AppInfo(
+            name = context.applicationInfo.loadLabel(pm).toString(),
+            packageName = context.packageName,
+            icon = context.applicationInfo.loadIcon(pm),
+            link = IntentFactory.launchAppIntent(context, context.packageName),
+        )
+    }
+
+    /**
      * Makes the next [getInstalledApps] render these apps' icons and labels again instead of using
      * the cache (an app reported a change, which may be a new icon without a new APK).
      */

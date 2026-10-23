@@ -163,7 +163,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val contactProvider = ContactProvider(application)
     private val settingsStore = LauncherSettingsStore(application)
     private val fileProvider = FileSearchProvider(application) { settingsStore.reduceIndexSize }
-    private val shortcutProvider = ShortcutProvider(application, appRepository::cachedApp)
+    private val shortcutProvider = ShortcutProvider(application, appRepository::shortcutApp)
 
     private val searchEngine = run {
         val database = SearchDatabase(application)
@@ -173,7 +173,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 ContactEntryCodec,
                 FileEntryCodec,
                 FolderEntryCodec,
-                ShortcutEntryCodec(appRepository::cachedApp),
+                ShortcutEntryCodec(appRepository::shortcutApp),
             ),
         )
         SearchEngine(
@@ -684,7 +684,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             opened.mapNotNull { entry ->
                 when (entry) {
                     is AppInfo -> byPackage[entry.packageName]
-                    is ShortcutEntry -> byPackage[entry.packageName]?.let { app ->
+                    is ShortcutEntry -> (byPackage[entry.packageName] ?: appRepository.shortcutApp(entry.packageName))?.let { app ->
                         entry.copy(appName = app.name, link = app.link)
                     }
                     else -> entry

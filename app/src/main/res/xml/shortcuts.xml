@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The launcher's own app shortcuts. They show in its search (see ShortcutProvider) and on a long
+     press of its icon in other launchers. MainActivity handles their actions. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_settings"
+        android:shortcutId="settings"
+        android:shortcutLongLabel="@string/open_launcher_settings"
+        android:shortcutShortLabel="@string/settings_title">
+        <intent
+            android:action="com.example.halauncher.action.OPEN_SETTINGS"
+            android:targetClass="com.example.halauncher.MainActivity"
+            android:targetPackage="com.harshlahoti.halauncher" />
+    </shortcut>
+</shortcuts>

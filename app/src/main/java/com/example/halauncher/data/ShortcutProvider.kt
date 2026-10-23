@@ -18,6 +18,8 @@ import com.example.halauncher.model.ShortcutEntry
  * shortcuts), plus the conversations they've cached for notifications on Android 11+. Needs no
  * permission, but only the default home app may read them, so this returns nothing on any other.
  *
+ * The launcher's own shortcuts (res/xml/shortcuts.xml, such as its settings) are included too.
+ *
  * @param findApp the installed app with this package from the latest app load; a shortcut whose
  * app isn't there (e.g. it has no launcher entry) is left out.
  */
@@ -51,7 +53,7 @@ class ShortcutProvider(
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N_MR1 || !hasAccess()) return emptyList()
         return query(ShortcutQuery().setQueryFlags(queryFlags()))
             .asSequence()
-            .filter { it.isEnabled && it.`package` != context.packageName }
+            .filter { it.isEnabled }
             .mapNotNull(::toEntry)
             // A shortcut can be both dynamic and cached, for instance.
             .distinctBy { it.id }
