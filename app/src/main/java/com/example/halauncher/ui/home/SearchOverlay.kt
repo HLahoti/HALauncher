@@ -167,7 +167,7 @@ fun SearchOverlay(
             SearchCategory.APP -> true
             SearchCategory.CONTACT -> permissions.contacts.isGranted
             SearchCategory.FILE, SearchCategory.FOLDER -> permissions.files.isGranted
-            SearchCategory.SHORTCUT -> true
+            SearchCategory.SHORTCUT, SearchCategory.SETTING -> true
         }
         if (count != null && readable && (categoryFilter == null || categoryFilter == category.tab)) count else null
     }
@@ -561,7 +561,7 @@ private fun SearchPermissionNotice(
             )
         }
         // No tab of their own: the Apps and Files tabs' notices cover them.
-        SearchCategory.APP, SearchCategory.SHORTCUT, SearchCategory.FOLDER -> Unit
+        SearchCategory.APP, SearchCategory.SHORTCUT, SearchCategory.FOLDER, SearchCategory.SETTING -> Unit
         null -> {
             val contactsOff = !permissions.contacts.isGranted
             val filesOff = !permissions.files.isGranted
@@ -765,7 +765,7 @@ private fun LayoutToggle(
                 when (category) {
                     null -> R.string.show_all_as_grid
                     // Shortcuts have no tab of their own; they're in the apps'.
-                    SearchCategory.APP, SearchCategory.SHORTCUT -> R.string.show_apps_as_grid
+                    SearchCategory.APP, SearchCategory.SHORTCUT, SearchCategory.SETTING -> R.string.show_apps_as_grid
                     SearchCategory.CONTACT -> R.string.show_contacts_as_grid
                     SearchCategory.FILE, SearchCategory.FOLDER -> R.string.show_files_as_grid
                 },

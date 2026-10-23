@@ -14,6 +14,7 @@ import com.example.halauncher.search.index.IndexChange
 import com.example.halauncher.search.index.SearchDatabase
 import com.example.halauncher.search.index.SearchEntryCodecs
 import com.example.halauncher.search.index.SearchIndex
+import com.example.halauncher.search.index.SettingEntryCodec
 import com.example.halauncher.search.index.ShortcutEntryCodec
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -53,7 +54,7 @@ class BulkUpdateTest {
     fun setUp() {
         context.deleteDatabase(fileName)
         database = SearchDatabase(context, fileName)
-        index = SearchIndex(database, SearchEntryCodecs(listOf(AppEntryCodec { null }, ContactEntryCodec, FileEntryCodec, FolderEntryCodec, ShortcutEntryCodec { null })))
+        index = SearchIndex(database, SearchEntryCodecs(listOf(AppEntryCodec { null }, ContactEntryCodec, FileEntryCodec, FolderEntryCodec, ShortcutEntryCodec { null }, SettingEntryCodec)))
         index.syncCategory(SearchCategory.FILE, listOf(file(1, "alpha.txt"), file(2, "beta.txt")))
     }
 

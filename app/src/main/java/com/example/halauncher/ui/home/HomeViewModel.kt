@@ -27,6 +27,7 @@ import com.example.halauncher.data.LauncherSettingsStore
 import com.example.halauncher.data.PinnedAppsStore
 import com.example.halauncher.data.QuickActionAppStore
 import com.example.halauncher.data.ShortcutIconCache
+import com.example.halauncher.data.SettingsProvider
 import com.example.halauncher.data.ShortcutProvider
 import com.example.halauncher.model.AccessState
 import com.example.halauncher.model.AppInfo
@@ -43,6 +44,7 @@ import com.example.halauncher.search.index.FolderEntryCodec
 import com.example.halauncher.search.index.InteractionLog
 import com.example.halauncher.search.index.SearchDatabase
 import com.example.halauncher.search.index.SearchEntryCodecs
+import com.example.halauncher.search.index.SettingEntryCodec
 import com.example.halauncher.search.index.SearchIndex
 import com.example.halauncher.search.index.ShortcutEntryCodec
 import com.example.halauncher.search.ranking.ContextMatchRanker
@@ -164,6 +166,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val settingsStore = LauncherSettingsStore(application)
     private val fileProvider = FileSearchProvider(application) { settingsStore.reduceIndexSize }
     private val shortcutProvider = ShortcutProvider(application, appRepository::shortcutApp)
+    private val settingsProvider = SettingsProvider(application)
 
     private val searchEngine = run {
         val database = SearchDatabase(application)
@@ -174,6 +177,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 FileEntryCodec,
                 FolderEntryCodec,
                 ShortcutEntryCodec(appRepository::shortcutApp),
+                SettingEntryCodec,
             ),
         )
         SearchEngine(
@@ -192,7 +196,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
      * and frequent-layer rebuilds run on its [IndexUpdater.dispatcher], so they never overlap.
      */
     private val indexUpdater =
-        IndexUpdater(application, searchEngine, appRepository, contactProvider, fileProvider, shortcutProvider)
+        IndexUpdater(application, searchEngine, appRepository, contactProvider, fileProvider, shortcutProvider, settingsProvider)
 
     private val prefs = application.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
@@ -495,7 +499,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     fileProvider.loadRecentlyAdded(it)
                 },
             )
-            SearchCategory.APP, SearchCategory.SHORTCUT, SearchCategory.FOLDER -> emptyList()
+            SearchCategory.APP, SearchCategory.SHORTCUT, SearchCategory.FOLDER, SearchCategory.SETTING -> emptyList()
         }
         return groups.filter { it.entries.isNotEmpty() }
     }
@@ -619,6 +623,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun onForegroundChanged(started: Boolean) {
         indexUpdater.setForeground(started)
+        // Which settings screens open can change while the launcher is away (developer options
+        // turned on, a SIM put in), and nothing announces it. Re-checking them (and the app
+        // shortcuts they're merged with) is cheap.
+        if (started) indexUpdater.requestSync(listOf(SearchCategory.SETTING), urgent = false)
     }
 
     /** The launcher came back to the foreground, e.g. from the "All files access" screen. */
@@ -655,7 +663,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun hasAccess(category: SearchCategory): Boolean = when (category) {
-        SearchCategory.APP -> true
+        SearchCategory.APP, SearchCategory.SETTING -> true
         SearchCategory.CONTACT -> contactProvider.hasPermission()
         SearchCategory.FILE, SearchCategory.FOLDER -> fileProvider.hasAccess()
         SearchCategory.SHORTCUT -> shortcutProvider.hasAccess()

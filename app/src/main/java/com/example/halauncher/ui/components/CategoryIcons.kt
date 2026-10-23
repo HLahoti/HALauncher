@@ -3,6 +3,7 @@ package com.example.halauncher.ui.components
 import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -22,6 +23,7 @@ val SearchCategory.icon: ImageVector
         SearchCategory.FILE -> FileIcon
         SearchCategory.SHORTCUT -> ShortcutIcon
         SearchCategory.FOLDER -> FolderIcon
+        SearchCategory.SETTING -> Icons.Default.Settings
     }
 
 /** Spoken name of the category, e.g. for the badge on a search result. */
@@ -33,6 +35,7 @@ val SearchCategory.labelRes: Int
         SearchCategory.FILE -> R.string.category_file
         SearchCategory.SHORTCUT -> R.string.category_shortcut
         SearchCategory.FOLDER -> R.string.category_folder
+        SearchCategory.SETTING -> R.string.category_setting
     }
 
 // material-icons-core has no app-grid, file, shortcut or folder glyph, so these reproduce the Material

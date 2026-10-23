@@ -44,6 +44,8 @@
         <item>Type a name to find a contact</item>
         <item>Find files and folders by name</item>
         <item>Do quick maths, like 24*7 or sqrt(2)</item>
+        <item>Open a setting, like Wi‑Fi or Bluetooth</item>
+        <item>Try “brightness” to find display settings</item>
     </string-array>
     <string name="launch_failed">%1$s: no app found</string>
     <string name="apk_install_from_folder">Tap %1$s in %2$s to install it</string>
@@ -54,6 +56,9 @@
     <string name="category_file">File</string>
     <string name="category_shortcut">Shortcut</string>
     <string name="category_folder">Folder</string>
+    <string name="category_setting">Setting</string>
+    <!-- Shown under each settings screen in search results. -->
+    <string name="category_setting_detail">Settings</string>
     <!-- A folder search result couldn't be opened in a file manager; its full path was copied instead. %1$s is the folder's name. -->
     <string name="folder_path_copied">Couldn\'t open %1$s, so its path was copied</string>
     <string name="show_all_as_grid">Show all results as a grid</string>

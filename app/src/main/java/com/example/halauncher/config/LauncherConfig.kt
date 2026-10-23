@@ -472,6 +472,7 @@ object RankingConfig {
         SearchCategory.FILE to 0.0,
         SearchCategory.SHORTCUT to 0.02,
         SearchCategory.FOLDER to 0.0,
+        SearchCategory.SETTING to 0.03,
     )
 }
 

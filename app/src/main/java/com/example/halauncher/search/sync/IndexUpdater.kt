@@ -9,10 +9,13 @@ import com.example.halauncher.config.IndexUpdaterConfig
 import com.example.halauncher.data.AppRepository
 import com.example.halauncher.data.ContactProvider
 import com.example.halauncher.data.FileSearchProvider
+import com.example.halauncher.data.SettingsDuplicates
+import com.example.halauncher.data.SettingsProvider
 import com.example.halauncher.data.ShortcutProvider
 import com.example.halauncher.model.AppInfo
 import com.example.halauncher.model.FileEntry
 import com.example.halauncher.model.SearchCategory
+import com.example.halauncher.model.ShortcutEntry
 import com.example.halauncher.search.SearchEngine
 import com.example.halauncher.search.index.IndexChange
 import java.util.concurrent.Executor
@@ -74,6 +77,7 @@ class IndexUpdater(
     private val contacts: ContactProvider,
     private val files: FileSearchProvider,
     private val shortcuts: ShortcutProvider,
+    private val settings: SettingsProvider,
 ) {
     private val thread = HandlerThread(THREAD_NAME, IndexUpdaterConfig.THREAD_PRIORITY).apply { start() }
     private val handler = Handler(thread.looper)
@@ -220,9 +224,16 @@ class IndexUpdater(
             if (SearchCategory.CONTACT in batch.fullSync) add {
                 changes += IndexChange.ReplaceAll(SearchCategory.CONTACT, contacts.loadEntries())
             }
-            // After apps, so shortcuts are matched against the freshly loaded ones.
-            if (SearchCategory.SHORTCUT in batch.fullSync) add {
-                changes += IndexChange.ReplaceAll(SearchCategory.SHORTCUT, shortcuts.loadEntries())
+            // Settings and shortcuts are read together, after apps (so shortcuts are matched against
+            // the freshly loaded ones): a Settings screen the Settings app also offers as a shortcut
+            // is listed once, as the shortcut (see SettingsDuplicates).
+            if (SearchCategory.SHORTCUT in batch.fullSync || SearchCategory.SETTING in batch.fullSync) add {
+                val merged = SettingsDuplicates.merge(
+                    settings.loadSettings(),
+                    shortcuts.loadEntries().filterIsInstance<ShortcutEntry>(),
+                )
+                changes += IndexChange.ReplaceAll(SearchCategory.SETTING, merged.settings)
+                changes += IndexChange.ReplaceAll(SearchCategory.SHORTCUT, merged.shortcuts)
             }
             // Whatever re-reads every file (a new volume, the "Reduce index size" setting) re-reads
             // every folder too.

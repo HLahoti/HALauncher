@@ -18,6 +18,8 @@ import android.os.Process
  * @property link the app's launch intent when the shortcut was loaded.
  * @property iconVersion when the app last changed the shortcut, so a replaced icon isn't mistaken
  * for the cached one.
+ * @property keywords the Settings screen's keywords, when the shortcut stands in for one (see
+ * SettingsDuplicates).
  */
 data class ShortcutEntry(
     val packageName: String,
@@ -26,6 +28,7 @@ data class ShortcutEntry(
     val appName: String,
     override val link: Intent,
     val iconVersion: Long = 0L,
+    override val keywords: String? = null,
 ) : SearchEntry {
     override val id: String get() = idFor(packageName, shortcutId)
     override val category: SearchCategory get() = SearchCategory.SHORTCUT

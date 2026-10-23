@@ -21,6 +21,7 @@ import com.example.halauncher.search.index.InteractionLog
 import com.example.halauncher.search.index.SearchDatabase
 import com.example.halauncher.search.index.SearchEntryCodecs
 import com.example.halauncher.search.index.SearchIndex
+import com.example.halauncher.search.index.SettingEntryCodec
 import com.example.halauncher.search.index.ShortcutEntryCodec
 import com.example.halauncher.search.ranking.ContextMatchRanker
 import org.junit.After
@@ -64,7 +65,7 @@ class TwoLayerSearchTest {
     @Before
     fun setUp() {
         database = SearchDatabase(context, name = null)
-        val codecs = SearchEntryCodecs(listOf(AppEntryCodec(apps::get), ContactEntryCodec, FileEntryCodec, FolderEntryCodec, ShortcutEntryCodec(apps::get)))
+        val codecs = SearchEntryCodecs(listOf(AppEntryCodec(apps::get), ContactEntryCodec, FileEntryCodec, FolderEntryCodec, ShortcutEntryCodec(apps::get), SettingEntryCodec))
         index = SearchIndex(database, codecs)
         engine = SearchEngine(index, InteractionLog(database, retentionDays = 120), ContextMatchRanker(), clock = { now })
         engine.sync(SearchCategory.APP, apps.values.toList())
@@ -124,7 +125,7 @@ class TwoLayerSearchTest {
 
     @Test
     fun uninstalledAppsAreDroppedWhenDecoding() {
-        val onlyMaps = SearchIndex(database, SearchEntryCodecs(listOf(AppEntryCodec { if (it == maps.packageName) maps else null }, ContactEntryCodec, FileEntryCodec, FolderEntryCodec, ShortcutEntryCodec(apps::get))))
+        val onlyMaps = SearchIndex(database, SearchEntryCodecs(listOf(AppEntryCodec { if (it == maps.packageName) maps else null }, ContactEntryCodec, FileEntryCodec, FolderEntryCodec, ShortcutEntryCodec(apps::get), SettingEntryCodec)))
         assertEquals(setOf(maps.id), onlyMaps.all(SearchCategory.APP, limit = 100).map { it.id }.toSet())
     }
 
@@ -232,7 +233,7 @@ class TwoLayerSearchTest {
     fun indexAndHistorySurviveReopeningTheDatabaseFile() {
         val fileName = "persistence-test.db"
         context.deleteDatabase(fileName)
-        val codecs = SearchEntryCodecs(listOf(AppEntryCodec(apps::get), ContactEntryCodec, FileEntryCodec, FolderEntryCodec, ShortcutEntryCodec(apps::get)))
+        val codecs = SearchEntryCodecs(listOf(AppEntryCodec(apps::get), ContactEntryCodec, FileEntryCodec, FolderEntryCodec, ShortcutEntryCodec(apps::get), SettingEntryCodec))
         try {
             // First "session": index some entries and open one.
             SearchDatabase(context, fileName).use { db ->

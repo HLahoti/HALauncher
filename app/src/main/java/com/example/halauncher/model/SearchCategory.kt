@@ -13,12 +13,15 @@ enum class SearchCategory {
     SHORTCUT,
 
     /** Folders on shared storage. They're listed with the files, under the Files tab. */
-    FOLDER;
+    FOLDER,
+
+    /** Screens of the system Settings app (Wi-Fi, Display, …). Listed with the apps, under the Apps tab. */
+    SETTING;
 
     /** The search tab this category's entries are listed under. */
     val tab: SearchCategory
         get() = when (this) {
-            SHORTCUT -> APP
+            SHORTCUT, SETTING -> APP
             FOLDER -> FILE
             else -> this
         }

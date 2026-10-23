@@ -50,4 +50,11 @@ interface SearchEntry {
      * and so on.
      */
     val detail: String? get() = null
+
+    /**
+     * More words the disk index matches besides [name], never shown: "brightness" finds the
+     * Display settings. Only read when the entry is indexed, so entries rebuilt from the index
+     * don't carry them.
+     */
+    val keywords: String? get() = null
 }

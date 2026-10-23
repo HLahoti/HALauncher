@@ -7,6 +7,7 @@ import com.example.halauncher.model.FileEntry
 import com.example.halauncher.model.FolderEntry
 import com.example.halauncher.model.SearchCategory
 import com.example.halauncher.model.SearchEntry
+import com.example.halauncher.model.SettingEntry
 import com.example.halauncher.model.ShortcutEntry
 import org.json.JSONObject
 
@@ -162,6 +163,40 @@ class ShortcutEntryCodec(private val findApp: (packageName: String) -> AppInfo?)
         const val PACKAGE = "package"
         const val SHORTCUT_ID = "id"
         const val ICON_VERSION = "iconVersion"
+    }
+}
+
+/**
+ * Settings screens are stored by catalog key, action and handling app. Their keywords live only
+ * in the index's keywords column, so a decoded entry has none.
+ */
+object SettingEntryCodec : SearchEntryCodec {
+    private const val KEY = "key"
+    private const val ACTION = "action"
+    private const val PACKAGE = "package"
+    private const val DETAIL = "detail"
+
+    override val category = SearchCategory.SETTING
+
+    override fun encode(entry: SearchEntry): String {
+        val setting = entry as SettingEntry
+        return JSONObject()
+            .put(KEY, setting.key)
+            .put(ACTION, setting.action)
+            .put(PACKAGE, setting.packageName)
+            .put(DETAIL, setting.detail ?: JSONObject.NULL)
+            .toString()
+    }
+
+    override fun decode(name: String, payload: String): SearchEntry {
+        val json = JSONObject(payload)
+        return SettingEntry(
+            key = json.getString(KEY),
+            name = name,
+            action = json.getString(ACTION),
+            packageName = json.getString(PACKAGE),
+            detail = json.optStringOrNull(DETAIL),
+        )
     }
 }
 

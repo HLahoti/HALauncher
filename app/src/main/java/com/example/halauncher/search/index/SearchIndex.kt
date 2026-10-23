@@ -8,13 +8,15 @@ import com.example.halauncher.model.SearchCategory
 import com.example.halauncher.model.SearchEntry
 import com.example.halauncher.search.index.SearchDatabase.Companion.COL_CATEGORY
 import com.example.halauncher.search.index.SearchDatabase.Companion.COL_ENTRY_ID
+import com.example.halauncher.search.index.SearchDatabase.Companion.COL_KEYWORDS
 import com.example.halauncher.search.index.SearchDatabase.Companion.COL_NAME
 import com.example.halauncher.search.index.SearchDatabase.Companion.COL_PAYLOAD
 import com.example.halauncher.search.index.SearchDatabase.Companion.ENTRIES
 
 /**
  * The disk search layer: every entry from every provider, in an FTS4 table. Unlike the
- * in-memory trie it holds everything, and it matches any word in a name, not just the start.
+ * in-memory trie it holds everything, and it matches any word in a name, not just the start, as
+ * well as an entry's hidden keywords.
  *
  * All methods do disk I/O; call them off the main thread.
  */
@@ -121,7 +123,7 @@ class SearchIndex(private val database: SearchDatabase, private val codecs: Sear
     private fun encode(category: SearchCategory, entries: List<SearchEntry>): Map<String, StoredText> {
         val codec = codecs.forCategory(category)
         val wanted = LinkedHashMap<String, StoredText>()
-        for (entry in entries) wanted[entry.id] = StoredText(entry.name, codec.encode(entry))
+        for (entry in entries) wanted[entry.id] = StoredText(entry.name, codec.encode(entry), entry.keywords.orEmpty())
         return wanted
     }
 
@@ -133,9 +135,9 @@ class SearchIndex(private val database: SearchDatabase, private val codecs: Sear
     ): SyncResult {
         var inserted = 0
         var updated = 0
-        compileStatement("UPDATE $ENTRIES SET $COL_NAME = ?, $COL_PAYLOAD = ? WHERE docid = ?").use { update ->
+        compileStatement("UPDATE $ENTRIES SET $COL_NAME = ?, $COL_PAYLOAD = ?, $COL_KEYWORDS = ? WHERE docid = ?").use { update ->
             compileStatement(
-                "INSERT INTO $ENTRIES ($COL_NAME, $COL_ENTRY_ID, $COL_CATEGORY, $COL_PAYLOAD) VALUES (?, ?, ?, ?)",
+                "INSERT INTO $ENTRIES ($COL_NAME, $COL_ENTRY_ID, $COL_CATEGORY, $COL_PAYLOAD, $COL_KEYWORDS) VALUES (?, ?, ?, ?, ?)",
             ).use { insert ->
                 for ((id, text) in wanted) {
                     val existing = stored[id]
@@ -145,13 +147,15 @@ class SearchIndex(private val database: SearchDatabase, private val codecs: Sear
                             insert.bindString(2, id)
                             insert.bindString(3, category.name)
                             insert.bindString(4, text.payload)
+                            insert.bindString(5, text.keywords)
                             insert.executeInsert()
                             inserted++
                         }
                         existing.text != text -> {
                             update.bindString(1, text.name)
                             update.bindString(2, text.payload)
-                            update.bindLong(3, existing.docId)
+                            update.bindString(3, text.keywords)
+                            update.bindLong(4, existing.docId)
                             update.executeUpdateDelete()
                             updated++
                         }
@@ -162,7 +166,7 @@ class SearchIndex(private val database: SearchDatabase, private val codecs: Sear
         return SyncResult(inserted, updated, removed = 0, unchanged = wanted.size - inserted - updated)
     }
 
-    private data class StoredText(val name: String, val payload: String)
+    private data class StoredText(val name: String, val payload: String, val keywords: String)
     private data class StoredRow(val docId: Long, val text: StoredText)
 
     /** Stored rows of [category] by entry id: all of them, or only those in [ids]. */
@@ -172,13 +176,14 @@ class SearchIndex(private val database: SearchDatabase, private val codecs: Sear
         for (chunk in chunks) {
             if (chunk != null && chunk.isEmpty()) continue
             val sql = buildString {
-                append("SELECT docid, $COL_ENTRY_ID, $COL_NAME, $COL_PAYLOAD FROM $ENTRIES WHERE $COL_CATEGORY = ?")
+                append("SELECT docid, $COL_ENTRY_ID, $COL_NAME, $COL_PAYLOAD, $COL_KEYWORDS FROM $ENTRIES WHERE $COL_CATEGORY = ?")
                 if (chunk != null) append(" AND $COL_ENTRY_ID IN (").append(chunk.joinToString(",") { "?" }).append(")")
             }
             val args = arrayOf(category.name) + chunk.orEmpty()
             rawQuery(sql, args).use { cursor ->
                 while (cursor.moveToNext()) {
-                    rows[cursor.getString(1)] = StoredRow(cursor.getLong(0), StoredText(cursor.getString(2), cursor.getString(3)))
+                    val text = StoredText(cursor.getString(2), cursor.getString(3), cursor.getString(4).orEmpty())
+                    rows[cursor.getString(1)] = StoredRow(cursor.getLong(0), text)
                 }
             }
         }
@@ -192,7 +197,7 @@ class SearchIndex(private val database: SearchDatabase, private val codecs: Sear
     data class Hit(val docId: Long, val id: String, val name: String, val category: SearchCategory)
 
     /**
-     * Entries whose name matches the FTS [matchExpression] (see FtsQuery), optionally limited to
+     * Entries whose name or keywords match the FTS [matchExpression] (see FtsQuery), optionally limited to
      * [categories], as undecoded [Hit]s. Returns at most [limit], shortest names first: those are
      * the likelier strong matches, and the caller ranks them properly afterwards.
      */

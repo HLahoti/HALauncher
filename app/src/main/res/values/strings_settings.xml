@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Settings screens search can open (see SettingsProvider). Each has a name, shown in results,
+     and keywords: more words that find it, never shown, separated by spaces. Keywords should be
+     what people type when looking for something on that screen. -->
+<resources>
+    <string name="setting_wifi">Wi‑Fi</string>
+    <string name="setting_wifi_keywords">wifi wi fi wireless internet network ssid router</string>
+    <string name="setting_network">Network &amp; internet</string>
+    <string name="setting_network_keywords">connections internet mobile wireless</string>
+    <string name="setting_airplane_mode">Aeroplane mode</string>
+    <string name="setting_airplane_mode_keywords">airplane flight offline</string>
+    <string name="setting_mobile_network">Mobile network</string>
+    <string name="setting_mobile_network_keywords">cellular mobile data roaming sim 4g 5g lte volte</string>
+    <string name="setting_network_operator">Network operator</string>
+    <string name="setting_network_operator_keywords">carrier provider sim network choose automatically</string>
+    <string name="setting_apn">Access point names</string>
+    <string name="setting_apn_keywords">apn mms carrier mobile data</string>
+    <string name="setting_data_usage">Data usage</string>
+    <string name="setting_data_usage_keywords">data saver mobile data limit warning</string>
+    <string name="setting_hotspot">Hotspot &amp; tethering</string>
+    <string name="setting_hotspot_keywords">hotspot tether share internet usb tethering portable</string>
+    <string name="setting_vpn">VPN</string>
+    <string name="setting_vpn_keywords">virtual private network</string>
+    <string name="setting_bluetooth">Bluetooth</string>
+    <string name="setting_bluetooth_keywords">pair headphones earbuds speaker watch car connected devices</string>
+    <string name="setting_nfc">NFC</string>
+    <string name="setting_nfc_keywords">near field contactless tap</string>
+    <string name="setting_contactless_payments">Contactless payments</string>
+    <string name="setting_contactless_payments_keywords">tap to pay nfc wallet</string>
+    <string name="setting_cast">Cast</string>
+    <string name="setting_cast_keywords">screen mirroring chromecast wireless display tv</string>
+
+    <string name="setting_display">Display</string>
+    <string name="setting_display_keywords">brightness dark theme mode font size screen timeout sleep rotate rotation wallpaper refresh rate</string>
+    <string name="setting_night_light">Night Light</string>
+    <string name="setting_night_light_keywords">blue light filter eye comfort warm</string>
+    <string name="setting_screen_saver">Screen saver</string>
+    <string name="setting_screen_saver_keywords">daydream dream clock</string>
+    <string name="setting_sound">Sound &amp; vibration</string>
+    <string name="setting_sound_keywords">volume ringtone ring vibrate vibration notification sound silent mute</string>
+    <string name="setting_volume">Volume</string>
+    <string name="setting_volume_keywords">media ring alarm loudness louder quieter</string>
+    <string name="setting_notifications">Notifications</string>
+    <string name="setting_notifications_keywords">notification history lock screen badges dots</string>
+    <string name="setting_app_notifications">App notifications</string>
+    <string name="setting_app_notifications_keywords">notification block apps</string>
+    <string name="setting_do_not_disturb">Do Not Disturb</string>
+    <string name="setting_do_not_disturb_keywords">dnd silence quiet hours focus</string>
+
+    <string name="setting_apps">Apps</string>
+    <string name="setting_apps_keywords">applications installed uninstall app info force stop</string>
+    <string name="setting_default_apps">Default apps</string>
+    <string name="setting_default_apps_keywords">browser phone sms assistant open links</string>
+    <string name="setting_home_app">Home app</string>
+    <string name="setting_home_app_keywords">default launcher home screen</string>
+    <string name="setting_usage_access">Usage access</string>
+    <string name="setting_usage_access_keywords">special app access permission</string>
+    <string name="setting_notification_access">Notification access</string>
+    <string name="setting_notification_access_keywords">notification listener special app access permission</string>
+    <string name="setting_dnd_access">Do Not Disturb access</string>
+    <string name="setting_dnd_access_keywords">dnd special app access permission</string>
+    <string name="setting_overlay">Display over other apps</string>
+    <string name="setting_overlay_keywords">overlay draw appear on top special app access permission</string>
+    <string name="setting_write_settings">Modify system settings</string>
+    <string name="setting_write_settings_keywords">write settings special app access permission</string>
+    <string name="setting_battery_optimisation">Battery optimisation</string>
+    <string name="setting_battery_optimisation_keywords">optimization background restrictions unrestricted special app access</string>
+    <string name="setting_unknown_apps">Install unknown apps</string>
+    <string name="setting_unknown_apps_keywords">apk sideload unknown sources special app access permission</string>
+    <string name="setting_all_files_access">All files access</string>
+    <string name="setting_all_files_access_keywords">storage manage files special app access permission</string>
+
+    <string name="setting_battery">Battery</string>
+    <string name="setting_battery_keywords">battery usage power drain percentage</string>
+    <string name="setting_battery_saver">Battery Saver</string>
+    <string name="setting_battery_saver_keywords">power saving low power mode</string>
+    <string name="setting_storage">Storage</string>
+    <string name="setting_storage_keywords">space free up clean memory</string>
+
+    <string name="setting_security">Security</string>
+    <string name="setting_security_keywords">encryption find my device updates</string>
+    <string name="setting_screen_lock">Screen lock</string>
+    <string name="setting_screen_lock_keywords">password pin pattern lock screen</string>
+    <string name="setting_biometrics">Fingerprint &amp; face unlock</string>
+    <string name="setting_biometrics_keywords">biometric fingerprint face unlock enroll</string>
+    <string name="setting_privacy">Privacy</string>
+    <string name="setting_privacy_keywords">permissions permission manager ads</string>
+    <string name="setting_location">Location</string>
+    <string name="setting_location_keywords">gps location services</string>
+    <string name="setting_accounts">Accounts</string>
+    <string name="setting_accounts_keywords">sync google account passwords</string>
+    <string name="setting_add_account">Add account</string>
+    <string name="setting_add_account_keywords">sign in google email</string>
+
+    <string name="setting_accessibility">Accessibility</string>
+    <string name="setting_accessibility_keywords">talkback magnification text size colour color correction hearing</string>
+    <string name="setting_captions">Captions</string>
+    <string name="setting_captions_keywords">subtitles live caption</string>
+
+    <string name="setting_languages">Languages</string>
+    <string name="setting_languages_keywords">language locale region</string>
+    <string name="setting_regional_preferences">Regional preferences</string>
+    <string name="setting_regional_preferences_keywords">temperature units first day of week numbers</string>
+    <string name="setting_keyboards">Keyboards</string>
+    <string name="setting_keyboards_keywords">keyboard input method typing gboard</string>
+    <string name="setting_physical_keyboard">Physical keyboard</string>
+    <string name="setting_physical_keyboard_keywords">hardware keyboard layout</string>
+    <string name="setting_dictionary">Personal dictionary</string>
+    <string name="setting_dictionary_keywords">words spelling</string>
+    <string name="setting_voice_input">Voice input</string>
+    <string name="setting_voice_input_keywords">speech recognition dictation text to speech</string>
+    <string name="setting_date_time">Date &amp; time</string>
+    <string name="setting_date_time_keywords">time zone clock 24 hour</string>
+    <string name="setting_printing">Printing</string>
+    <string name="setting_printing_keywords">printer print service</string>
+    <string name="setting_developer_options">Developer options</string>
+    <string name="setting_developer_options_keywords">usb debugging adb animation scale</string>
+    <string name="setting_about">About phone</string>
+    <string name="setting_about_keywords">device info model android version build number imei serial</string>
+    <string name="setting_regulatory_labels">Regulatory labels</string>
+    <string name="setting_regulatory_labels_keywords">certification compliance</string>
+</resources>

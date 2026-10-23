@@ -37,14 +37,20 @@ class SearchDatabase(context: Context, name: String? = NAME) :
         // the index can simply be dropped and recreated. Interactions are the user's history:
         // migrate them in place, never drop.
         if (oldVersion < 2) db.execSQL(CREATE_MAINTENANCE)
+        if (oldVersion < 3) {
+            // Entries gained a searchable keywords column.
+            db.execSQL("DROP TABLE IF EXISTS $ENTRIES")
+            db.execSQL(CREATE_ENTRIES)
+        }
     }
 
     companion object {
         const val NAME = "search.db"
-        private const val VERSION = 2
+        private const val VERSION = 3
 
         const val ENTRIES = "entries"
         const val COL_NAME = "name"
+        const val COL_KEYWORDS = "keywords"
         const val COL_ENTRY_ID = "entry_id"
         const val COL_CATEGORY = "category"
         const val COL_PAYLOAD = "payload"
@@ -58,14 +64,15 @@ class SearchDatabase(context: Context, name: String? = NAME) :
         const val COL_VALUE = "value"
 
         /**
-         * FTS4 table holding every search entry. Only the name is tokenised and searchable;
-         * the rest rides along so a match can be turned back into an entry. The unicode61
+         * FTS4 table holding every search entry. Only the name and the entry's hidden keywords
+         * (see SearchEntry.keywords; empty for most) are tokenised and searchable; the rest rides
+         * along so a match can be turned back into an entry. The unicode61
          * tokeniser folds case and strips accents ("café" matches "cafe"), and the prefix
          * indexes make short "term*" queries fast.
          */
         private val CREATE_ENTRIES = """
             CREATE VIRTUAL TABLE $ENTRIES USING fts4(
-                $COL_NAME, $COL_ENTRY_ID, $COL_CATEGORY, $COL_PAYLOAD,
+                $COL_NAME, $COL_ENTRY_ID, $COL_CATEGORY, $COL_PAYLOAD, $COL_KEYWORDS,
                 notindexed=$COL_ENTRY_ID, notindexed=$COL_CATEGORY, notindexed=$COL_PAYLOAD,
                 tokenize=unicode61 "remove_diacritics=1",
                 prefix="1,2,3"
