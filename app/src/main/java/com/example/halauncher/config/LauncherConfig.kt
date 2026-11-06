@@ -50,7 +50,7 @@ object ThemeConfig {
 
 /** Layout of the bare home screen (clock column and quick actions). */
 object HomeScreenConfig {
-    /** Left margin of the clock column. */
+    /** Margin on the clock column's outer side, beyond the screen edge or the camera cutout. */
     val StartMargin = 24.dp
 
     /** Gap from the top of the screen (below the status bar) to the time. */

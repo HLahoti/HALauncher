@@ -18,13 +18,18 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -322,7 +327,10 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                         }
                         drawLayer(homeLayer)
                     }
-                    .systemBarsPadding()
+                    // Clear of the camera cutout too, not just the bars: turned sideways it sits on
+                    // the side edge, where the clock and date would otherwise run under it. The
+                    // start margin then keeps a gap beyond it.
+                    .windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout))
                     .padding(start = HomeScreenConfig.StartMargin)
                 val clockAndDate = @Composable {
                     TimeDisplay(time)
