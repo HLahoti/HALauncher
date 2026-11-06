@@ -88,7 +88,7 @@ export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
 
 - Upload the **`.aab`** (not the APK) to a release track: **Internal testing** first,
   then Closed → Open → Production.
-- Upload the **`mapping.txt`** (`dist/HALauncher-1.6-mapping.txt`) so Play can
+- Upload the **`mapping.txt`** (`dist/HALauncher-1.7-mapping.txt`) so Play can
   de-obfuscate crash reports.
 - For every future release, **increase `versionCode`** (e.g. 2, 3, …) and update
   `versionName`. Play refuses an upload whose versionCode isn't higher than the last.
@@ -104,7 +104,7 @@ export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
 ---
 
 ### Quick reference — current build state
-- versionName: `1.6`, versionCode: `7`
+- versionName: `1.7`, versionCode: `8`
 - applicationId: `com.example.halauncher` ← **must change before Play (step 1)**
 - Signing: release keystore `halauncher-release.jks` (git-ignored; back it up)
 - Min SDK 24 (Android 7.0), Target SDK 37

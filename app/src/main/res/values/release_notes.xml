@@ -4,12 +4,11 @@
          shown in Settings > About. Rewrite both with every release (see PLAY_STORE_CHECKLIST.md).
          While release_notes_version isn't the app's versionName, About leaves the list out rather
          than show another release's notes. -->
-    <string name="release_notes_version" translatable="false">1.6</string>
+    <string name="release_notes_version" translatable="false">1.7</string>
     <string-array name="release_notes">
-        <item>Search finds your phone\'s settings: Wi‑Fi, Bluetooth, Display, Battery, Do Not Disturb and about 50 more. Type what you\'re after, like \"brightness\" or \"hotspot\", and tap to go straight to that screen. Only screens your phone can really open are listed.</item>
-        <item>Any word of a name answers straight away, so \"music\" finds \"YT Music\" without waiting for the rest of the search.</item>
-        <item>Apps that change their icon, such as for a festival, open again when tapped instead of saying \"no app found\".</item>
-        <item>Search for \"launcher settings\" to open HALauncher\'s own settings.</item>
-        <item>The empty search field suggests something different to try each time it opens.</item>
+        <item>Left-handed mode, in settings, puts the pinned app wheel on the left, where your left thumb can spin it. The clock and quick actions move to the right, and the pinned apps editor and search\'s grid/list button follow.</item>
+        <item>HALauncher works sideways. Turn your phone and the home screen spreads out: the wheel on one edge, the clock and quick actions on the other, kept clear of the camera.</item>
+        <item>Search, settings, the pinned apps editor, set-up and About use the extra width when sideways: settings and the editor in two columns, and search with its category buttons beside the field and more results to a row.</item>
+        <item>Sideways, search opens with its results in view: tap the field to type, and scroll the results to put the keyboard away again.</item>
     </string-array>
 </resources>
