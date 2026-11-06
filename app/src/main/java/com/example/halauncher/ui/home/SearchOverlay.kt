@@ -189,11 +189,13 @@ fun SearchOverlay(
     val focusManager = LocalFocusManager.current
     // Only once search has fully come in; a swipe that's still bringing it in may yet let go.
     // The overlay stays composed while hidden, so it lets go of the keyboard itself on the way out.
+    // In landscape the keyboard would cover all the results, so search opens with them in view and
+    // the keyboard comes up when the field is tapped.
     LaunchedEffect(isFullyIn) {
-        if (isFullyIn) {
+        if (isFullyIn && !isLandscape) {
             focusRequester.requestFocus()
             keyboard?.show()
-        } else {
+        } else if (!isFullyIn) {
             focusManager.clearFocus()
         }
     }
