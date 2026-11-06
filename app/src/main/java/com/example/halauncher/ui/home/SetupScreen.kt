@@ -6,8 +6,10 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -22,6 +24,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,7 +46,9 @@ import com.example.halauncher.config.SearchConfig
 import com.example.halauncher.config.SettingsPanelConfig
 import com.example.halauncher.config.ThemeConfig
 import com.example.halauncher.model.AccessState
+import com.example.halauncher.ui.components.isLandscape
 import com.example.halauncher.ui.components.liquidGlass
+import com.example.halauncher.ui.components.overlayTopSpacing
 
 /**
  * The first-run setup: everything the launcher needs to work well, in one place. It comes up by
@@ -94,10 +99,15 @@ fun SetupScreen(
                 .padding(horizontal = SearchConfig.HorizontalPadding)
                 .padding(bottom = SearchConfig.BottomSpacing),
         ) {
-            Spacer(Modifier.height(SearchConfig.TopSpacing))
+            Spacer(Modifier.height(overlayTopSpacing()))
+            // In landscape the button sits in the header, always in sight; in portrait it ends the page.
+            val landscape = isLandscape()
+            val buttonLabel = stringResource(if (isOnboarding) R.string.next else R.string.done)
             GlassPageHeader(
                 title = stringResource(R.string.setup_title),
                 step = if (isOnboarding) stringResource(R.string.onboarding_step, 1, ONBOARDING_STEPS) else null,
+                buttonLabel = buttonLabel.takeIf { landscape },
+                onButtonClick = onDone,
             )
             Spacer(Modifier.height(SearchConfig.ResultsSpacing))
             Column(
@@ -112,33 +122,45 @@ fun SetupScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(horizontal = SettingsPanelConfig.CardPadding),
                 )
-                SetupItem(
-                    title = stringResource(R.string.setup_default_home_title),
-                    description = stringResource(R.string.setup_default_home_desc),
-                    granted = isDefaultHome,
-                    actionLabel = stringResource(R.string.setup_action_set_default),
-                    onAction = onSetDefaultHome,
+                // All three side by side in landscape, so the page fits without scrolling.
+                CardRows(
+                    columns = if (isLandscape()) 3 else 1,
+                    cards = listOf(
+                        { modifier ->
+                            SetupItem(
+                                title = stringResource(R.string.setup_default_home_title),
+                                description = stringResource(R.string.setup_default_home_desc),
+                                granted = isDefaultHome,
+                                actionLabel = stringResource(R.string.setup_action_set_default),
+                                onAction = onSetDefaultHome,
+                                modifier = modifier,
+                            )
+                        },
+                        { modifier ->
+                            PermissionItem(
+                                title = stringResource(R.string.setup_contacts_title),
+                                description = stringResource(R.string.setup_contacts_desc),
+                                deniedMessage = stringResource(R.string.setup_contacts_denied),
+                                access = contactsAccess,
+                                onAction = onGrantContacts,
+                                modifier = modifier,
+                            )
+                        },
+                        { modifier ->
+                            PermissionItem(
+                                title = stringResource(R.string.setup_files_title),
+                                description = stringResource(R.string.setup_files_desc),
+                                deniedMessage = stringResource(R.string.setup_files_denied),
+                                access = filesAccess,
+                                onAction = onGrantFiles,
+                                modifier = modifier,
+                            )
+                        },
+                    ),
                 )
-                PermissionItem(
-                    title = stringResource(R.string.setup_contacts_title),
-                    description = stringResource(R.string.setup_contacts_desc),
-                    deniedMessage = stringResource(R.string.setup_contacts_denied),
-                    access = contactsAccess,
-                    onAction = onGrantContacts,
-                )
-                PermissionItem(
-                    title = stringResource(R.string.setup_files_title),
-                    description = stringResource(R.string.setup_files_desc),
-                    deniedMessage = stringResource(R.string.setup_files_denied),
-                    access = filesAccess,
-                    onAction = onGrantFiles,
-                )
-                // The button sits at the end of the page; setup can be finished at any point,
+                // The button ends the page (in portrait); setup can be finished at any point,
                 // whether or not everything was granted. On the first run it leads on to the guide.
-                GlassPageButton(
-                    label = stringResource(if (isOnboarding) R.string.next else R.string.done),
-                    onClick = onDone,
-                )
+                if (!landscape) GlassPageButton(label = buttonLabel, onClick = onDone)
             }
         }
     }
@@ -155,6 +177,7 @@ private fun PermissionItem(
     deniedMessage: String,
     access: AccessState,
     onAction: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val denied = access == AccessState.DENIED
     SetupItem(
@@ -164,6 +187,7 @@ private fun PermissionItem(
         actionLabel = stringResource(if (denied) R.string.setup_action_turn_on else R.string.setup_action_allow),
         onAction = onAction,
         warning = deniedMessage.takeIf { denied },
+        modifier = modifier,
     )
 }
 
@@ -181,10 +205,11 @@ private fun SetupItem(
     actionLabel: String,
     onAction: () -> Unit,
     warning: String? = null,
+    modifier: Modifier = Modifier,
 ) {
     val enabledLabel = stringResource(R.string.setup_enabled)
     val deniedLabel = stringResource(R.string.setup_denied)
-    val cardModifier = Modifier
+    val cardModifier = modifier
         .fillMaxWidth()
         .liquidGlass(RoundedCornerShape(SettingsPanelConfig.CardCornerRadius), tint = SettingsPanelConfig.GlassTint)
         .then(if (granted) Modifier else Modifier.clickable(onClickLabel = actionLabel, onClick = onAction))
@@ -261,20 +286,34 @@ private fun SetupItem(
 }
 
 /**
- * The glass pill heading a full-screen page (setup): its [title], and on the first
- * run which [step] of the walkthrough this is.
+ * The glass pill heading a full-screen page (setup, About): its [title], and on the first
+ * run which [step] of the walkthrough this is. With a [buttonLabel], it also holds the page's button
+ * at its end, like the settings panel's Done (used in landscape, where the end of the page is out of
+ * sight).
  */
 @Composable
-internal fun GlassPageHeader(title: String, step: String? = null) {
+internal fun GlassPageHeader(
+    title: String,
+    step: String? = null,
+    buttonLabel: String? = null,
+    onButtonClick: () -> Unit = {},
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .liquidGlass(RoundedCornerShape(percent = 50), tint = SearchConfig.FIELD_GLASS_TINT)
-            .padding(
-                start = PinPickerConfig.HeaderStartPadding,
-                end = PinPickerConfig.HeaderStartPadding,
-                top = SettingsPanelConfig.CardPadding,
-                bottom = SettingsPanelConfig.CardPadding,
+            .then(
+                if (buttonLabel != null) {
+                    // The button brings its own padding, as in the settings panel's header.
+                    Modifier.padding(start = PinPickerConfig.HeaderStartPadding)
+                } else {
+                    Modifier.padding(
+                        start = PinPickerConfig.HeaderStartPadding,
+                        end = PinPickerConfig.HeaderStartPadding,
+                        top = SettingsPanelConfig.CardPadding,
+                        bottom = SettingsPanelConfig.CardPadding,
+                    )
+                },
             ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -291,6 +330,11 @@ internal fun GlassPageHeader(title: String, step: String? = null) {
                 color = ThemeConfig.Foreground.copy(alpha = SettingsPanelConfig.DESCRIPTION_ALPHA),
                 style = MaterialTheme.typography.labelLarge,
             )
+        }
+        if (buttonLabel != null) {
+            TextButton(onClick = onButtonClick) {
+                Text(buttonLabel, color = ThemeConfig.Foreground)
+            }
         }
     }
 }
@@ -312,6 +356,28 @@ internal fun GlassPageButton(label: String, onClick: () -> Unit) {
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
         )
+    }
+}
+
+/**
+ * [cards] in rows of [columns] (one per row in portrait, two side by side in landscape). Cards
+ * sharing a row are stretched to the taller one's height; each gets the modifier that does that.
+ */
+@Composable
+internal fun CardRows(
+    cards: List<@Composable (Modifier) -> Unit>,
+    columns: Int,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(SettingsPanelConfig.CardSpacing)) {
+        for (row in cards.chunked(columns)) {
+            Row(
+                modifier = Modifier.height(IntrinsicSize.Max),
+                horizontalArrangement = Arrangement.spacedBy(SettingsPanelConfig.CardSpacing),
+            ) {
+                for (card in row) card(Modifier.weight(1f).fillMaxHeight())
+            }
+        }
     }
 }
 

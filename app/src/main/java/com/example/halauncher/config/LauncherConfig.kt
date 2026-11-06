@@ -166,8 +166,11 @@ object SearchConfig {
     /** Opacity of the hint in the empty search field. */
     const val PLACEHOLDER_ALPHA = 0.6f
 
-    /** Gap above the search field (below the status bar). */
+    /** Gap above the search field (below the status bar); also above the other overlays' headers. */
     val TopSpacing = 40.dp
+
+    /** The same in landscape, where height is short. */
+    val TopSpacingLandscape = 8.dp
 
     /** Gap below the results (above the keyboard, or the navigation bar when it's hidden). */
     val BottomSpacing = 24.dp
@@ -217,8 +220,17 @@ object SearchConfig {
      */
     const val FILE_THUMBNAIL_LOAD_DELAY_MS = 150L
 
+    /** Gap between the search field, the category bar and the grid/list toggle when they share a line (landscape). */
+    val LandscapeHeaderGap = 12.dp
+
     /** How many results sit in each row when a tab is shown as a grid. */
     const val GRID_COLUMNS = 3
+
+    /** The same in landscape, where the screen is wide enough for more. */
+    const val GRID_COLUMNS_LANDSCAPE = 5
+
+    /** How many columns a tab shown as a list has in landscape (portrait has one). */
+    const val LIST_COLUMNS_LANDSCAPE = 2
 
     /** Icon (or contact photo, or file thumbnail) size in a grid cell. */
     val GridIconSize = 52.dp
@@ -836,6 +848,9 @@ object TourConfig {
 
     /** Where search's results start, below the field and the filter bar; its gestures play out below this. */
     val SearchContentTop = 180.dp
+
+    /** The same in landscape, where the field and the filter bar share one line nearer the top. */
+    val SearchContentTopLandscape = 96.dp
 
     /** Gap between the gestures' area and the caption. */
     val CaptionGap = 16.dp

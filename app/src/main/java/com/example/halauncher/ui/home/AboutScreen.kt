@@ -31,7 +31,9 @@ import com.example.halauncher.R
 import com.example.halauncher.config.SearchConfig
 import com.example.halauncher.config.SettingsPanelConfig
 import com.example.halauncher.config.ThemeConfig
+import com.example.halauncher.ui.components.isLandscape
 import com.example.halauncher.ui.components.liquidGlass
+import com.example.halauncher.ui.components.overlayTopSpacing
 
 /**
  * About HALauncher, opened from settings: the installed version, who made it, and what's new in this
@@ -65,8 +67,15 @@ fun AboutScreen(onDone: () -> Unit) {
                 .padding(horizontal = SearchConfig.HorizontalPadding)
                 .padding(bottom = SearchConfig.BottomSpacing),
         ) {
-            Spacer(Modifier.height(SearchConfig.TopSpacing))
-            GlassPageHeader(title = stringResource(R.string.about_title))
+            Spacer(Modifier.height(overlayTopSpacing()))
+            // In landscape Done sits in the header, always in sight; in portrait it ends the page.
+            val landscape = isLandscape()
+            val doneLabel = stringResource(R.string.done)
+            GlassPageHeader(
+                title = stringResource(R.string.about_title),
+                buttonLabel = doneLabel.takeIf { landscape },
+                onButtonClick = onDone,
+            )
             Spacer(Modifier.height(SearchConfig.ResultsSpacing))
             Column(
                 modifier = Modifier
@@ -74,26 +83,28 @@ fun AboutScreen(onDone: () -> Unit) {
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(SettingsPanelConfig.CardSpacing),
             ) {
-                AboutCard {
-                    Text(
-                        text = stringResource(R.string.app_name),
-                        color = ThemeConfig.Foreground,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Text(
-                        text = stringResource(R.string.about_version, version),
-                        color = ThemeConfig.Foreground,
-                        style = MaterialTheme.typography.bodyLarge,
-                    )
-                    Text(
-                        text = stringResource(R.string.about_created_by),
-                        color = ThemeConfig.Foreground.copy(alpha = SettingsPanelConfig.DESCRIPTION_ALPHA),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
+                val versionCard = @Composable { modifier: Modifier ->
+                    AboutCard(modifier) {
+                        Text(
+                            text = stringResource(R.string.app_name),
+                            color = ThemeConfig.Foreground,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            text = stringResource(R.string.about_version, version),
+                            color = ThemeConfig.Foreground,
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                        Text(
+                            text = stringResource(R.string.about_created_by),
+                            color = ThemeConfig.Foreground.copy(alpha = SettingsPanelConfig.DESCRIPTION_ALPHA),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
                 }
-                if (notes.isNotEmpty()) {
-                    AboutCard {
+                val notesCard = @Composable { modifier: Modifier ->
+                    AboutCard(modifier) {
                         Text(
                             text = stringResource(R.string.about_whats_new, version),
                             color = ThemeConfig.Foreground,
@@ -104,7 +115,17 @@ fun AboutScreen(onDone: () -> Unit) {
                         for (note in notes) ReleaseNote(note)
                     }
                 }
-                GlassPageButton(label = stringResource(R.string.done), onClick = onDone)
+                if (landscape && notes.isNotEmpty()) {
+                    // Side by side in landscape: the short version card beside the longer notes.
+                    Row(horizontalArrangement = Arrangement.spacedBy(SettingsPanelConfig.CardSpacing)) {
+                        versionCard(Modifier.weight(1f))
+                        notesCard(Modifier.weight(2f))
+                    }
+                } else {
+                    versionCard(Modifier)
+                    if (notes.isNotEmpty()) notesCard(Modifier)
+                }
+                if (!landscape) GlassPageButton(label = doneLabel, onClick = onDone)
             }
         }
     }
@@ -112,9 +133,9 @@ fun AboutScreen(onDone: () -> Unit) {
 
 /** A glass card like the settings', holding [content] in a column. */
 @Composable
-private fun AboutCard(content: @Composable () -> Unit) {
+private fun AboutCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .liquidGlass(RoundedCornerShape(SettingsPanelConfig.CardCornerRadius), tint = SettingsPanelConfig.GlassTint)
             .padding(SettingsPanelConfig.CardPadding),

@@ -24,10 +24,12 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -67,6 +69,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.toSize
 import com.example.halauncher.R
 import com.example.halauncher.config.SearchConfig
@@ -77,6 +80,7 @@ import com.example.halauncher.config.TourConfig
 import com.example.halauncher.ui.components.liquidGlass
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 /**
  * The steps of the hands-on tour, in order. Each is finished by doing it for real. [inSearch] steps
@@ -117,6 +121,9 @@ enum class TourStep(val inSearch: Boolean) {
  * @param sphereCanTurn whether the sphere has enough pins to turn; otherwise its step is to hold it
  *   and pick some.
  * @param mirrored whether the home screen is mirrored (sphere on the left), so its steps' gestures are too.
+ * @param quickActionsBounds where the quick actions are, in root coordinates, in landscape (else null).
+ *   The screen is too short there for a caption below the home screen's content, so home-screen steps
+ *   play out, caption and all, in the gap between the quick actions and the sphere.
  */
 @Composable
 fun GuidedTour(
@@ -127,6 +134,7 @@ fun GuidedTour(
     sphereBounds: Rect?,
     sphereCanTurn: Boolean,
     mirrored: Boolean,
+    quickActionsBounds: Rect?,
     onSkip: () -> Unit,
 ) {
     // The last step stays on screen while the tour fades out after it.
@@ -143,13 +151,23 @@ fun GuidedTour(
     var captionTop by remember { mutableFloatStateOf(0f) }
     val statusTop = WindowInsets.statusBars.getTop(density).toFloat()
     val sphere = sphereBounds?.translate(-origin)
+    val homeGap = if (current.inSearch) null else gapBetween(quickActionsBounds?.translate(-origin), sphere)
     val gesture = if (size == Size.Zero || captionTop == 0f) {
         null
     } else {
         // Home-screen gestures are worked out for the usual layout, then mirrored to match the screen.
         val mirror = mirrored && !current.inSearch
-        tourGesture(current, sphereCanTurn, size, captionTop, statusTop, sphere?.let { if (mirror) it.mirrored(size.width) else it }, density)
-            ?.let { if (mirror) it.mirrored(size.width) else it }
+        fun flip(x: Float) = if (mirror) size.width - x else x
+        tourGesture(
+            current,
+            sphereCanTurn,
+            size,
+            captionTop,
+            statusTop,
+            sphere?.let { if (mirror) it.mirrored(size.width) else it },
+            homeX = homeGap?.let { flip((it.start + it.endInclusive) / 2) },
+            density,
+        )?.let { if (mirror) it.mirrored(size.width) else it }
     }
 
     // Search dims the home screen itself, so the spotlight is only for home-screen steps.
@@ -210,6 +228,17 @@ fun GuidedTour(
             onSkip = onSkip,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
+                .then(
+                    if (homeGap != null) {
+                        // Only as wide as the gap, and placed in it.
+                        val gapWidth = with(density) { (homeGap.endInclusive - homeGap.start).toDp() }
+                        Modifier
+                            .offset { IntOffset(((homeGap.start + homeGap.endInclusive - size.width) / 2).roundToInt(), 0) }
+                            .width(gapWidth)
+                    } else {
+                        Modifier
+                    },
+                )
                 .systemBarsPadding()
                 // Above the keyboard while search is open.
                 .imePadding()
@@ -234,6 +263,15 @@ private sealed interface TourGesture {
     data class Hold(val at: Offset) : TourGesture
 }
 
+/**
+ * The stretch of screen, left to right, between the [quickActions] and the [sphere], whichever side
+ * each is on; null if either isn't placed yet.
+ */
+private fun gapBetween(quickActions: Rect?, sphere: Rect?): ClosedFloatingPointRange<Float>? {
+    if (quickActions == null || sphere == null) return null
+    return if (sphere.left >= quickActions.right) quickActions.right..sphere.left else sphere.right..quickActions.left
+}
+
 /** [this] flipped left to right across a screen [width] wide. */
 private fun TourGesture.mirrored(width: Float): TourGesture = when (this) {
     is TourGesture.Swipe -> TourGesture.Swipe(from.mirrored(width), to.mirrored(width))
@@ -256,17 +294,21 @@ private fun tourGesture(
     captionTop: Float,
     statusTop: Float,
     sphere: Rect?,
+    homeX: Float?,
     density: Density,
 ): TourGesture? = with(density) {
     // Search's results area, below its field and filter bar.
-    val searchTop = statusTop + TourConfig.SearchContentTop.toPx()
+    val contentTop = if (size.width > size.height) TourConfig.SearchContentTopLandscape else TourConfig.SearchContentTop
+    val searchTop = statusTop + contentTop.toPx()
     val searchBottom = max(captionTop - TourConfig.CaptionGap.toPx(), searchTop)
     when (step) {
         TourStep.SEARCH -> {
-            val x = size.width * TourConfig.SWIPE_X_FRACTION
+            val x = homeX ?: (size.width * TourConfig.SWIPE_X_FRACTION)
             val clearOfSphere = sphere?.let { min(x, it.left - TourConfig.SphereClearance.toPx()) } ?: x
             val from = Offset(clearOfSphere, captionTop - TourConfig.SwipeStartAboveCaption.toPx())
-            TourGesture.Swipe(from, from - Offset(0f, TourConfig.SwipeLength.toPx()))
+            // Shortened where the screen is short (landscape), so it stops below the status bar.
+            val length = min(TourConfig.SwipeLength.toPx(), from.y - statusTop - TourConfig.SpotlightWidth.toPx() / 2)
+            TourGesture.Swipe(from, from - Offset(0f, length))
         }
         // Leftwards, the way to the next category.
         TourStep.FILTER -> {
@@ -291,7 +333,7 @@ private fun tourGesture(
             }
         }
         TourStep.SETTINGS -> TourGesture.Hold(
-            Offset(size.width * TourConfig.HOLD_X_FRACTION, captionTop - TourConfig.HoldAboveCaption.toPx()),
+            Offset(homeX ?: (size.width * TourConfig.HOLD_X_FRACTION), captionTop - TourConfig.HoldAboveCaption.toPx()),
         )
     }
 }

@@ -2,6 +2,7 @@ package com.example.halauncher.ui.home
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -15,12 +16,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListItemInfo
-import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyGridItemInfo
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -36,7 +38,6 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -45,6 +46,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -60,13 +63,17 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.toOffset
+import androidx.compose.ui.unit.toSize
 import androidx.compose.ui.zIndex
 import com.example.halauncher.R
 import com.example.halauncher.config.PinPickerConfig
 import com.example.halauncher.config.SearchConfig
 import com.example.halauncher.config.ThemeConfig
 import com.example.halauncher.model.AppInfo
+import com.example.halauncher.ui.components.isLandscape
 import com.example.halauncher.ui.components.liquidGlass
+import com.example.halauncher.ui.components.overlayTopSpacing
 import com.example.halauncher.ui.components.rememberDrawablePainter
 import com.example.halauncher.util.Haptics
 
@@ -102,8 +109,11 @@ fun PinnedAppsPicker(
 
     val context = LocalContext.current
     val haptics = remember(context) { Haptics(context) }
-    val listState = rememberLazyListState()
-    val reorder = remember(listState) { PinReorderState(listState, onMove = haptics::tick) }
+    // Two columns in landscape, where one wide row per app would leave a gap between the name and its
+    // checkbox; one in portrait.
+    val columns = if (isLandscape()) 2 else 1
+    val gridState = rememberLazyGridState()
+    val reorder = remember(gridState) { PinReorderState(gridState, onMove = haptics::tick) }
     // Read from the long-lived drag gesture, so always the latest.
     val currentPinnedApps by rememberUpdatedState(pinnedApps)
     val currentOnReorder by rememberUpdatedState(onReorder)
@@ -148,7 +158,7 @@ fun PinnedAppsPicker(
                 .padding(horizontal = SearchConfig.HorizontalPadding)
                 .padding(bottom = SearchConfig.BottomSpacing),
         ) {
-            Spacer(Modifier.height(SearchConfig.TopSpacing))
+            Spacer(Modifier.height(overlayTopSpacing()))
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -180,8 +190,8 @@ fun PinnedAppsPicker(
                 }
             }
             Spacer(Modifier.height(SearchConfig.ResultsSpacing))
-            LazyColumn(state = listState, modifier = Modifier.fillMaxWidth()) {
-                // Pinned apps come first so their list indices match their place in the order.
+            LazyVerticalGrid(columns = GridCells.Fixed(columns), state = gridState, modifier = Modifier.fillMaxWidth()) {
+                // Pinned apps come first so their indices match their place in the order.
                 itemsIndexed(shownPinned, key = { _, app -> app.packageName }) { index, app ->
                     val isDragged = reorder.isDragging && reorder.draggedIndex == index
                     val placement = if (isDragged) {
@@ -189,7 +199,8 @@ fun PinnedAppsPicker(
                         Modifier
                             .zIndex(1f)
                             .graphicsLayer {
-                                translationY = reorder.draggedOffset
+                                translationX = reorder.draggedOffset.x
+                                translationY = reorder.draggedOffset.y
                                 scaleX = PinPickerConfig.DRAGGED_SCALE
                                 scaleY = PinPickerConfig.DRAGGED_SCALE
                             }
@@ -214,16 +225,29 @@ fun PinnedAppsPicker(
                                     .takeIf { index < shownPinned.lastIndex },
                             )
                         },
-                        dragHandle = Modifier.pointerInput(app.packageName) {
-                            detectVerticalDragGestures(
-                                onDragStart = { startDrag(app) },
-                                onVerticalDrag = { change, amount ->
-                                    change.consume()
-                                    reorder.drag(amount)
-                                },
-                                onDragEnd = { endDrag() },
-                                onDragCancel = { endDrag() },
-                            )
+                        // Up and down in one column; any direction across two.
+                        dragHandle = Modifier.pointerInput(app.packageName, columns) {
+                            if (columns == 1) {
+                                detectVerticalDragGestures(
+                                    onDragStart = { startDrag(app) },
+                                    onVerticalDrag = { change, amount ->
+                                        change.consume()
+                                        reorder.drag(Offset(0f, amount))
+                                    },
+                                    onDragEnd = { endDrag() },
+                                    onDragCancel = { endDrag() },
+                                )
+                            } else {
+                                detectDragGestures(
+                                    onDragStart = { startDrag(app) },
+                                    onDrag = { change, amount ->
+                                        change.consume()
+                                        reorder.drag(amount)
+                                    },
+                                    onDragEnd = { endDrag() },
+                                    onDragCancel = { endDrag() },
+                                )
+                            }
                         },
                     )
                 }
@@ -244,13 +268,13 @@ fun PinnedAppsPicker(
 }
 
 /**
- * Drag-to-reorder for the pinned apps at the top of the picker's list, which occupy list
- * indices `0 until order.size`. The dragged row follows the finger; whenever its middle passes
- * over another pinned row, the two trade places in [order].
+ * Drag-to-reorder for the pinned apps at the start of the picker's grid, which occupy indices
+ * `0 until order.size`. The dragged cell follows the finger; whenever its middle passes over
+ * another pinned cell, the two trade places in [order].
  */
 @Stable
 private class PinReorderState(
-    private val listState: LazyListState,
+    private val gridState: LazyGridState,
     private val onMove: () -> Unit,
 ) {
     /** The pinned apps as arranged by the current (or just finished) drag; null otherwise. */
@@ -262,39 +286,39 @@ private class PinReorderState(
 
     val isDragging: Boolean get() = draggedIndex >= 0
 
-    /** Where the dragged row was when the drag began, and how far the finger has moved since. */
-    private var startOffset = 0
-    private var dragDelta by mutableFloatStateOf(0f)
+    /** Where the dragged cell was when the drag began, and how far the finger has moved since. */
+    private var startOffset = Offset.Zero
+    private var dragDelta by mutableStateOf(Offset.Zero)
 
-    private val draggedItem: LazyListItemInfo?
-        get() = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == draggedIndex }
+    private val draggedItem: LazyGridItemInfo?
+        get() = gridState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == draggedIndex }
 
-    /** How far the dragged row is drawn from its slot in the list, so it stays under the finger. */
-    val draggedOffset: Float
-        get() = draggedItem?.let { startOffset + dragDelta - it.offset } ?: 0f
+    /** How far the dragged cell is drawn from its slot in the grid, so it stays under the finger. */
+    val draggedOffset: Offset
+        get() = draggedItem?.let { startOffset + dragDelta - it.offset.toOffset() } ?: Offset.Zero
 
-    /** Starts dragging the row keyed [packageName]; false if it isn't on screen. */
+    /** Starts dragging the cell keyed [packageName]; false if it isn't on screen. */
     fun start(packageName: String, pinnedApps: List<AppInfo>): Boolean {
-        val item = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == packageName } ?: return false
+        val item = gridState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == packageName } ?: return false
         if (item.index !in pinnedApps.indices) return false
         order = pinnedApps
         draggedIndex = item.index
-        startOffset = item.offset
-        dragDelta = 0f
+        startOffset = item.offset.toOffset()
+        dragDelta = Offset.Zero
         return true
     }
 
-    fun drag(amount: Float) {
+    fun drag(amount: Offset) {
         val current = order ?: return
         dragDelta += amount
         val item = draggedItem ?: return
-        val middle = (item.offset + draggedOffset + item.size / 2f).toInt()
-        val target = listState.layoutInfo.visibleItemsInfo.firstOrNull {
-            it.index != item.index && it.index in current.indices && middle in it.offset..(it.offset + it.size)
+        val middle = item.offset.toOffset() + draggedOffset + Offset(item.size.width / 2f, item.size.height / 2f)
+        val target = gridState.layoutInfo.visibleItemsInfo.firstOrNull {
+            it.index != item.index && it.index in current.indices && Rect(it.offset.toOffset(), it.size.toSize()).contains(middle)
         } ?: return
-        // Moving the first visible row would otherwise drag the scroll position along with it.
-        if (item.index == listState.firstVisibleItemIndex || target.index == listState.firstVisibleItemIndex) {
-            listState.requestScrollToItem(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
+        // Moving the first visible cell would otherwise drag the scroll position along with it.
+        if (item.index == gridState.firstVisibleItemIndex || target.index == gridState.firstVisibleItemIndex) {
+            gridState.requestScrollToItem(gridState.firstVisibleItemIndex, gridState.firstVisibleItemScrollOffset)
         }
         order = current.toMutableList().apply { add(target.index, removeAt(item.index)) }
         draggedIndex = target.index
@@ -304,7 +328,7 @@ private class PinReorderState(
     /** Ends the drag, returning the resulting order (still shown until the caller clears it). */
     fun end(): List<AppInfo>? {
         draggedIndex = -1
-        dragDelta = 0f
+        dragDelta = Offset.Zero
         return order
     }
 }

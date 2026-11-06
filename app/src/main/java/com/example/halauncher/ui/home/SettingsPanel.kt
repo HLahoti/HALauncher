@@ -59,8 +59,10 @@ import com.example.halauncher.model.AccessState
 import com.example.halauncher.model.HomeTextColor
 import com.example.halauncher.model.SearchCategory
 import com.example.halauncher.service.DeviceLock
+import com.example.halauncher.ui.components.isLandscape
 import com.example.halauncher.ui.components.labelRes
 import com.example.halauncher.ui.components.liquidGlass
+import com.example.halauncher.ui.components.overlayTopSpacing
 import com.example.halauncher.util.Haptics
 import kotlin.math.roundToInt
 
@@ -68,7 +70,7 @@ import kotlin.math.roundToInt
  * The launcher's settings, opened by long-pressing the empty home screen. Glass cards, each with a
  * short explanation of what it does and any permission it needs: two toggles and a vibration-intensity
  * slider. Laid out like the pinned-app picker: a full scrim over the (blurred) home screen, a glass
- * header with a Done button, then the cards.
+ * header with a Done button, then the cards: one per row in portrait, two side by side in landscape.
  *
  * A "Lock settings" toggle sits at the very top, always usable. While it's on, every other setting is
  * greyed out and can't be changed, guarding against accidental taps.
@@ -136,7 +138,7 @@ fun SettingsPanel(
                 .padding(horizontal = SearchConfig.HorizontalPadding)
                 .padding(bottom = SearchConfig.BottomSpacing),
         ) {
-            Spacer(Modifier.height(SearchConfig.TopSpacing))
+            Spacer(Modifier.height(overlayTopSpacing()))
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -156,27 +158,28 @@ fun SettingsPanel(
                 }
             }
             Spacer(Modifier.height(SearchConfig.ResultsSpacing))
-            Column(
-                modifier = Modifier.verticalScroll(scrollState),
-                verticalArrangement = Arrangement.spacedBy(SettingsPanelConfig.CardSpacing),
-            ) {
+            // Two cards side by side in landscape, where one per row would leave most of the
+            // width empty; one per row in portrait.
+            val columns = if (isLandscape()) 2 else 1
+            // Every other setting fades and stops responding while the lock is on.
+            val contentAlpha by animateFloatAsState(
+                if (settingsLocked) SettingsPanelConfig.LOCKED_CONTENT_ALPHA else 1f,
+                label = "lockedSettingsAlpha",
+            )
+            val enabled = !settingsLocked
+            val lockable = Modifier.graphicsLayer { alpha = contentAlpha }
+            val cards = listOf<@Composable (Modifier) -> Unit>(
                 // At the very top, always usable so it can be turned back off: the master lock.
-                SettingToggle(
-                    title = stringResource(R.string.setting_lock_title),
-                    description = stringResource(R.string.setting_lock_description),
-                    checked = settingsLocked,
-                    onCheckedChange = onSettingsLockedChange,
-                )
-                // Every other setting fades and stops responding while the lock is on.
-                val contentAlpha by animateFloatAsState(
-                    if (settingsLocked) SettingsPanelConfig.LOCKED_CONTENT_ALPHA else 1f,
-                    label = "lockedSettingsAlpha",
-                )
-                val enabled = !settingsLocked
-                Column(
-                    modifier = Modifier.graphicsLayer { alpha = contentAlpha },
-                    verticalArrangement = Arrangement.spacedBy(SettingsPanelConfig.CardSpacing),
-                ) {
+                { modifier ->
+                    SettingToggle(
+                        title = stringResource(R.string.setting_lock_title),
+                        description = stringResource(R.string.setting_lock_description),
+                        checked = settingsLocked,
+                        onCheckedChange = onSettingsLockedChange,
+                        modifier = modifier,
+                    )
+                },
+                { modifier ->
                     SettingToggle(
                         title = stringResource(R.string.setting_double_tap_lock_title),
                         description = stringResource(R.string.setting_double_tap_lock_description),
@@ -193,7 +196,10 @@ fun SettingsPanel(
                                 DeviceLock.disable(context)
                             }
                         },
+                        modifier = modifier.then(lockable),
                     )
+                },
+                { modifier ->
                     SettingChoice(
                         title = stringResource(R.string.setting_default_search_category_title),
                         description = stringResource(R.string.setting_default_search_category_description),
@@ -206,7 +212,10 @@ fun SettingsPanel(
                             else stringResource(category.labelRes)
                         },
                         onSelected = onDefaultSearchCategoryChange,
+                        modifier = modifier.then(lockable),
                     )
+                },
+                { modifier ->
                     SettingChoice(
                         title = stringResource(R.string.setting_home_text_color_title),
                         description = stringResource(R.string.setting_home_text_color_description),
@@ -221,21 +230,30 @@ fun SettingsPanel(
                             }
                         },
                         onSelected = onHomeTextColorChange,
+                        modifier = modifier.then(lockable),
                     )
+                },
+                { modifier ->
                     SettingToggle(
                         title = stringResource(R.string.setting_left_handed_title),
                         description = stringResource(R.string.setting_left_handed_description),
                         checked = leftHanded,
                         enabled = enabled,
                         onCheckedChange = onLeftHandedChange,
+                        modifier = modifier.then(lockable),
                     )
+                },
+                { modifier ->
                     SettingToggle(
                         title = stringResource(R.string.setting_reduce_index_title),
                         description = stringResource(R.string.setting_reduce_index_description),
                         checked = reduceIndexSize,
                         enabled = enabled,
                         onCheckedChange = onReduceIndexSizeChange,
+                        modifier = modifier.then(lockable),
                     )
+                },
+                { modifier ->
                     SettingSlider(
                         title = stringResource(R.string.setting_haptic_intensity_title),
                         description = stringResource(R.string.setting_haptic_intensity_description),
@@ -254,32 +272,43 @@ fun SettingsPanel(
                                 if (value > 0f) previewHaptics.tick()
                             }
                         },
+                        modifier = modifier.then(lockable),
                     )
-                }
+                },
                 // Always available, even while locked: re-granting permissions, opening the guide and
                 // reading About don't change any of the launcher's own settings.
-                SettingAction(
-                    title = stringResource(R.string.setting_setup_title),
-                    description = stringResource(R.string.setting_setup_description),
-                    onClick = onOpenSetup,
-                    warning = when {
-                        !contactsAccess.isGranted && !filesAccess.isGranted -> stringResource(R.string.setup_warning_both)
-                        !contactsAccess.isGranted -> stringResource(R.string.setup_warning_contacts)
-                        !filesAccess.isGranted -> stringResource(R.string.setup_warning_files)
-                        else -> null
-                    },
-                )
-                SettingAction(
-                    title = stringResource(R.string.setting_how_to_title),
-                    description = stringResource(R.string.setting_how_to_description),
-                    onClick = onHowToUse,
-                )
-                SettingAction(
-                    title = stringResource(R.string.setting_about_title),
-                    description = stringResource(R.string.setting_about_description),
-                    onClick = onOpenAbout,
-                )
-            }
+                { modifier ->
+                    SettingAction(
+                        title = stringResource(R.string.setting_setup_title),
+                        description = stringResource(R.string.setting_setup_description),
+                        onClick = onOpenSetup,
+                        warning = when {
+                            !contactsAccess.isGranted && !filesAccess.isGranted -> stringResource(R.string.setup_warning_both)
+                            !contactsAccess.isGranted -> stringResource(R.string.setup_warning_contacts)
+                            !filesAccess.isGranted -> stringResource(R.string.setup_warning_files)
+                            else -> null
+                        },
+                        modifier = modifier,
+                    )
+                },
+                { modifier ->
+                    SettingAction(
+                        title = stringResource(R.string.setting_how_to_title),
+                        description = stringResource(R.string.setting_how_to_description),
+                        onClick = onHowToUse,
+                        modifier = modifier,
+                    )
+                },
+                { modifier ->
+                    SettingAction(
+                        title = stringResource(R.string.setting_about_title),
+                        description = stringResource(R.string.setting_about_description),
+                        onClick = onOpenAbout,
+                        modifier = modifier,
+                    )
+                },
+            )
+            CardRows(cards = cards, columns = columns, modifier = Modifier.verticalScroll(scrollState))
         }
     }
 }
@@ -294,9 +323,10 @@ private fun SettingAction(
     description: String,
     onClick: () -> Unit,
     warning: String? = null,
+    modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .liquidGlass(RoundedCornerShape(SettingsPanelConfig.CardCornerRadius), tint = SettingsPanelConfig.GlassTint)
             .clickable(onClickLabel = title, onClick = onClick)
@@ -328,9 +358,10 @@ private fun SettingToggle(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     enabled: Boolean = true,
+    modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .liquidGlass(RoundedCornerShape(SettingsPanelConfig.CardCornerRadius), tint = SettingsPanelConfig.GlassTint)
             .toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onCheckedChange)
@@ -383,9 +414,10 @@ private fun <T> SettingChoice(
     optionLabel: @Composable (T) -> String,
     onSelected: (T) -> Unit,
     enabled: Boolean = true,
+    modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .liquidGlass(RoundedCornerShape(SettingsPanelConfig.CardCornerRadius), tint = SettingsPanelConfig.GlassTint)
             .padding(SettingsPanelConfig.CardPadding),
@@ -471,9 +503,10 @@ private fun SettingSlider(
     value: Float,
     onValueChange: (Float) -> Unit,
     enabled: Boolean = true,
+    modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .liquidGlass(RoundedCornerShape(SettingsPanelConfig.CardCornerRadius), tint = SettingsPanelConfig.GlassTint)
             .padding(SettingsPanelConfig.CardPadding),

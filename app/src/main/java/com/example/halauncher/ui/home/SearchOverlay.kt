@@ -97,8 +97,10 @@ import com.example.halauncher.ui.components.ClickToLaunch
 import com.example.halauncher.ui.components.GridLayoutIcon
 import com.example.halauncher.ui.components.ListLayoutIcon
 import com.example.halauncher.ui.components.icon
+import com.example.halauncher.ui.components.isLandscape
 import com.example.halauncher.ui.components.launchSafely
 import com.example.halauncher.ui.components.liquidGlass
+import com.example.halauncher.ui.components.overlayTopSpacing
 import com.example.halauncher.ui.components.rememberDrawablePainter
 import com.example.halauncher.util.Haptics
 import java.text.NumberFormat
@@ -146,6 +148,7 @@ fun SearchOverlay(
     // Each tab ("All" included) can be a grid, switched by the toggle beside the bar; picking an
     // app, or search without the bar, stays a list.
     val showGrid = showsCategoryBar && categoryFilter in gridCategories
+    val isLandscape = isLandscape()
     val searchFieldShape = RoundedCornerShape(percent = 50)
     val placeholderColor = ThemeConfig.Foreground.copy(alpha = SearchConfig.PLACEHOLDER_ALPHA)
     // The empty field shows a different hint each time search comes in, so its features get
@@ -198,6 +201,7 @@ fun SearchOverlay(
     // Swiping down closes search the way it came in, in step with the finger. On the results
     // list that starts only once the list is scrolled to the top: it gets the drag first.
     val dismissScroll = remember(reveal) { reveal?.let(::SearchDismissScroll) }
+    val hideKeyboardOnScroll = remember(keyboard) { HideKeyboardOnScroll { keyboard?.hide() } }
 
     // Swiping sideways anywhere in search steps the category filter, like dragging the bar's
     // thumb one segment: left for the next category, right for the previous one.
@@ -263,7 +267,7 @@ fun SearchOverlay(
                 .padding(horizontal = SearchConfig.HorizontalPadding)
                 .padding(bottom = SearchConfig.BottomSpacing),
         ) {
-            Spacer(Modifier.height(SearchConfig.TopSpacing))
+            Spacer(Modifier.height(overlayTopSpacing()))
             if (pickTitle != null) {
                 Text(
                     text = pickTitle,
@@ -275,49 +279,87 @@ fun SearchOverlay(
                 )
             }
             // A plain TextField with its fill and underline cleared, so the glass is the surface.
-            TextField(
-                value = query,
-                onValueChange = onQueryChange,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .liquidGlass(searchFieldShape, tint = SearchConfig.FIELD_GLASS_TINT)
-                    .focusRequester(focusRequester),
-                shape = searchFieldShape,
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color.Transparent,
-                    unfocusedContainerColor = Color.Transparent,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                    focusedTextColor = ThemeConfig.Foreground,
-                    unfocusedTextColor = ThemeConfig.Foreground,
-                    cursorColor = ThemeConfig.Foreground,
-                    focusedLeadingIconColor = ThemeConfig.Foreground,
-                    unfocusedLeadingIconColor = ThemeConfig.Foreground,
-                    focusedPlaceholderColor = placeholderColor,
-                    unfocusedPlaceholderColor = placeholderColor,
-                ),
-                placeholder = { Text(placeholder, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
-                keyboardActions = KeyboardActions(
-                    // Go acts on the top result, the same as tapping it. The calc answer, when
-                    // it's there, sits above everything else, so Go copies it to the clipboard.
-                    onGo = {
-                        activeCalcResult?.let {
-                            onCalcResultSelected(it)
-                            return@KeyboardActions
-                        }
-                        val entry = results.firstOrNull() ?: return@KeyboardActions
-                        when {
-                            isPicking -> onEntryPicked(entry)
-                            context.launchSafely(entry, resources.getString(R.string.open_app, entry.name)) ->
-                                onEntryOpened(entry)
-                        }
-                    },
-                ),
-            )
-            if (showsCategoryBar) {
+            val searchField = @Composable { fieldModifier: Modifier ->
+                TextField(
+                    value = query,
+                    onValueChange = onQueryChange,
+                    modifier = fieldModifier
+                        .liquidGlass(searchFieldShape, tint = SearchConfig.FIELD_GLASS_TINT)
+                        .focusRequester(focusRequester),
+                    shape = searchFieldShape,
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        focusedTextColor = ThemeConfig.Foreground,
+                        unfocusedTextColor = ThemeConfig.Foreground,
+                        cursorColor = ThemeConfig.Foreground,
+                        focusedLeadingIconColor = ThemeConfig.Foreground,
+                        unfocusedLeadingIconColor = ThemeConfig.Foreground,
+                        focusedPlaceholderColor = placeholderColor,
+                        unfocusedPlaceholderColor = placeholderColor,
+                    ),
+                    placeholder = { Text(placeholder, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
+                    keyboardActions = KeyboardActions(
+                        // Go acts on the top result, the same as tapping it. The calc answer, when
+                        // it's there, sits above everything else, so Go copies it to the clipboard.
+                        onGo = {
+                            activeCalcResult?.let {
+                                onCalcResultSelected(it)
+                                return@KeyboardActions
+                            }
+                            val entry = results.firstOrNull() ?: return@KeyboardActions
+                            when {
+                                isPicking -> onEntryPicked(entry)
+                                context.launchSafely(entry, resources.getString(R.string.open_app, entry.name)) ->
+                                    onEntryOpened(entry)
+                            }
+                        },
+                    ),
+                )
+            }
+            val layoutToggle = @Composable { toggleModifier: Modifier ->
+                LayoutToggle(
+                    category = categoryFilter,
+                    asGrid = showGrid,
+                    onChange = { onGridChange(categoryFilter, it) },
+                    modifier = toggleModifier,
+                )
+            }
+            if (showsCategoryBar && isLandscape) {
+                // Landscape is short, so the bar and the grid/list toggle share the field's line,
+                // the field taking what's left: field, bar, toggle from the left, or the mirror
+                // image (toggle, bar, field) in left-handed mode.
+                val categoryBar = @Composable {
+                    CategoryFilterBar(
+                        categories = categories,
+                        selected = categoryFilter,
+                        onSelected = onCategoryFilterChange,
+                    )
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = CategoryFilterConfig.VerticalSpacing),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(SearchConfig.LandscapeHeaderGap),
+                ) {
+                    if (leftHanded) {
+                        layoutToggle(Modifier)
+                        categoryBar()
+                        searchField(Modifier.weight(1f))
+                    } else {
+                        searchField(Modifier.weight(1f))
+                        categoryBar()
+                        layoutToggle(Modifier)
+                    }
+                }
+            } else if (showsCategoryBar) {
+                searchField(Modifier.fillMaxWidth())
                 // The bar stays centred; the grid/list toggle sits at the right end of its line, or
                 // the left in left-handed mode.
                 Box(
@@ -331,14 +373,10 @@ fun SearchOverlay(
                         onSelected = onCategoryFilterChange,
                         modifier = Modifier.align(Alignment.Center),
                     )
-                    LayoutToggle(
-                        category = categoryFilter,
-                        asGrid = showGrid,
-                        onChange = { onGridChange(categoryFilter, it) },
-                        modifier = Modifier.align(if (leftHanded) Alignment.CenterStart else Alignment.CenterEnd),
-                    )
+                    layoutToggle(Modifier.align(if (leftHanded) Alignment.CenterStart else Alignment.CenterEnd))
                 }
             } else {
+                searchField(Modifier.fillMaxWidth())
                 Spacer(Modifier.height(SearchConfig.ResultsSpacing))
             }
             if (!isPicking) {
@@ -367,11 +405,30 @@ fun SearchOverlay(
                     }
                 }
             }
-            if (showGrid) {
+            // Landscape spreads the results over more columns: a wider grid, and a list in two
+            // columns (laid out by the grid, each cell a list row).
+            val entryContent: @Composable (SearchEntry) -> Unit = { entry ->
+                if (showGrid) {
+                    EntryGridCellContent(entry, contactPhotos, fileThumbnails, shortcutIcons)
+                } else {
+                    EntryRowContent(entry, contactPhotos, fileThumbnails, shortcutIcons)
+                }
+            }
+            if (showGrid || isLandscape) {
                 LazyVerticalGrid(
-                    columns = GridCells.Fixed(SearchConfig.GRID_COLUMNS),
+                    columns = GridCells.Fixed(
+                        when {
+                            !showGrid -> SearchConfig.LIST_COLUMNS_LANDSCAPE
+                            isLandscape -> SearchConfig.GRID_COLUMNS_LANDSCAPE
+                            else -> SearchConfig.GRID_COLUMNS
+                        },
+                    ),
                     state = gridState,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        // In landscape the keyboard leaves room for little more than a row of
+                        // results, so scrolling them puts it away to show the rest.
+                        .then(if (isLandscape) Modifier.nestedScroll(hideKeyboardOnScroll) else Modifier),
                 ) {
                     if (activeCalcResult != null) {
                         item(key = CALC_RESULT_KEY, span = { GridItemSpan(maxLineSpan) }) {
@@ -379,8 +436,8 @@ fun SearchOverlay(
                         }
                     }
                     items(results.frequent, key = { it.id }) { entry ->
-                        EntryItem(entry = entry, isPicking = false, onOpened = onEntryOpened, onPicked = onEntryPicked) {
-                            EntryGridCellContent(entry, contactPhotos, fileThumbnails, shortcutIcons)
+                        EntryItem(entry = entry, isPicking = isPicking, onOpened = onEntryOpened, onPicked = onEntryPicked) {
+                            entryContent(entry)
                         }
                     }
                     if (showsMoreLabel) {
@@ -389,8 +446,8 @@ fun SearchOverlay(
                         }
                     }
                     items(results.more, key = { it.id }) { entry ->
-                        EntryItem(entry = entry, isPicking = false, onOpened = onEntryOpened, onPicked = onEntryPicked) {
-                            EntryGridCellContent(entry, contactPhotos, fileThumbnails, shortcutIcons)
+                        EntryItem(entry = entry, isPicking = isPicking, onOpened = onEntryOpened, onPicked = onEntryPicked) {
+                            entryContent(entry)
                         }
                     }
                     results.suggestions.forEach { group ->
@@ -398,8 +455,8 @@ fun SearchOverlay(
                             SectionLabel(stringResource(group.kind.label))
                         }
                         items(group.entries, key = { it.id }) { entry ->
-                            EntryItem(entry = entry, isPicking = false, onOpened = onEntryOpened, onPicked = onEntryPicked) {
-                                EntryGridCellContent(entry, contactPhotos, fileThumbnails, shortcutIcons)
+                            EntryItem(entry = entry, isPicking = isPicking, onOpened = onEntryOpened, onPicked = onEntryPicked) {
+                                entryContent(entry)
                             }
                         }
                     }
@@ -443,6 +500,14 @@ fun SearchOverlay(
                 }
             }
         }
+    }
+}
+
+/** Calls [hide] (to put the keyboard away) as soon as the finger scrolls the results. */
+private class HideKeyboardOnScroll(private val hide: () -> Unit) : NestedScrollConnection {
+    override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+        if (source == NestedScrollSource.UserInput && available.y != 0f) hide()
+        return Offset.Zero
     }
 }
 
