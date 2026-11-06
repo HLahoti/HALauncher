@@ -129,6 +129,7 @@ fun SearchOverlay(
     onCalcResultSelected: (String) -> Unit = {},
     permissions: SearchPermissions = SearchPermissions(),
     indexedCounts: Map<SearchCategory, Int> = emptyMap(),
+    leftHanded: Boolean = false,
 ) {
     // When picking (e.g. an app for the money button), results are chosen, not opened.
     val isPicking = pickTitle != null
@@ -317,7 +318,8 @@ fun SearchOverlay(
                 ),
             )
             if (showsCategoryBar) {
-                // The bar stays centred; the grid/list toggle sits at the end of its line.
+                // The bar stays centred; the grid/list toggle sits at the right end of its line, or
+                // the left in left-handed mode.
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -333,7 +335,7 @@ fun SearchOverlay(
                         category = categoryFilter,
                         asGrid = showGrid,
                         onChange = { onGridChange(categoryFilter, it) },
-                        modifier = Modifier.align(Alignment.CenterEnd),
+                        modifier = Modifier.align(if (leftHanded) Alignment.CenterStart else Alignment.CenterEnd),
                     )
                 }
             } else {

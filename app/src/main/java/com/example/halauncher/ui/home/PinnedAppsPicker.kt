@@ -32,6 +32,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -48,6 +49,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -57,6 +59,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.zIndex
 import com.example.halauncher.R
 import com.example.halauncher.config.PinPickerConfig
@@ -73,6 +76,9 @@ import com.example.halauncher.util.Haptics
  * them; the rest follow A–Z. Changes save as they're
  * made. Once [PinPickerConfig.MAX_PINNED] are pinned, unpinned apps are disabled until one is
  * unpinned.
+ *
+ * With [mirrored] (left-handed mode), each row is flipped: drag handle and checkbox on the left,
+ * name and icon on the right.
  */
 @Composable
 fun PinnedAppsPicker(
@@ -81,6 +87,7 @@ fun PinnedAppsPicker(
     onToggle: (AppInfo) -> Unit,
     onReorder: (List<String>) -> Unit,
     onDone: () -> Unit,
+    mirrored: Boolean = false,
 ) {
     val pinnedApps = remember(apps, pinnedPackages) {
         val byPackage = apps.associateBy { it.packageName }
@@ -195,6 +202,7 @@ fun PinnedAppsPicker(
                     }
                     PickerRow(
                         app = app,
+                        mirrored = mirrored,
                         isPinned = true,
                         enabled = true,
                         onToggle = { onToggle(app) },
@@ -222,6 +230,7 @@ fun PinnedAppsPicker(
                 items(otherApps, key = { it.packageName }) { app ->
                     PickerRow(
                         app = app,
+                        mirrored = mirrored,
                         isPinned = false,
                         // Only while there's room on the sphere.
                         enabled = !isFull,
@@ -300,7 +309,10 @@ private class PinReorderState(
     }
 }
 
-/** One app: tapping the row toggles its pin. [dragHandle], if given, shows a handle wearing it. */
+/**
+ * One app: tapping the row toggles its pin. [dragHandle], if given, shows a handle wearing it.
+ * [mirrored] lays the row out the other way round, right-aligned.
+ */
 @Composable
 private fun PickerRow(
     app: AppInfo,
@@ -308,60 +320,69 @@ private fun PickerRow(
     enabled: Boolean,
     onToggle: () -> Unit,
     modifier: Modifier = Modifier,
+    mirrored: Boolean = false,
     dragHandle: Modifier? = null,
 ) {
-    Row(modifier = modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Row(
-            modifier = Modifier
-                .weight(1f)
-                .toggleable(value = isPinned, enabled = enabled, role = Role.Checkbox, onValueChange = { onToggle() })
-                .alpha(if (enabled) 1f else PinPickerConfig.DISABLED_ALPHA)
-                .padding(SearchConfig.ResultRowPadding),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(SearchConfig.ResultIconTextGap),
-        ) {
-            Image(
-                painter = rememberDrawablePainter(app.icon),
-                // The name next to it already describes the row.
-                contentDescription = null,
-                modifier = Modifier.size(SearchConfig.ResultIconSize),
-            )
-            Text(
-                text = app.name,
-                color = ThemeConfig.Foreground,
-                style = MaterialTheme.typography.bodyLarge,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-            // The whole row toggles; the checkbox only shows the state.
-            Checkbox(
-                checked = isPinned,
-                onCheckedChange = null,
-                enabled = enabled,
-                colors = CheckboxDefaults.colors(
-                    checkedColor = ThemeConfig.Foreground,
-                    checkmarkColor = Color.Black,
-                    uncheckedColor = ThemeConfig.Foreground.copy(alpha = PinPickerConfig.UNCHECKED_ALPHA),
-                    // The whole row is dimmed when disabled, so keep the box's own colours.
-                    disabledUncheckedColor = ThemeConfig.Foreground.copy(alpha = PinPickerConfig.UNCHECKED_ALPHA),
-                ),
-            )
-        }
-        // Outside the toggleable area, so grabbing the handle never unpins the app.
-        Box(
-            modifier = Modifier
-                .size(PinPickerConfig.DragHandleTouchSize)
-                .then(dragHandle ?: Modifier),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (dragHandle != null) {
-                Icon(
-                    imageVector = Icons.Default.Menu,
-                    contentDescription = stringResource(R.string.reorder_pinned_app),
-                    tint = ThemeConfig.Foreground.copy(alpha = PinPickerConfig.DRAG_HANDLE_ALPHA),
-                    modifier = Modifier.size(PinPickerConfig.DragHandleIconSize),
+    val ambientDirection = LocalLayoutDirection.current
+    val rowDirection = when {
+        !mirrored -> ambientDirection
+        ambientDirection == LayoutDirection.Ltr -> LayoutDirection.Rtl
+        else -> LayoutDirection.Ltr
+    }
+    CompositionLocalProvider(LocalLayoutDirection provides rowDirection) {
+        Row(modifier = modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .toggleable(value = isPinned, enabled = enabled, role = Role.Checkbox, onValueChange = { onToggle() })
+                    .alpha(if (enabled) 1f else PinPickerConfig.DISABLED_ALPHA)
+                    .padding(SearchConfig.ResultRowPadding),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(SearchConfig.ResultIconTextGap),
+            ) {
+                Image(
+                    painter = rememberDrawablePainter(app.icon),
+                    // The name next to it already describes the row.
+                    contentDescription = null,
+                    modifier = Modifier.size(SearchConfig.ResultIconSize),
                 )
+                Text(
+                    text = app.name,
+                    color = ThemeConfig.Foreground,
+                    style = MaterialTheme.typography.bodyLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                // The whole row toggles; the checkbox only shows the state.
+                Checkbox(
+                    checked = isPinned,
+                    onCheckedChange = null,
+                    enabled = enabled,
+                    colors = CheckboxDefaults.colors(
+                        checkedColor = ThemeConfig.Foreground,
+                        checkmarkColor = Color.Black,
+                        uncheckedColor = ThemeConfig.Foreground.copy(alpha = PinPickerConfig.UNCHECKED_ALPHA),
+                        // The whole row is dimmed when disabled, so keep the box's own colours.
+                        disabledUncheckedColor = ThemeConfig.Foreground.copy(alpha = PinPickerConfig.UNCHECKED_ALPHA),
+                    ),
+                )
+            }
+            // Outside the toggleable area, so grabbing the handle never unpins the app.
+            Box(
+                modifier = Modifier
+                    .size(PinPickerConfig.DragHandleTouchSize)
+                    .then(dragHandle ?: Modifier),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (dragHandle != null) {
+                    Icon(
+                        imageVector = Icons.Default.Menu,
+                        contentDescription = stringResource(R.string.reorder_pinned_app),
+                        tint = ThemeConfig.Foreground.copy(alpha = PinPickerConfig.DRAG_HANDLE_ALPHA),
+                        modifier = Modifier.size(PinPickerConfig.DragHandleIconSize),
+                    )
+                }
             }
         }
     }

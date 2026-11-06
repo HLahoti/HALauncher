@@ -116,6 +116,7 @@ enum class TourStep(val inSearch: Boolean) {
  * @param sphereBounds where the sphere is, in root coordinates, once it's been laid out.
  * @param sphereCanTurn whether the sphere has enough pins to turn; otherwise its step is to hold it
  *   and pick some.
+ * @param mirrored whether the home screen is mirrored (sphere on the left), so its steps' gestures are too.
  */
 @Composable
 fun GuidedTour(
@@ -125,6 +126,7 @@ fun GuidedTour(
     reveal: () -> Float,
     sphereBounds: Rect?,
     sphereCanTurn: Boolean,
+    mirrored: Boolean,
     onSkip: () -> Unit,
 ) {
     // The last step stays on screen while the tour fades out after it.
@@ -144,7 +146,10 @@ fun GuidedTour(
     val gesture = if (size == Size.Zero || captionTop == 0f) {
         null
     } else {
-        tourGesture(current, sphereCanTurn, size, captionTop, statusTop, sphere, density)
+        // Home-screen gestures are worked out for the usual layout, then mirrored to match the screen.
+        val mirror = mirrored && !current.inSearch
+        tourGesture(current, sphereCanTurn, size, captionTop, statusTop, sphere?.let { if (mirror) it.mirrored(size.width) else it }, density)
+            ?.let { if (mirror) it.mirrored(size.width) else it }
     }
 
     // Search dims the home screen itself, so the spotlight is only for home-screen steps.
@@ -228,6 +233,16 @@ private sealed interface TourGesture {
     /** Touch down at [at] and hold there. */
     data class Hold(val at: Offset) : TourGesture
 }
+
+/** [this] flipped left to right across a screen [width] wide. */
+private fun TourGesture.mirrored(width: Float): TourGesture = when (this) {
+    is TourGesture.Swipe -> TourGesture.Swipe(from.mirrored(width), to.mirrored(width))
+    is TourGesture.Hold -> TourGesture.Hold(at.mirrored(width))
+}
+
+private fun Offset.mirrored(width: Float) = Offset(width - x, y)
+
+private fun Rect.mirrored(width: Float) = Rect(width - right, top, width - left, bottom)
 
 /**
  * Where [step]'s gesture is acted out, in the tour's own coordinates: on the home screen, kept clear

@@ -55,6 +55,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -68,6 +69,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.toIntSize
 import androidx.core.view.WindowCompat
@@ -127,6 +129,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     val hapticIntensity by viewModel.hapticIntensity.collectAsStateWithLifecycle()
     val defaultSearchCategory by viewModel.defaultSearchCategory.collectAsStateWithLifecycle()
     val homeTextColor by viewModel.homeTextColor.collectAsStateWithLifecycle()
+    val leftHanded by viewModel.leftHanded.collectAsStateWithLifecycle()
     val searchGridCategories by viewModel.searchGridCategories.collectAsStateWithLifecycle()
     val moneyApp by viewModel.moneyApp.collectAsStateWithLifecycle()
     val galleryApp by viewModel.galleryApp.collectAsStateWithLifecycle()
@@ -222,6 +225,15 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     // Where the sphere is, so the tour can spotlight it.
     var sphereBounds by remember { mutableStateOf<Rect?>(null) }
 
+    // In left-handed mode the sphere is on the left, and the clock and quick actions are laid out
+    // mirrored: against the right edge, right-aligned, and with each row of buttons in reverse order.
+    val ambientDirection = LocalLayoutDirection.current
+    val homeContentDirection = when {
+        !leftHanded -> ambientDirection
+        ambientDirection == LayoutDirection.Ltr -> LayoutDirection.Rtl
+        else -> LayoutDirection.Ltr
+    }
+
     val searchLabel = stringResource(R.string.search_apps)
     val settingsLabel = stringResource(R.string.open_launcher_settings)
     Box(
@@ -276,132 +288,134 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
             },
     ) {
         CompositionLocalProvider(LocalHomePalette provides homePalette) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    // Read in the draw phase, not in composition, so a swipe redraws without recomposing.
-                    .drawWithContent {
-                        val coverage = max(max(max(pinPickerBlur.value, settingsBlur.value), setupBlur.value), searchReveal.value)
-                        val frozen = coverage >= 1f && homeBlur.recorded && homeLayer.size == size.toIntSize()
-                        if (!frozen) {
-                            homeLayer.record { this@drawWithContent.drawContent() }
-                            homeBlur.recorded = true
-                        }
-                        val rawRadius = HomeScreenConfig.BlurBehindOverlay.toPx() * coverage
-                        // Snap the finger-driven radius to a few steps, so the GPU re-blurs at a
-                        // handful of radii across the gesture rather than a fresh one every frame.
-                        val quantum = HomeScreenConfig.BlurRadiusQuantum.toPx()
-                        val radius = if (quantum > 0f) round(rawRadius / quantum) * quantum else rawRadius
-                        // Setting a new effect would make the blur run again, so only when it changes.
-                        if (radius != homeBlur.radius) {
-                            homeBlur.radius = radius
-                            homeLayer.renderEffect = if (radius > 0f) BlurEffect(radius, radius, TileMode.Clamp) else null
-                            homeLayer.clip = radius > 0f
-                        }
-                        drawLayer(homeLayer)
-                    }
-                    .systemBarsPadding()
-                    .padding(start = HomeScreenConfig.StartMargin, top = HomeScreenConfig.TopMargin),
-                horizontalAlignment = Alignment.Start,
-                verticalArrangement = Arrangement.Top,
-            ) {
-                TimeDisplay(time)
-                DateDisplay(
-                    date = date,
-                    app = calendarApp,
-                    locked = settingsLocked,
-                    onChoose = viewModel::openCalendarAppPicker,
-                    onOpened = viewModel::onEntryOpened,
-                    onRemove = viewModel::clearCalendarApp,
-                )
-                Spacer(Modifier.height(HomeScreenConfig.QuickActionsSpacing))
-                // Quick actions in a 3×2 grid of universal needs: camera / gallery, calls / messages,
-                // payments / internet. Gallery, messages and payments open the app the user chose, and
-                // until one is chosen they ask for it; the rest open the device's default app for their
-                // category. Search opens on swipe up.
+            CompositionLocalProvider(LocalLayoutDirection provides homeContentDirection) {
                 Column(
-                    // Buttons centre their glyph in a 48dp touch target; shift the grid left by the
-                    // padding that creates so the glyphs line up with the text above.
-                    modifier = Modifier.offset(x = -(TouchTarget - HomeScreenConfig.QuickActionIconSize) / 2),
-                    verticalArrangement = Arrangement.spacedBy(HomeScreenConfig.QuickActionSpacing),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        // Read in the draw phase, not in composition, so a swipe redraws without recomposing.
+                        .drawWithContent {
+                            val coverage = max(max(max(pinPickerBlur.value, settingsBlur.value), setupBlur.value), searchReveal.value)
+                            val frozen = coverage >= 1f && homeBlur.recorded && homeLayer.size == size.toIntSize()
+                            if (!frozen) {
+                                homeLayer.record { this@drawWithContent.drawContent() }
+                                homeBlur.recorded = true
+                            }
+                            val rawRadius = HomeScreenConfig.BlurBehindOverlay.toPx() * coverage
+                            // Snap the finger-driven radius to a few steps, so the GPU re-blurs at a
+                            // handful of radii across the gesture rather than a fresh one every frame.
+                            val quantum = HomeScreenConfig.BlurRadiusQuantum.toPx()
+                            val radius = if (quantum > 0f) round(rawRadius / quantum) * quantum else rawRadius
+                            // Setting a new effect would make the blur run again, so only when it changes.
+                            if (radius != homeBlur.radius) {
+                                homeBlur.radius = radius
+                                homeLayer.renderEffect = if (radius > 0f) BlurEffect(radius, radius, TileMode.Clamp) else null
+                                homeLayer.clip = radius > 0f
+                            }
+                            drawLayer(homeLayer)
+                        }
+                        .systemBarsPadding()
+                        .padding(start = HomeScreenConfig.StartMargin, top = HomeScreenConfig.TopMargin),
+                    horizontalAlignment = Alignment.Start,
+                    verticalArrangement = Arrangement.Top,
                 ) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(HomeScreenConfig.QuickActionSpacing)) {
-                        QuickActionButton(
-                            ImageVector.vectorResource(R.drawable.ic_camera),
-                            R.string.open_camera,
-                            remember { IntentFactory.cameraIntent() },
-                        )
-                        ChosenAppButton(
-                            app = galleryApp,
-                            defaultIntent = remember { IntentFactory.galleryIntent() },
-                            namedDescriptionRes = R.string.gallery_app_named,
-                            notSetDescriptionRes = R.string.gallery_app_not_set,
-                            defaultDescriptionRes = R.string.gallery_app_default,
-                            defaultOpenLabelRes = R.string.open_gallery,
-                            optionsLabelRes = R.string.gallery_app_options,
-                            chooseLabelRes = R.string.choose_gallery_app,
-                            locked = settingsLocked,
-                            modifier = QuickActionButtonShape,
-                            onChoose = viewModel::openGalleryAppPicker,
-                            onOpened = viewModel::onEntryOpened,
-                            onRemove = viewModel::clearGalleryApp,
-                        ) {
-                            QuickActionGlyph(ImageVector.vectorResource(R.drawable.ic_gallery))
+                    TimeDisplay(time)
+                    DateDisplay(
+                        date = date,
+                        app = calendarApp,
+                        locked = settingsLocked,
+                        onChoose = viewModel::openCalendarAppPicker,
+                        onOpened = viewModel::onEntryOpened,
+                        onRemove = viewModel::clearCalendarApp,
+                    )
+                    Spacer(Modifier.height(HomeScreenConfig.QuickActionsSpacing))
+                    // Quick actions in a 3×2 grid of universal needs: camera / gallery, calls / messages,
+                    // payments / internet. Gallery, messages and payments open the app the user chose, and
+                    // until one is chosen they ask for it; the rest open the device's default app for their
+                    // category. Search opens on swipe up.
+                    Column(
+                        // Buttons centre their glyph in a 48dp touch target; shift the grid left by the
+                        // padding that creates so the glyphs line up with the text above.
+                        modifier = Modifier.offset(x = -(TouchTarget - HomeScreenConfig.QuickActionIconSize) / 2),
+                        verticalArrangement = Arrangement.spacedBy(HomeScreenConfig.QuickActionSpacing),
+                    ) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(HomeScreenConfig.QuickActionSpacing)) {
+                            QuickActionButton(
+                                ImageVector.vectorResource(R.drawable.ic_camera),
+                                R.string.open_camera,
+                                remember { IntentFactory.cameraIntent() },
+                            )
+                            ChosenAppButton(
+                                app = galleryApp,
+                                defaultIntent = remember { IntentFactory.galleryIntent() },
+                                namedDescriptionRes = R.string.gallery_app_named,
+                                notSetDescriptionRes = R.string.gallery_app_not_set,
+                                defaultDescriptionRes = R.string.gallery_app_default,
+                                defaultOpenLabelRes = R.string.open_gallery,
+                                optionsLabelRes = R.string.gallery_app_options,
+                                chooseLabelRes = R.string.choose_gallery_app,
+                                locked = settingsLocked,
+                                modifier = QuickActionButtonShape,
+                                onChoose = viewModel::openGalleryAppPicker,
+                                onOpened = viewModel::onEntryOpened,
+                                onRemove = viewModel::clearGalleryApp,
+                            ) {
+                                QuickActionGlyph(ImageVector.vectorResource(R.drawable.ic_gallery))
+                            }
                         }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(HomeScreenConfig.QuickActionSpacing)) {
-                        QuickActionButton(Icons.Default.Phone, R.string.open_dialer, remember { IntentFactory.dialerIntent() })
-                        ChosenAppButton(
-                            app = messagesApp,
-                            defaultIntent = remember { IntentFactory.messagesIntent() },
-                            namedDescriptionRes = R.string.messages_app_named,
-                            notSetDescriptionRes = R.string.messages_app_not_set,
-                            defaultDescriptionRes = R.string.messages_app_default,
-                            defaultOpenLabelRes = R.string.open_messages,
-                            optionsLabelRes = R.string.messages_app_options,
-                            chooseLabelRes = R.string.choose_messages_app,
-                            locked = settingsLocked,
-                            modifier = QuickActionButtonShape,
-                            onChoose = viewModel::openMessagesAppPicker,
-                            onOpened = viewModel::onEntryOpened,
-                            onRemove = viewModel::clearMessagesApp,
-                        ) {
-                            QuickActionGlyph(ImageVector.vectorResource(R.drawable.ic_messages))
+                        Row(horizontalArrangement = Arrangement.spacedBy(HomeScreenConfig.QuickActionSpacing)) {
+                            QuickActionButton(Icons.Default.Phone, R.string.open_dialer, remember { IntentFactory.dialerIntent() })
+                            ChosenAppButton(
+                                app = messagesApp,
+                                defaultIntent = remember { IntentFactory.messagesIntent() },
+                                namedDescriptionRes = R.string.messages_app_named,
+                                notSetDescriptionRes = R.string.messages_app_not_set,
+                                defaultDescriptionRes = R.string.messages_app_default,
+                                defaultOpenLabelRes = R.string.open_messages,
+                                optionsLabelRes = R.string.messages_app_options,
+                                chooseLabelRes = R.string.choose_messages_app,
+                                locked = settingsLocked,
+                                modifier = QuickActionButtonShape,
+                                onChoose = viewModel::openMessagesAppPicker,
+                                onOpened = viewModel::onEntryOpened,
+                                onRemove = viewModel::clearMessagesApp,
+                            ) {
+                                QuickActionGlyph(ImageVector.vectorResource(R.drawable.ic_messages))
+                            }
                         }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(HomeScreenConfig.QuickActionSpacing)) {
-                        ChosenAppButton(
-                            app = moneyApp,
-                            // Payments has no sensible system default, so while locked with none
-                            // chosen the button does nothing.
-                            defaultIntent = null,
-                            namedDescriptionRes = R.string.money_app_named,
-                            notSetDescriptionRes = R.string.money_app_not_set,
-                            defaultDescriptionRes = R.string.money_app_not_set,
-                            defaultOpenLabelRes = R.string.choose_money_app,
-                            optionsLabelRes = R.string.money_app_options,
-                            chooseLabelRes = R.string.choose_money_app,
-                            locked = settingsLocked,
-                            modifier = QuickActionButtonShape,
-                            onChoose = viewModel::openMoneyAppPicker,
-                            onOpened = viewModel::onEntryOpened,
-                            onRemove = viewModel::clearMoneyApp,
-                        ) {
-                            Text(
-                                text = moneySymbol,
-                                color = homePalette.foreground,
-                                style = TextStyle(
-                                    fontSize = HomeScreenConfig.MoneySymbolFontSize,
-                                    fontWeight = FontWeight.Medium,
-                                    shadow = homePalette.textShadow,
-                                ),
+                        Row(horizontalArrangement = Arrangement.spacedBy(HomeScreenConfig.QuickActionSpacing)) {
+                            ChosenAppButton(
+                                app = moneyApp,
+                                // Payments has no sensible system default, so while locked with none
+                                // chosen the button does nothing.
+                                defaultIntent = null,
+                                namedDescriptionRes = R.string.money_app_named,
+                                notSetDescriptionRes = R.string.money_app_not_set,
+                                defaultDescriptionRes = R.string.money_app_not_set,
+                                defaultOpenLabelRes = R.string.choose_money_app,
+                                optionsLabelRes = R.string.money_app_options,
+                                chooseLabelRes = R.string.choose_money_app,
+                                locked = settingsLocked,
+                                modifier = QuickActionButtonShape,
+                                onChoose = viewModel::openMoneyAppPicker,
+                                onOpened = viewModel::onEntryOpened,
+                                onRemove = viewModel::clearMoneyApp,
+                            ) {
+                                Text(
+                                    text = moneySymbol,
+                                    color = homePalette.foreground,
+                                    style = TextStyle(
+                                        fontSize = HomeScreenConfig.MoneySymbolFontSize,
+                                        fontWeight = FontWeight.Medium,
+                                        shadow = homePalette.textShadow,
+                                    ),
+                                )
+                            }
+                            QuickActionButton(
+                                ImageVector.vectorResource(R.drawable.ic_internet),
+                                R.string.open_internet,
+                                remember { IntentFactory.internetIntent() },
                             )
                         }
-                        QuickActionButton(
-                            ImageVector.vectorResource(R.drawable.ic_internet),
-                            R.string.open_internet,
-                            remember { IntentFactory.internetIntent() },
-                        )
                     }
                 }
             }
@@ -416,6 +430,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                     locked = settingsLocked,
                     onTurned = viewModel::onSphereTurned,
                     onBounds = { sphereBounds = it },
+                    onLeft = leftHanded,
                     // Makes way for search as it comes in.
                     modifier = Modifier
                         .systemBarsPadding()
@@ -430,6 +445,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 pinnedPackages = pinnedPackages,
                 onToggle = viewModel::togglePinned,
                 onReorder = viewModel::reorderPinned,
+                mirrored = leftHanded,
                 onDone = viewModel::closePinPicker,
             )
         }
@@ -442,12 +458,14 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 hapticIntensity = hapticIntensity,
                 defaultSearchCategory = defaultSearchCategory,
                 homeTextColor = homeTextColor,
+                leftHanded = leftHanded,
                 onSettingsLockedChange = viewModel::setSettingsLocked,
                 onDoubleTapToLockChange = viewModel::setDoubleTapToLock,
                 onReduceIndexSizeChange = viewModel::setReduceIndexSize,
                 onHapticIntensityChange = viewModel::setHapticIntensity,
                 onDefaultSearchCategoryChange = viewModel::setDefaultSearchCategory,
                 onHomeTextColorChange = viewModel::setHomeTextColor,
+                onLeftHandedChange = viewModel::setLeftHanded,
                 onHowToUse = viewModel::startTour,
                 onOpenSetup = viewModel::openSetup,
                 onOpenAbout = viewModel::openAbout,
@@ -538,6 +556,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 onDismissSummary = viewModel::dismissPermissionsPrompt,
             ),
             indexedCounts = indexedCounts,
+            leftHanded = leftHanded,
         )
 
         // Over everything, but it only takes touches on its Skip button. Each step shows only where
@@ -555,6 +574,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
             reveal = { searchReveal.value },
             sphereBounds = sphereBounds,
             sphereCanTurn = pinnedApps.size >= 2,
+            mirrored = leftHanded,
             onSkip = viewModel::endTour,
         )
     }

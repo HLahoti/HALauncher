@@ -104,6 +104,8 @@
     <string name="home_text_color_auto">Auto</string>
     <string name="home_text_color_light">Light</string>
     <string name="home_text_color_dark">Dark</string>
+    <string name="setting_left_handed_title">Left-handed mode</string>
+    <string name="setting_left_handed_description">Puts the pinned app wheel on the left, where your left thumb can spin it. The clock and quick actions move to the right.</string>
     <string name="setting_reduce_index_title">Reduce index size</string>
     <string name="setting_reduce_index_description">Leave files you\'d never open out of search — app backups, caches and the trash bin — so the index stays small and the app lighter. No extra permission: it works within the file access you\'ve already granted.</string>
     <string name="setting_haptic_intensity_title">Vibration intensity</string>

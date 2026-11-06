@@ -323,6 +323,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     /** Colour of the home screen's content: following the wallpaper, or forced light or dark; set from the settings panel. */
     val homeTextColor: StateFlow<HomeTextColor> = _homeTextColor.asStateFlow()
 
+    private val _leftHanded = MutableStateFlow(settingsStore.leftHanded)
+    /** Left-handed mode: the home screen and pin picker are mirrored, with the sphere on the left; set from the settings panel. */
+    val leftHanded: StateFlow<Boolean> = _leftHanded.asStateFlow()
+
     private val _searchGridCategories =
         MutableStateFlow((listOf(null) + SearchCategory.entries).filter(settingsStore::searchAsGrid).toSet())
     /** The search tabs (null for "All") showing a grid of icons rather than a list; toggled from search itself. */
@@ -934,6 +938,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     fun setDoubleTapToLock(enabled: Boolean) {
         settingsStore.doubleTapToLock = enabled
         _doubleTapToLock.value = enabled
+    }
+
+    fun setLeftHanded(enabled: Boolean) {
+        settingsStore.leftHanded = enabled
+        _leftHanded.value = enabled
     }
 
     /** Sets the haptic tick strength (0f–1f). Haptics read it on their next buzz, so it applies at once. */

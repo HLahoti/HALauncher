@@ -81,6 +81,15 @@ class LauncherSettingsStore(context: Context) {
         set(value) = prefs.edit { putString(KEY_HOME_TEXT_COLOR, value.name) }
 
     /**
+     * Left-handed mode: the home screen is mirrored, so the pinned-app sphere docks on the left
+     * edge (by the left thumb) and the clock and quick actions sit on the right; the pin picker's
+     * rows are mirrored to match. Defaults off (sphere on the right).
+     */
+    var leftHanded: Boolean
+        get() = prefs.getBoolean(KEY_LEFT_HANDED, false)
+        set(value) = prefs.edit { putBoolean(KEY_LEFT_HANDED, value) }
+
+    /**
      * Whether search's [category] tab (null for "All") shows its results as a grid of icons rather
      * than a list. Each tab has its own setting. Defaults off (a list).
      */
@@ -105,6 +114,7 @@ class LauncherSettingsStore(context: Context) {
         const val KEY_HAPTIC_INTENSITY = "haptic_intensity"
         const val KEY_DEFAULT_SEARCH_CATEGORY = "default_search_category"
         const val KEY_HOME_TEXT_COLOR = "home_text_color"
+        const val KEY_LEFT_HANDED = "left_handed"
         const val KEY_SEARCH_APPS_AS_GRID = "search_apps_as_grid"
 
         /** Sentinel stored for the "All" default, since null can't be a preference value. */

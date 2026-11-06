@@ -80,6 +80,7 @@ import kotlin.math.roundToInt
  * @param onHapticIntensityChange saves the tick strength (0f–1f); every haptic reads it on its next buzz.
  * @param onDefaultSearchCategoryChange saves the category search opens on (null for "All").
  * @param onHomeTextColorChange saves the home screen's content colour (auto, light or dark).
+ * @param onLeftHandedChange saves left-handed mode (home screen and pin picker mirrored, sphere on the left).
  * @param onHowToUse replays the hands-on tour; stays available even while settings are locked.
  * @param onOpenSetup opens the "Set-up & permissions" screen; stays available even while settings are locked.
  * @param onOpenAbout opens the About screen (version, author, what's new); always available too.
@@ -96,12 +97,14 @@ fun SettingsPanel(
     hapticIntensity: Float,
     defaultSearchCategory: SearchCategory?,
     homeTextColor: HomeTextColor,
+    leftHanded: Boolean,
     onSettingsLockedChange: (Boolean) -> Unit,
     onDoubleTapToLockChange: (Boolean) -> Unit,
     onReduceIndexSizeChange: (Boolean) -> Unit,
     onHapticIntensityChange: (Float) -> Unit,
     onDefaultSearchCategoryChange: (SearchCategory?) -> Unit,
     onHomeTextColorChange: (HomeTextColor) -> Unit,
+    onLeftHandedChange: (Boolean) -> Unit,
     onHowToUse: () -> Unit,
     onOpenSetup: () -> Unit,
     onOpenAbout: () -> Unit,
@@ -218,6 +221,13 @@ fun SettingsPanel(
                             }
                         },
                         onSelected = onHomeTextColorChange,
+                    )
+                    SettingToggle(
+                        title = stringResource(R.string.setting_left_handed_title),
+                        description = stringResource(R.string.setting_left_handed_description),
+                        checked = leftHanded,
+                        enabled = enabled,
+                        onCheckedChange = onLeftHandedChange,
                     )
                     SettingToggle(
                         title = stringResource(R.string.setting_reduce_index_title),

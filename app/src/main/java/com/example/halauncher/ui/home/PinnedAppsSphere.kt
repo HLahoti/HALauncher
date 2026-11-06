@@ -89,10 +89,11 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /**
- * The pinned apps on the rim of a glass half-sphere docked on the right edge.
+ * The pinned apps on the rim of a glass half-sphere docked on the right edge (or the left, with
+ * [onLeft]).
  *
  * Picture a globe seen side-on, turning about a horizontal axis. App `i` sits at angle
- * `(i - rotation) × step` on the rim: 0° is the front (middle, facing left) where the app is
+ * `(i - rotation) × step` on the rim: 0° is the front (middle, facing into the screen) where the app is
  * full size and selected; towards ±90° apps roll over the top and bottom, shrinking and fading,
  * and past that they're behind the sphere. Dragging up or down turns it 1:1 with the finger; a
  * flick carries on and springs onto an app. There's a haptic tick each time a new app reaches
@@ -107,6 +108,7 @@ import kotlin.math.sin
  * recomposing; composition only changes when the front app does.
  *
  * @param modifier should fill the screen; only the sphere itself takes touches.
+ * @param onLeft docks it on the left edge, facing right, instead of on the right.
  * @param onTurned called each time a drag by hand turns the sphere (for the tour).
  * @param onBounds where the whole sphere is in root coordinates, including the part off screen.
  */
@@ -119,6 +121,7 @@ fun PinnedAppsSphere(
     locked: Boolean = false,
     onTurned: () -> Unit = {},
     onBounds: (Rect) -> Unit = {},
+    onLeft: Boolean = false,
 ) {
     val context = LocalContext.current
     val resources = LocalResources.current
@@ -181,20 +184,25 @@ fun PinnedAppsSphere(
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val density = LocalDensity.current
         val layoutDirection = LocalLayoutDirection.current
-        val gestureInset = with(density) { WindowInsets.systemGestures.getRight(density, layoutDirection).toDp() }
+        val gestureInset = with(density) {
+            val insets = WindowInsets.systemGestures
+            (if (onLeft) insets.getLeft(density, layoutDirection) else insets.getRight(density, layoutDirection)).toDp()
+        }
         val radius = SphereConfig.Radius
         val ringRadius = radius - SphereConfig.IconRingInset
         val iconSize = SphereConfig.IconSize
+        // The front faces into the screen: leftwards from the centre when docked right, rightwards when left.
+        val facing = if (onLeft) 1f else -1f
         // The centre sits on the edge of the back-gesture zone, so the whole visible half is
         // outside it and drags on it can't trigger Back.
-        val centerX = maxWidth - gestureInset
+        val centerX = if (onLeft) gestureInset else maxWidth - gestureInset
         val centerY = maxHeight / 2 + SphereConfig.VerticalOffset
 
         fun positionOf(index: Int, rotationValue: Float, radiusPx: Float, ringPx: Float): SlotPosition {
             val angle = loopOffset(index, rotationValue, count) * step
             val depth = cos(angle)
             return SlotPosition(
-                x = radiusPx - ringPx * depth,
+                x = radiusPx + facing * ringPx * depth,
                 y = radiusPx + ringPx * sin(angle),
                 depth = if (abs(angle) < PI / 2) depth else 0f,
             )
@@ -318,7 +326,7 @@ fun PinnedAppsSphere(
             Box(
                 modifier = Modifier
                     .offset(
-                        x = radius - ringRadius - iconSize / 2 - SphereConfig.FrontHaloPadding,
+                        x = radius + ringRadius * facing - iconSize / 2 - SphereConfig.FrontHaloPadding,
                         y = radius - iconSize / 2 - SphereConfig.FrontHaloPadding,
                     )
                     .size(iconSize + SphereConfig.FrontHaloPadding * 2)
@@ -330,7 +338,7 @@ fun PinnedAppsSphere(
                     contentDescription = null,
                     tint = palette.foreground,
                     modifier = Modifier
-                        .offset(x = radius - ringRadius - iconSize / 2, y = radius - iconSize / 2)
+                        .offset(x = radius + ringRadius * facing - iconSize / 2, y = radius - iconSize / 2)
                         .size(iconSize)
                         .padding(SphereConfig.AddIconPadding),
                 )
@@ -372,18 +380,20 @@ fun PinnedAppsSphere(
             }
         }
 
-        // The front app's name, in a glass pill just left of it.
-        val labelEnd = centerX - ringRadius - iconSize / 2 - SphereConfig.LabelGap
+        // The front app's name, in a glass pill just beside it, on the screen side.
+        val labelGap = ringRadius + iconSize / 2 + SphereConfig.LabelGap
+        val labelStart = if (onLeft) centerX + labelGap else 0.dp
+        val labelEnd = if (onLeft) maxWidth else centerX - labelGap
         AnimatedVisibility(
             visible = showLabel || count == 0,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier
-                .offset(y = centerY - SphereConfig.LabelHeight / 2)
-                .width(labelEnd.coerceAtLeast(0.dp))
+                .offset(x = labelStart, y = centerY - SphereConfig.LabelHeight / 2)
+                .width((labelEnd - labelStart).coerceAtLeast(0.dp))
                 .height(SphereConfig.LabelHeight),
         ) {
-            Box(contentAlignment = Alignment.CenterEnd) {
+            Box(contentAlignment = if (onLeft) Alignment.CenterStart else Alignment.CenterEnd) {
                 AnimatedContent(
                     targetState = apps.getOrNull(frontIndex)?.name ?: stringResource(R.string.pin_apps),
                     transitionSpec = { fadeIn() togetherWith fadeOut() },
