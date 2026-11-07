@@ -8,8 +8,8 @@ import com.example.halauncher.model.SearchEntry
 import com.example.halauncher.model.ShortcutEntry
 
 /**
- * What's pinned to the home-screen sphere, as keys in pin order (see [keyOf]): an app's package
- * name, or an app shortcut's id (added through "Add to home screen", see PinShortcutActivity).
+ * What's pinned to the home-screen sphere, as keys in pin order (see [keyOf]): an app's key
+ * (its package name, or "work:" and it for a work app), or an app shortcut's id (added through "Add to home screen", see PinShortcutActivity).
  * Kept in the launcher's preferences, so it survives restarts. A pinned app that's since been
  * uninstalled stays in the list (it's hidden, not forgotten) and returns if it's reinstalled.
  */
@@ -46,18 +46,17 @@ class PinnedAppsStore(context: Context) {
         private const val SEPARATOR = "\n"
 
         /**
-         * The key [entry] is pinned under: an app's package name, a shortcut's id (which starts
+         * The key [entry] is pinned under: an app's AppInfo.key, a shortcut's id (which starts
          * "shortcut:", and package names can't contain a colon); null for anything else, which
          * can't be pinned.
          */
         fun keyOf(entry: SearchEntry): String? = when (entry) {
-            is AppInfo -> entry.packageName
+            is AppInfo -> entry.key
             is ShortcutEntry -> entry.id
             else -> null
         }
 
-        /** The app a shortcut [key] belongs to; null if [key] is an app's. */
-        fun packageOfShortcutKey(key: String): String? =
-            if (key.startsWith(ShortcutEntry.ID_PREFIX)) key.removePrefix(ShortcutEntry.ID_PREFIX).substringBefore('/') else null
+        /** The AppInfo.key of the app a shortcut [key] belongs to; null if [key] is an app's. */
+        fun appKeyOfShortcutKey(key: String): String? = ShortcutEntry.appKeyOf(key)
     }
 }

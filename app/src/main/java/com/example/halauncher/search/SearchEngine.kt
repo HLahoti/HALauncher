@@ -69,7 +69,7 @@ class SearchEngine(
         shortcutsByApp?.let { return it }
         val loaded = index.all(SearchCategory.SHORTCUT, limit = Int.MAX_VALUE)
             .filterIsInstance<ShortcutEntry>()
-            .groupBy { it.packageName }
+            .groupBy { it.appKey }
         // Nothing decodes before the apps are first loaded; keep asking until something does.
         if (loaded.isNotEmpty()) shortcutsByApp = loaded
         return loaded
@@ -89,7 +89,7 @@ class SearchEngine(
         val byApp = loadShortcutsByApp()
         val shown = HashSet<String>(excludeIds).apply { entries.mapTo(this) { it.id } }
         val candidates = apps.associate { app ->
-            app.packageName to byApp[app.packageName].orEmpty().filter { it.id !in shown }
+            app.key to byApp[app.key].orEmpty().filter { it.id !in shown }
         }.filterValues { it.isNotEmpty() }
         if (candidates.isEmpty()) return entries
 
@@ -102,7 +102,8 @@ class SearchEngine(
         val expanded = ArrayList<SearchEntry>(entries.size + candidates.size * SearchLayersConfig.SHORTCUTS_PER_MATCHED_APP)
         for (entry in entries) {
             expanded += entry
-            val shortcuts = (entry as? AppInfo)?.let { candidates[it.packageName] } ?: continue
+            // A work app gets its work shortcuts; the personal copy, its own.
+            val shortcuts = (entry as? AppInfo)?.let { candidates[it.key] } ?: continue
             // sortedByDescending is stable, so equal scores (never opened) stay A–Z.
             shortcuts.sortedByDescending(::score)
                 .filter { it.id !in shown }

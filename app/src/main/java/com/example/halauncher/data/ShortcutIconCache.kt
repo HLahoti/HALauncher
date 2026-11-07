@@ -58,7 +58,13 @@ class ShortcutIconCache(
             memory.get(key) ?: run {
                 val info = find(shortcut) ?: return@run null
                 val drawable = try {
-                    launcherApps?.getShortcutIconDrawable(info, resources.displayMetrics.densityDpi)
+                    val density = resources.displayMetrics.densityDpi
+                    // A work shortcut wears the work badge in its corner, like work apps.
+                    if (shortcut.isWork) {
+                        launcherApps?.getShortcutBadgedIconDrawable(info, density)
+                    } else {
+                        launcherApps?.getShortcutIconDrawable(info, density)
+                    }
                 } catch (e: SecurityException) {
                     // No longer the default home app.
                     null

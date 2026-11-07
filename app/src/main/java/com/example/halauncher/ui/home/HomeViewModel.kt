@@ -229,8 +229,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
      */
     val pinnedItems: StateFlow<List<SearchEntry>> =
         combine(_pinKeys, _installedApps, pinnedShortcuts) { keys, apps, shortcuts ->
-            val byPackage = apps.associateBy { it.packageName }
-            keys.mapNotNull { key -> shortcuts[key] ?: byPackage[key] }
+            val byKey = apps.associateBy { it.key }
+            keys.mapNotNull { key -> shortcuts[key] ?: byKey[key] }
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val quickActionAppStore = QuickActionAppStore(application)
@@ -661,7 +661,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Looks up the shortcuts among [keys] as they are now, icons and all, for [pinnedItems]. */
     private suspend fun refreshPinnedShortcuts(keys: List<String>) {
-        val ids = keys.filter { PinnedAppsStore.packageOfShortcutKey(it) != null }
+        val ids = keys.filter { PinnedAppsStore.appKeyOfShortcutKey(it) != null }
         pinnedShortcuts.value = if (ids.isEmpty()) {
             emptyMap()
         } else {
@@ -727,12 +727,12 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
      * rebuild until the next launch.
      */
     private fun refreshOpenedThisSession(apps: List<AppInfo>) {
-        val byPackage = apps.associateBy { it.packageName }
+        val byKey = apps.associateBy { it.key }
         openedThisSession.update { opened ->
             opened.mapNotNull { entry ->
                 when (entry) {
-                    is AppInfo -> byPackage[entry.packageName]
-                    is ShortcutEntry -> (byPackage[entry.packageName] ?: appRepository.shortcutApp(entry.packageName))?.let { app ->
+                    is AppInfo -> byKey[entry.key]
+                    is ShortcutEntry -> (byKey[entry.appKey] ?: appRepository.shortcutApp(entry.appKey))?.let { app ->
                         entry.copy(appName = app.name, link = app.link)
                     }
                     else -> entry
@@ -854,7 +854,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             SearchPurpose.PICK_CALENDAR_APP -> calendarSlot
             SearchPurpose.FIND -> null
         }
-        if (entry is AppInfo) slot?.assign(entry.packageName)
+        if (entry is AppInfo) slot?.assign(entry.key)
         closeSearch()
     }
 
@@ -1100,7 +1100,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         /** The assigned app while it's installed (tracking install/uninstall); null if none or gone. */
         val app: StateFlow<AppInfo?> =
             combine(chosen, _installedApps) { wanted, apps ->
-                wanted?.let { pkg -> apps.firstOrNull { it.packageName == pkg } }
+                wanted?.let { key -> apps.firstOrNull { it.key == key } }
             }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
         /** Opens app-only search to choose this slot's app; a no-op while settings are locked. */
@@ -1114,9 +1114,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             indexUpdater.flushNow()
         }
 
-        fun assign(packageName: String) {
-            quickActionAppStore.save(slot, packageName)
-            chosen.value = packageName
+        /** Remembers the app keyed [key] (AppInfo.key, so a work app stays the work copy). */
+        fun assign(key: String) {
+            quickActionAppStore.save(slot, key)
+            chosen.value = key
         }
 
         /** Forgets the chosen app; a no-op while settings are locked. */

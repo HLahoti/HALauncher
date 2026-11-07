@@ -105,9 +105,9 @@ private fun entryMenuItems(
     if (!actions.enabled) return@buildList
     when (entry) {
         is AppInfo -> {
-            add(EntryMenuItem(R.string.action_app_info) { context.launchSafely(appInfoIntent(entry.packageName), entry.name) })
+            add(EntryMenuItem(R.string.action_app_info) { context.openAppInfo(entry) })
             if (!actions.locked) {
-                val pinned = entry.packageName in actions.pinKeys
+                val pinned = entry.key in actions.pinKeys
                 if (pinned || actions.canPinMore) {
                     add(EntryMenuItem(if (pinned) R.string.action_unpin else R.string.action_pin) { actions.onTogglePinned(entry) })
                 }
@@ -149,6 +149,16 @@ private fun entryMenuItems(
 /** Starts [intent] on [entry]'s behalf; if it opens, it counts as opening [entry]. */
 private fun Context.openFor(entry: SearchEntry, onOpened: (SearchEntry) -> Unit, intent: Intent) {
     if (launchSafely(intent, entry.name)) onOpened(entry)
+}
+
+/** [app]'s App info page: the work profile's for a work app. */
+private fun Context.openAppInfo(app: AppInfo) {
+    val profile = app.workProfile
+    if (profile == null) {
+        launchSafely(appInfoIntent(app.packageName), app.name)
+    } else if (!AppInfo.openDetailsInProfile(this, app.packageName, profile)) {
+        Toast.makeText(this, getString(R.string.launch_failed, app.name), Toast.LENGTH_SHORT).show()
+    }
 }
 
 private fun appInfoIntent(packageName: String) =

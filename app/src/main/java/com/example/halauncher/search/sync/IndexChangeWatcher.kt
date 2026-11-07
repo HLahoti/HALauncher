@@ -1,15 +1,21 @@
 package com.example.halauncher.search.sync
 
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.LauncherApps
 import android.content.pm.ShortcutInfo
 import android.database.ContentObserver
 import android.net.Uri
 import android.os.Handler
+import android.os.Process
 import android.os.UserHandle
 import android.provider.ContactsContract
 import android.provider.MediaStore
+import androidx.core.content.ContextCompat
 import com.example.halauncher.config.IndexUpdaterConfig
+import com.example.halauncher.model.AppInfo
 import com.example.halauncher.model.SearchCategory
 
 /**
@@ -43,13 +49,14 @@ class IndexChangeWatcher(
     private var filesObserver: ContentObserver? = null
 
     private val appsCallback = object : LauncherApps.Callback() {
-        override fun onPackageAdded(packageName: String, user: UserHandle) = appsChanged(listOf(packageName))
-        override fun onPackageRemoved(packageName: String, user: UserHandle) = appsChanged(listOf(packageName))
-        override fun onPackageChanged(packageName: String, user: UserHandle) = appsChanged(listOf(packageName))
+        // Reported for the work profile's apps too, which are keyed apart from personal copies.
+        override fun onPackageAdded(packageName: String, user: UserHandle) = appsChanged(listOf(packageName), user)
+        override fun onPackageRemoved(packageName: String, user: UserHandle) = appsChanged(listOf(packageName), user)
+        override fun onPackageChanged(packageName: String, user: UserHandle) = appsChanged(listOf(packageName), user)
         override fun onPackagesAvailable(packageNames: Array<out String>, user: UserHandle, replacing: Boolean) =
-            appsChanged(packageNames.asList())
+            appsChanged(packageNames.asList(), user)
         override fun onPackagesUnavailable(packageNames: Array<out String>, user: UserHandle, replacing: Boolean) =
-            appsChanged(packageNames.asList())
+            appsChanged(packageNames.asList(), user)
         override fun onShortcutsChanged(packageName: String, shortcuts: MutableList<ShortcutInfo>, user: UserHandle) {
             if (!IndexUpdaterConfig.WATCH_SHORTCUTS || !canReadShortcuts()) return
             pending.requestFullSync(SearchCategory.SHORTCUT)
@@ -62,6 +69,15 @@ class IndexChangeWatcher(
         if (wantsCallback && launcherApps != null && !watchingApps) {
             launcherApps.registerCallback(appsCallback, handler)
             watchingApps = true
+        }
+        if (IndexUpdaterConfig.WATCH_APPS && !watchingProfiles) {
+            val filter = IntentFilter().apply {
+                addAction(Intent.ACTION_MANAGED_PROFILE_ADDED)
+                addAction(Intent.ACTION_MANAGED_PROFILE_REMOVED)
+            }
+            // Sent by the system only, to registered receivers.
+            ContextCompat.registerReceiver(appContext, profilesReceiver, filter, null, handler, ContextCompat.RECEIVER_NOT_EXPORTED)
+            watchingProfiles = true
         }
         refresh()
     }
@@ -91,14 +107,29 @@ class IndexChangeWatcher(
             launcherApps?.unregisterCallback(appsCallback)
             watchingApps = false
         }
+        if (watchingProfiles) {
+            appContext.unregisterReceiver(profilesReceiver)
+            watchingProfiles = false
+        }
         contactsObserver?.let(appContext.contentResolver::unregisterContentObserver)
         filesObserver?.let(appContext.contentResolver::unregisterContentObserver)
         contactsObserver = null
         filesObserver = null
     }
 
-    private fun appsChanged(packageNames: Collection<String>) {
-        if (IndexUpdaterConfig.WATCH_APPS) pending.appsChanged(packageNames)
+    /**
+     * A work profile was added or removed, taking its apps with it. (Pausing and resuming work apps
+     * doesn't change the list: paused, they stay listed and ask to be turned back on when opened.)
+     */
+    private val profilesReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) = appsChanged(emptyList(), Process.myUserHandle())
+    }
+    private var watchingProfiles = false
+
+    private fun appsChanged(packageNames: Collection<String>, user: UserHandle) {
+        val isWork = user != Process.myUserHandle()
+        val keys = packageNames.map { AppInfo.keyFor(it, isWork) }
+        if (IndexUpdaterConfig.WATCH_APPS) pending.appsChanged(keys)
         // An app installed, updated or removed brings, changes or takes its shortcuts with it.
         if (IndexUpdaterConfig.WATCH_SHORTCUTS && canReadShortcuts()) pending.requestFullSync(SearchCategory.SHORTCUT)
         if (pending.isEmpty) return

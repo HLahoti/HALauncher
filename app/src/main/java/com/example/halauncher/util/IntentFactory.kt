@@ -115,4 +115,14 @@ object IntentFactory {
             ?: Intent(Intent.ACTION_MAIN)
                 .addCategory(Intent.CATEGORY_LAUNCHER)
                 .setPackage(packageName)
+
+    /**
+     * The link of a work app, which only opens through LauncherApps in the work profile
+     * (AppInfo.launchDirectly). Nothing handles this, so if that fails, opening it shows the
+     * "couldn't open" toast rather than starting the personal copy of the app.
+     */
+    fun workAppPlaceholderIntent(context: Context): Intent =
+        Intent(WORK_APP_PLACEHOLDER_ACTION).setPackage(context.packageName)
+
+    private const val WORK_APP_PLACEHOLDER_ACTION = "com.example.halauncher.action.WORK_APP_UNAVAILABLE"
 }

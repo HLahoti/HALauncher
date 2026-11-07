@@ -105,8 +105,8 @@ fun PinnedAppsPicker(
 ) {
     val pinnedApps = pinned
     val otherApps = remember(apps, pinned) {
-        val pinnedPackages = pinned.mapNotNullTo(HashSet()) { (it as? AppInfo)?.packageName }
-        apps.filter { it.packageName !in pinnedPackages }
+        val pinnedKeys = pinned.mapTo(HashSet(), ::pinKey)
+        apps.filter { it.key !in pinnedKeys }
     }
     val pinnedCount = pinnedApps.size
     val isFull = pinnedCount >= PinPickerConfig.MAX_PINNED
@@ -255,7 +255,7 @@ fun PinnedAppsPicker(
                         },
                     )
                 }
-                items(otherApps, key = { it.packageName }) { app ->
+                items(otherApps, key = { it.key }) { app ->
                     PickerRow(
                         app = app,
                         mirrored = mirrored,

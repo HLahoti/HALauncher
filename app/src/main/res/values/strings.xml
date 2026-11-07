@@ -177,9 +177,12 @@
     <string name="edit_pinned_apps">Edit pinned apps</string>
     <string name="done">Done</string>
     <string name="next">Next</string>
+    <!-- A work-profile app's name, e.g. "Chrome (work)". -->
+    <string name="work_app_name">%1$s (work)</string>
     <string name="pin_shortcut_added">Added “%1$s” to the sphere</string>
     <string name="pin_shortcut_already">“%1$s” is already on the sphere</string>
     <string name="pin_shortcut_full">No room on the sphere for “%1$s”. Unpin something first.</string>
+    <string name="pin_shortcut_unsupported_profile">Can’t add “%1$s” to the sphere from this profile</string>
     <string name="pin_shortcut_unnamed">Shortcut</string>
     <string name="reorder_pinned_app">Drag to reorder</string>
     <string name="move_up">Move up</string>

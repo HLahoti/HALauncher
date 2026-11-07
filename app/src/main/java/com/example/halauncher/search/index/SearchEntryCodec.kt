@@ -38,12 +38,13 @@ class SearchEntryCodecs(codecs: List<SearchEntryCodec>) {
 }
 
 /**
- * Apps are stored by package name only. Icons and launch intents aren't serialisable, so
- * decoding looks the app up among those loaded this session via [findApp].
+ * Apps are stored by AppInfo.key only (the package name, or a work app's key). Icons and launch
+ * intents aren't serialisable, so decoding looks the app up among those loaded this session via
+ * [findApp].
  */
-class AppEntryCodec(private val findApp: (packageName: String) -> AppInfo?) : SearchEntryCodec {
+class AppEntryCodec(private val findApp: (key: String) -> AppInfo?) : SearchEntryCodec {
     override val category = SearchCategory.APP
-    override fun encode(entry: SearchEntry): String = (entry as AppInfo).packageName
+    override fun encode(entry: SearchEntry): String = (entry as AppInfo).key
     override fun decode(name: String, payload: String): SearchEntry? = findApp(payload)
 }
 
@@ -131,16 +132,18 @@ object FolderEntryCodec : SearchEntryCodec {
 }
 
 /**
- * Shortcuts are stored by app and shortcut id. The app's name and launch intent come from the
- * apps loaded this session via [findApp], so a shortcut whose app is gone isn't rebuilt.
+ * Shortcuts are stored by app (its AppInfo.key, so a work app's shortcut stays the work copy's) and
+ * shortcut id. The app's name, launch intent and profile come from the apps loaded this session
+ * via [findApp], so a shortcut whose app is gone isn't rebuilt.
  */
-class ShortcutEntryCodec(private val findApp: (packageName: String) -> AppInfo?) : SearchEntryCodec {
+class ShortcutEntryCodec(private val findApp: (appKey: String) -> AppInfo?) : SearchEntryCodec {
     override val category = SearchCategory.SHORTCUT
 
     override fun encode(entry: SearchEntry): String {
         val shortcut = entry as ShortcutEntry
         return JSONObject()
-            .put(PACKAGE, shortcut.packageName)
+            // Older entries hold a package name, which is a personal app's key.
+            .put(PACKAGE, shortcut.appKey)
             .put(SHORTCUT_ID, shortcut.shortcutId)
             .put(ICON_VERSION, shortcut.iconVersion)
             .toString()
@@ -156,6 +159,7 @@ class ShortcutEntryCodec(private val findApp: (packageName: String) -> AppInfo?)
             appName = app.name,
             link = app.link,
             iconVersion = json.optLong(ICON_VERSION),
+            workProfile = app.workProfile,
         )
     }
 

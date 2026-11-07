@@ -6,8 +6,10 @@ import android.content.pm.LauncherApps.ShortcutQuery
 import android.content.pm.ShortcutInfo
 import android.os.Build
 import android.os.Process
+import android.os.UserHandle
 import androidx.annotation.RequiresApi
 import androidx.annotation.WorkerThread
+import com.example.halauncher.R
 import com.example.halauncher.model.AppInfo
 import com.example.halauncher.model.SearchCategory
 import com.example.halauncher.model.SearchEntry
@@ -21,12 +23,15 @@ import com.example.halauncher.model.ShortcutEntry
  * The launcher's own shortcuts (res/xml/shortcuts.xml, such as its settings) are included too, and
  * so are the shortcuts pinned to the sphere through "Add to home screen" (see PinShortcutActivity).
  *
- * @param findApp the installed app with this package from the latest app load; a shortcut whose
+ * Work apps' shortcuts are read from the work profile (see [WorkProfiles]) and kept apart from the
+ * personal copy's: named "… (work)", badged, and opened in the work profile.
+ *
+ * @param findApp the installed app with this AppInfo.key from the latest app load; a shortcut whose
  * app isn't there (e.g. it has no launcher entry) is left out.
  */
 class ShortcutProvider(
     private val context: Context,
-    private val findApp: (packageName: String) -> AppInfo?,
+    private val findApp: (appKey: String) -> AppInfo?,
 ) : SearchEntryProvider {
 
     override val category = SearchCategory.SHORTCUT
@@ -52,8 +57,9 @@ class ShortcutProvider(
     @WorkerThread
     override fun loadEntries(): List<SearchEntry> {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N_MR1 || !hasAccess()) return emptyList()
-        return query(ShortcutQuery().setQueryFlags(queryFlags()))
+        return profiles()
             .asSequence()
+            .flatMap { profile -> query(ShortcutQuery().setQueryFlags(queryFlags()), profile).asSequence() }
             .filter { it.isEnabled }
             .mapNotNull(::toEntry)
             // A shortcut can be both dynamic and cached, for instance.
@@ -61,9 +67,13 @@ class ShortcutProvider(
             .toList()
     }
 
+    /** The personal profile, then any work profiles. */
+    private fun profiles(): List<UserHandle> = listOf(Process.myUserHandle()) + WorkProfiles.all(context)
+
     @RequiresApi(Build.VERSION_CODES.N_MR1)
     private fun toEntry(info: ShortcutInfo): ShortcutEntry? {
-        val app = findApp(info.`package`) ?: return null
+        val profile = info.userHandle.takeIf { it != Process.myUserHandle() }
+        val app = findApp(AppInfo.keyFor(info.`package`, isWork = profile != null)) ?: return null
         // The long label where there is one: the short one is written to sit under an icon, so it
         // can be too vague to search for on its own ("Start" for "Start stopwatch").
         val label = listOf(info.longLabel, info.shortLabel)
@@ -72,32 +82,38 @@ class ShortcutProvider(
         return ShortcutEntry(
             packageName = info.`package`,
             shortcutId = info.id,
-            name = label,
+            name = if (profile != null) context.getString(R.string.work_app_name, label) else label,
             appName = app.name,
             link = app.link,
             iconVersion = info.lastChangedTimestamp,
+            workProfile = profile,
         )
     }
 
     /**
      * The shortcuts this launcher has pinned, out of [ids] (ShortcutEntry ids), each with its icon
      * loaded (the app's icon if it has none). Ones that are gone (removed by their app, or their app
-     * uninstalled or without a launcher entry) are left out.
+     * uninstalled or without a launcher entry, or the work profile removed) are left out.
      */
     @WorkerThread
     suspend fun loadPinned(ids: Collection<String>): List<ShortcutEntry> {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N_MR1 || ids.isEmpty() || !hasAccess()) return emptyList()
         val wanted = ids.toSet()
-        return wanted.mapNotNull(PinnedAppsStore::packageOfShortcutKey).distinct().flatMap { pkg ->
-            query(ShortcutQuery().setPackage(pkg).setQueryFlags(ShortcutQuery.FLAG_MATCH_PINNED))
-        }
+        return wanted.mapNotNull(ShortcutEntry::appKeyOf).distinct()
+            .flatMap { appKey ->
+                val app = findApp(appKey) ?: return@flatMap emptyList()
+                query(
+                    ShortcutQuery().setPackage(app.packageName).setQueryFlags(ShortcutQuery.FLAG_MATCH_PINNED),
+                    app.workProfile ?: Process.myUserHandle(),
+                )
+            }
             .asSequence()
             .filter { it.isEnabled }
             .mapNotNull(::toEntry)
             .filter { it.id in wanted }
             .distinctBy { it.id }
             .toList()
-            .mapNotNull { entry -> (icons.load(entry) ?: findApp(entry.packageName)?.icon)?.let { entry.copy(icon = it) } }
+            .mapNotNull { entry -> (icons.load(entry) ?: findApp(entry.appKey)?.icon)?.let { entry.copy(icon = it) } }
     }
 
     /**
@@ -107,13 +123,14 @@ class ShortcutProvider(
     @WorkerThread
     fun unpin(entry: ShortcutEntry) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N_MR1 || !hasAccess()) return
-        val stillPinned = query(ShortcutQuery().setPackage(entry.packageName).setQueryFlags(ShortcutQuery.FLAG_MATCH_PINNED))
+        val profile = entry.workProfile ?: Process.myUserHandle()
+        val stillPinned = query(ShortcutQuery().setPackage(entry.packageName).setQueryFlags(ShortcutQuery.FLAG_MATCH_PINNED), profile)
             .map { it.id }
             .filter { it != entry.shortcutId }
         try {
-            launcherApps?.pinShortcuts(entry.packageName, stillPinned, Process.myUserHandle())
+            launcherApps?.pinShortcuts(entry.packageName, stillPinned, profile)
         } catch (e: SecurityException) {
-            // No longer the default home app.
+            // No longer the default home app, or the work profile is gone.
         } catch (e: IllegalStateException) {
             // The user's storage is still locked.
         }
@@ -126,17 +143,17 @@ class ShortcutProvider(
             .setPackage(entry.packageName)
             .setShortcutIds(listOf(entry.shortcutId))
             .setQueryFlags(queryFlags())
-        return query(query).firstOrNull()
+        return query(query, entry.workProfile ?: Process.myUserHandle()).firstOrNull()
     }
 
     @RequiresApi(Build.VERSION_CODES.N_MR1)
-    private fun query(query: ShortcutQuery): List<ShortcutInfo> = try {
-        launcherApps?.getShortcuts(query, Process.myUserHandle()).orEmpty()
+    private fun query(query: ShortcutQuery, profile: UserHandle): List<ShortcutInfo> = try {
+        launcherApps?.getShortcuts(query, profile).orEmpty()
     } catch (e: SecurityException) {
-        // No longer the default home app.
+        // No longer the default home app, or the work profile went away.
         emptyList()
     } catch (e: IllegalStateException) {
-        // The user's storage is still locked.
+        // The user's (or work profile's) storage is still locked.
         emptyList()
     }
 

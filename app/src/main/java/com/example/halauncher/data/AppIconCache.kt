@@ -1,6 +1,9 @@
 package com.example.halauncher.data
 
 import android.content.Context
+import android.content.pm.ActivityInfo
+import android.content.pm.ApplicationInfo
+import android.content.pm.LauncherActivityInfo
 import android.content.pm.PackageManager
 import android.content.pm.ResolveInfo
 import android.content.res.Configuration
@@ -52,69 +55,86 @@ class AppIconCache(context: Context) {
 
     /** The app's label, from the cache when still valid. */
     @WorkerThread
-    fun label(info: ResolveInfo, pm: PackageManager): String {
-        val packageName = info.activityInfo.packageName
-        val key = labelKey(info)
+    fun label(info: ResolveInfo, pm: PackageManager): String =
+        label(info.activityInfo.packageName, labelKey(info.activityInfo)) { info.loadLabel(pm).toString() }
+
+    /** The app's icon at launcher size, from memory or disk when still valid, else rendered now. */
+    @WorkerThread
+    fun icon(info: ResolveInfo, pm: PackageManager): Drawable =
+        icon(info.activityInfo.packageName, iconKey(info.activityInfo)) { info.loadIcon(pm) }
+
+    /** A work app's label (without "(work)"), cached under its [appKey] (AppInfo.key). */
+    @WorkerThread
+    fun label(info: LauncherActivityInfo, appKey: String): String =
+        label(appKey, labelKey(info.applicationInfo, info.name)) { info.label.toString() }
+
+    /**
+     * A work app's icon at launcher size with the work badge in its corner, cached under its
+     * [appKey] (AppInfo.key) apart from any personal copy of the app.
+     */
+    @WorkerThread
+    fun badgedIcon(info: LauncherActivityInfo, appKey: String): Drawable =
+        icon(appKey, iconKey(info.applicationInfo, info.name) + "|badged") {
+            info.getBadgedIcon(resources.displayMetrics.densityDpi)
+        }
+
+    private fun label(appKey: String, key: String, load: () -> String): String {
         val all = loadedLabels()
-        all[packageName]?.takeIf { it.key == key }?.let { return it.text }
-        val text = info.loadLabel(pm).toString()
-        all[packageName] = Label(key, text)
+        all[appKey]?.takeIf { it.key == key }?.let { return it.text }
+        val text = load()
+        all[appKey] = Label(key, text)
         labelsDirty = true
         return text
     }
 
-    /** The app's icon at launcher size, from memory or disk when still valid, else rendered now. */
-    @WorkerThread
-    fun icon(info: ResolveInfo, pm: PackageManager): Drawable {
-        val packageName = info.activityInfo.packageName
-        val key = iconKey(info)
-        icons[packageName]?.takeIf { it.key == key }?.let { return it.drawable }
-        val file = iconFile(packageName, key)
-        val bitmap = readIcon(file) ?: render(info, pm).also { writeIcon(it, packageName, file) }
+    private fun icon(appKey: String, key: String, load: () -> Drawable): Drawable {
+        icons[appKey]?.takeIf { it.key == key }?.let { return it.drawable }
+        val file = iconFile(appKey, key)
+        val bitmap = readIcon(file) ?: render(load()).also { writeIcon(it, appKey, file) }
         return BitmapDrawable(resources, toDisplayBitmap(bitmap))
-            .also { icons[packageName] = Icon(key, it) }
+            .also { icons[appKey] = Icon(key, it) }
     }
 
-    /** Forgets [packageName]'s icon and label, so the next load renders them again. */
-    fun invalidate(packageName: String) {
-        icons.remove(packageName)
-        if (loadedLabels().remove(packageName) != null) labelsDirty = true
-        dir.listFiles { file -> file.name.startsWith("$packageName$SEPARATOR") }?.forEach(File::delete)
+    /** Forgets the icon and label of the app keyed [appKey] (AppInfo.key), so the next load renders them again. */
+    fun invalidate(appKey: String) {
+        icons.remove(appKey)
+        if (loadedLabels().remove(appKey) != null) labelsDirty = true
+        dir.listFiles { file -> file.name.startsWith("$appKey$SEPARATOR") }?.forEach(File::delete)
     }
 
     /**
-     * Drops everything for apps not in [packageNames] (uninstalled since), and saves the label
-     * index if it changed. Call after each full load of the app list.
+     * Drops everything for apps not in [appKeys] (AppInfo.key; uninstalled since), and saves the
+     * label index if it changed. Call after each full load of the app list.
      */
     @WorkerThread
-    fun retainOnly(packageNames: Set<String>) {
-        icons.keys.retainAll(packageNames)
-        if (loadedLabels().keys.retainAll(packageNames)) labelsDirty = true
+    fun retainOnly(appKeys: Set<String>) {
+        icons.keys.retainAll(appKeys)
+        if (loadedLabels().keys.retainAll(appKeys)) labelsDirty = true
         // Keeps only the current file of each app; older versions of its icon go too.
-        val wanted = icons.map { (packageName, icon) -> iconFile(packageName, icon.key).name }.toSet()
+        val wanted = icons.map { (appKey, icon) -> iconFile(appKey, icon.key).name }.toSet()
         dir.listFiles { file -> file.name.endsWith(ICON_SUFFIX) && file.name !in wanted }?.forEach(File::delete)
         if (labelsDirty) saveLabels()
     }
 
-    private fun iconKey(info: ResolveInfo): String {
-        val app = info.activityInfo.applicationInfo
+    private fun iconKey(activity: ActivityInfo): String = iconKey(activity.applicationInfo, activity.name)
+
+    private fun iconKey(app: ApplicationInfo, activityName: String): String {
         val night = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
-        return "${app.sourceDir}|${File(app.sourceDir).lastModified()}|${info.activityInfo.name}|" +
+        return "${app.sourceDir}|${File(app.sourceDir).lastModified()}|$activityName|" +
             "$sizePx|${resources.displayMetrics.densityDpi}|$night"
     }
 
-    private fun labelKey(info: ResolveInfo): String {
-        val app = info.activityInfo.applicationInfo
-        return "${app.sourceDir}|${File(app.sourceDir).lastModified()}|${info.activityInfo.name}|" +
+    private fun labelKey(activity: ActivityInfo): String = labelKey(activity.applicationInfo, activity.name)
+
+    private fun labelKey(app: ApplicationInfo, activityName: String): String =
+        "${app.sourceDir}|${File(app.sourceDir).lastModified()}|$activityName|" +
             resources.configuration.locales.toLanguageTags()
-    }
 
     /** One file per app and key version; the key is hashed to keep the name short. */
-    private fun iconFile(packageName: String, key: String) =
-        File(dir, "$packageName$SEPARATOR${Integer.toHexString(key.hashCode())}$ICON_SUFFIX")
+    private fun iconFile(appKey: String, key: String) =
+        File(dir, "$appKey$SEPARATOR${Integer.toHexString(key.hashCode())}$ICON_SUFFIX")
 
-    private fun render(info: ResolveInfo, pm: PackageManager): Bitmap {
-        val drawable = info.loadIcon(pm)
+    private fun render(drawable: Drawable): Bitmap {
         val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
         drawable.setBounds(0, 0, sizePx, sizePx)
         drawable.draw(Canvas(bitmap))
@@ -130,11 +150,11 @@ class AppIconCache(context: Context) {
         return BitmapFactory.decodeFile(file.path, options)
     }
 
-    private fun writeIcon(bitmap: Bitmap, packageName: String, file: File) {
+    private fun writeIcon(bitmap: Bitmap, appKey: String, file: File) {
         try {
             dir.mkdirs()
             // Earlier versions of this app's icon are now stale.
-            dir.listFiles { old -> old.name.startsWith("$packageName$SEPARATOR") }?.forEach(File::delete)
+            dir.listFiles { old -> old.name.startsWith("$appKey$SEPARATOR") }?.forEach(File::delete)
             val format = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 Bitmap.CompressFormat.WEBP_LOSSLESS
             } else {
@@ -143,7 +163,7 @@ class AppIconCache(context: Context) {
             file.outputStream().use { bitmap.compress(format, 100, it) }
         } catch (e: IOException) {
             // Only the disk copy is lost; it's rendered again next time.
-            Log.w(TAG, "Couldn't cache the icon of $packageName", e)
+            Log.w(TAG, "Couldn't cache the icon of $appKey", e)
         }
     }
 
@@ -175,11 +195,11 @@ class AppIconCache(context: Context) {
     private fun saveLabels() {
         try {
             dir.mkdirs()
-            val text = loadedLabels().entries.joinToString("\n") { (packageName, label) ->
+            val text = loadedLabels().entries.joinToString("\n") { (appKey, label) ->
                 // Neither separator may appear inside a field.
                 val key = label.key.replace(FIELD_SEPARATOR, ' ').replace('\n', ' ')
                 val name = label.text.replace(FIELD_SEPARATOR, ' ').replace('\n', ' ')
-                "$packageName$FIELD_SEPARATOR$key$FIELD_SEPARATOR$name"
+                "$appKey$FIELD_SEPARATOR$key$FIELD_SEPARATOR$name"
             }
             // Written aside and renamed, so a crash mid-write can't leave a half file.
             val temp = File(dir, "$LABEL_INDEX.tmp")
