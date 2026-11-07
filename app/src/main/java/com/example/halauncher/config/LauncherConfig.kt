@@ -731,6 +731,22 @@ object GlassConfig {
     const val EDGE_BOTTOM_ALPHA = 0.28f
 }
 
+/** The glass long-press menus (search results, quick-action buttons, the date). */
+object GlassMenuConfig {
+    /** Corner radius of a menu. */
+    val CornerRadius = 16.dp
+
+    /**
+     * Darkness of a menu's glass, from 0 (clear) to 1 (solid black). Much darker than the search
+     * field, since a menu sits over text (results, the clock) or a bright wallpaper, and text
+     * showing through would run into its lines. Lower it to see more of what's behind.
+     */
+    const val GLASS_TINT = 0.9f
+
+    /** Opacity of the greyed first line naming what the menu is for. */
+    const val TITLE_ALPHA = 0.6f
+}
+
 /** The settings panel opened by long-pressing the home screen. */
 object SettingsPanelConfig {
     /** Corner radius of each glass setting card. */

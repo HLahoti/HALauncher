@@ -34,8 +34,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -92,6 +90,9 @@ import com.example.halauncher.model.AppInfo
 import com.example.halauncher.model.HomeTextColor
 import com.example.halauncher.model.LaunchableElement
 import com.example.halauncher.ui.components.ClickToLaunch
+import com.example.halauncher.ui.components.GlassDropdownMenu
+import com.example.halauncher.ui.components.GlassMenuItem
+import com.example.halauncher.ui.components.GlassMenuTitle
 import com.example.halauncher.ui.components.LegibleIcon
 import com.example.halauncher.ui.components.LocalHomePalette
 import com.example.halauncher.ui.components.isLandscape
@@ -825,24 +826,18 @@ private fun ChosenAppButton(
             glyph()
         }
         // Only opens with an app chosen (unchosen, long-press goes straight to choosing).
-        DropdownMenu(expanded = menuOpen && app != null, onDismissRequest = { menuOpen = false }) {
+        GlassDropdownMenu(expanded = menuOpen && app != null, onDismissRequest = { menuOpen = false }) {
             if (app != null) {
                 // Which app it opens now, as a non-interactive first line.
-                DropdownMenuItem(text = { Text(app.name) }, onClick = {}, enabled = false)
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.change_app)) },
-                    onClick = {
-                        menuOpen = false
-                        onChoose()
-                    },
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.remove)) },
-                    onClick = {
-                        menuOpen = false
-                        onRemove()
-                    },
-                )
+                GlassMenuTitle(app.name)
+                GlassMenuItem(stringResource(R.string.change_app)) {
+                    menuOpen = false
+                    onChoose()
+                }
+                GlassMenuItem(stringResource(R.string.remove)) {
+                    menuOpen = false
+                    onRemove()
+                }
             }
         }
     }

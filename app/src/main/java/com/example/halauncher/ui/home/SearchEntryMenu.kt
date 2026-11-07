@@ -10,9 +10,6 @@ import android.os.Environment
 import android.provider.Settings
 import android.widget.Toast
 import androidx.annotation.StringRes
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
@@ -23,6 +20,9 @@ import com.example.halauncher.model.ContactEntry
 import com.example.halauncher.model.FileEntry
 import com.example.halauncher.model.FolderEntry
 import com.example.halauncher.model.SearchEntry
+import com.example.halauncher.ui.components.GlassDropdownMenu
+import com.example.halauncher.ui.components.GlassMenuItem
+import com.example.halauncher.ui.components.GlassMenuTitle
 import com.example.halauncher.ui.components.launchSafely
 import java.io.File
 
@@ -67,16 +67,13 @@ fun SearchEntryMenu(
     val items = remember(expanded, entry, actions) {
         if (expanded) entryMenuItems(context, entry, actions, onOpened) else emptyList()
     }
-    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
-        DropdownMenuItem(text = { Text(entry.name) }, onClick = {}, enabled = false)
+    GlassDropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        GlassMenuTitle(entry.name)
         items.forEach { item ->
-            DropdownMenuItem(
-                text = { Text(stringResource(item.label)) },
-                onClick = {
-                    onDismiss()
-                    item.run()
-                },
-            )
+            GlassMenuItem(stringResource(item.label)) {
+                onDismiss()
+                item.run()
+            }
         }
     }
 }
