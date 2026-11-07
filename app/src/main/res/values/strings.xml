@@ -177,6 +177,10 @@
     <string name="edit_pinned_apps">Edit pinned apps</string>
     <string name="done">Done</string>
     <string name="next">Next</string>
+    <string name="pin_shortcut_added">Added “%1$s” to the sphere</string>
+    <string name="pin_shortcut_already">“%1$s” is already on the sphere</string>
+    <string name="pin_shortcut_full">No room on the sphere for “%1$s”. Unpin something first.</string>
+    <string name="pin_shortcut_unnamed">Shortcut</string>
     <string name="reorder_pinned_app">Drag to reorder</string>
     <string name="move_up">Move up</string>
     <string name="move_down">Move down</string>

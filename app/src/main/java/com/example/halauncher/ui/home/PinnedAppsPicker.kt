@@ -70,7 +70,10 @@ import com.example.halauncher.R
 import com.example.halauncher.config.PinPickerConfig
 import com.example.halauncher.config.SearchConfig
 import com.example.halauncher.config.ThemeConfig
+import com.example.halauncher.data.PinnedAppsStore
 import com.example.halauncher.model.AppInfo
+import com.example.halauncher.model.SearchEntry
+import com.example.halauncher.model.ShortcutEntry
 import com.example.halauncher.ui.components.isLandscape
 import com.example.halauncher.ui.components.liquidGlass
 import com.example.halauncher.ui.components.overlayTopSpacing
@@ -79,30 +82,31 @@ import com.example.halauncher.util.Haptics
 
 /**
  * Every installed app with a pin toggle; the pinned ones appear on the home-screen sphere.
- * Pinned apps are listed first, in sphere order, and can be dragged by their handle to reorder
- * them; the rest follow A–Z. Changes save as they're
- * made. Once [PinPickerConfig.MAX_PINNED] are pinned, unpinned apps are disabled until one is
- * unpinned.
+ * What's pinned is listed first, in sphere order, and can be dragged by its handle to reorder it:
+ * apps, and shortcuts added through "Add to home screen" (which leave the list once unpinned, and
+ * come back by adding them from their app again). The other apps follow A–Z. Changes save as
+ * they're made. Once [PinPickerConfig.MAX_PINNED] are pinned, unpinned apps are disabled until one
+ * is unpinned.
  *
  * With [mirrored] (left-handed mode), each row is flipped: drag handle and checkbox on the left,
  * name and icon on the right.
+ *
+ * @param pinned what's pinned and can be shown, in pin order (see HomeViewModel.pinnedItems).
+ * @param onReorder the pins' keys (PinnedAppsStore.keyOf) in their new order.
  */
 @Composable
 fun PinnedAppsPicker(
     apps: List<AppInfo>,
-    pinnedPackages: List<String>,
-    onToggle: (AppInfo) -> Unit,
+    pinned: List<SearchEntry>,
+    onToggle: (SearchEntry) -> Unit,
     onReorder: (List<String>) -> Unit,
     onDone: () -> Unit,
     mirrored: Boolean = false,
 ) {
-    val pinnedApps = remember(apps, pinnedPackages) {
-        val byPackage = apps.associateBy { it.packageName }
-        pinnedPackages.mapNotNull(byPackage::get)
-    }
-    val otherApps = remember(apps, pinnedPackages) {
-        val pinned = pinnedPackages.toSet()
-        apps.filter { it.packageName !in pinned }
+    val pinnedApps = pinned
+    val otherApps = remember(apps, pinned) {
+        val pinnedPackages = pinned.mapNotNullTo(HashSet()) { (it as? AppInfo)?.packageName }
+        apps.filter { it.packageName !in pinnedPackages }
     }
     val pinnedCount = pinnedApps.size
     val isFull = pinnedCount >= PinPickerConfig.MAX_PINNED
@@ -123,13 +127,13 @@ fun PinnedAppsPicker(
     }
     val shownPinned = reorder.order ?: pinnedApps
 
-    val startDrag = { app: AppInfo ->
-        if (reorder.start(app.packageName, currentPinnedApps)) haptics.longPress()
+    val startDrag = { app: SearchEntry ->
+        if (reorder.start(pinKey(app), currentPinnedApps)) haptics.longPress()
     }
     val endDrag = {
         val order = reorder.end()
         if (order != null && order != currentPinnedApps) {
-            currentOnReorder(order.map { it.packageName })
+            currentOnReorder(order.map(::pinKey))
         } else {
             reorder.order = null
         }
@@ -138,7 +142,7 @@ fun PinnedAppsPicker(
         val target = index + step
         if (target in pinnedApps.indices) {
             val moved = pinnedApps.toMutableList().apply { add(target, removeAt(index)) }
-            onReorder(moved.map { it.packageName })
+            onReorder(moved.map(::pinKey))
         }
     }
     val moveUpLabel = stringResource(R.string.move_up)
@@ -192,7 +196,7 @@ fun PinnedAppsPicker(
             Spacer(Modifier.height(SearchConfig.ResultsSpacing))
             LazyVerticalGrid(columns = GridCells.Fixed(columns), state = gridState, modifier = Modifier.fillMaxWidth()) {
                 // Pinned apps come first so their indices match their place in the order.
-                itemsIndexed(shownPinned, key = { _, app -> app.packageName }) { index, app ->
+                itemsIndexed(shownPinned, key = { _, app -> pinKey(app) }) { index, app ->
                     val isDragged = reorder.isDragging && reorder.draggedIndex == index
                     val placement = if (isDragged) {
                         // Lifted above its neighbours and following the finger.
@@ -226,7 +230,7 @@ fun PinnedAppsPicker(
                             )
                         },
                         // Up and down in one column; any direction across two.
-                        dragHandle = Modifier.pointerInput(app.packageName, columns) {
+                        dragHandle = Modifier.pointerInput(pinKey(app), columns) {
                             if (columns == 1) {
                                 detectVerticalDragGestures(
                                     onDragStart = { startDrag(app) },
@@ -277,8 +281,8 @@ private class PinReorderState(
     private val gridState: LazyGridState,
     private val onMove: () -> Unit,
 ) {
-    /** The pinned apps as arranged by the current (or just finished) drag; null otherwise. */
-    var order by mutableStateOf<List<AppInfo>?>(null)
+    /** The pins as arranged by the current (or just finished) drag; null otherwise. */
+    var order by mutableStateOf<List<SearchEntry>?>(null)
 
     /** The dragged app's current index in [order]. */
     var draggedIndex by mutableIntStateOf(-1)
@@ -297,9 +301,9 @@ private class PinReorderState(
     val draggedOffset: Offset
         get() = draggedItem?.let { startOffset + dragDelta - it.offset.toOffset() } ?: Offset.Zero
 
-    /** Starts dragging the cell keyed [packageName]; false if it isn't on screen. */
-    fun start(packageName: String, pinnedApps: List<AppInfo>): Boolean {
-        val item = gridState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == packageName } ?: return false
+    /** Starts dragging the cell keyed [key]; false if it isn't on screen. */
+    fun start(key: String, pinnedApps: List<SearchEntry>): Boolean {
+        val item = gridState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == key } ?: return false
         if (item.index !in pinnedApps.indices) return false
         order = pinnedApps
         draggedIndex = item.index
@@ -326,20 +330,23 @@ private class PinReorderState(
     }
 
     /** Ends the drag, returning the resulting order (still shown until the caller clears it). */
-    fun end(): List<AppInfo>? {
+    fun end(): List<SearchEntry>? {
         draggedIndex = -1
         dragDelta = Offset.Zero
         return order
     }
 }
 
+/** [entry]'s pin key, which also keys its row. Only apps and shortcuts are ever pinned. */
+private fun pinKey(entry: SearchEntry): String = PinnedAppsStore.keyOf(entry) ?: entry.id
+
 /**
- * One app: tapping the row toggles its pin. [dragHandle], if given, shows a handle wearing it.
+ * One app or pinned shortcut: tapping the row toggles its pin. [dragHandle], if given, shows a handle wearing it.
  * [mirrored] lays the row out the other way round, right-aligned.
  */
 @Composable
 private fun PickerRow(
-    app: AppInfo,
+    app: SearchEntry,
     isPinned: Boolean,
     enabled: Boolean,
     onToggle: () -> Unit,
@@ -364,20 +371,37 @@ private fun PickerRow(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(SearchConfig.ResultIconTextGap),
             ) {
-                Image(
-                    painter = rememberDrawablePainter(app.icon),
-                    // The name next to it already describes the row.
-                    contentDescription = null,
-                    modifier = Modifier.size(SearchConfig.ResultIconSize),
-                )
-                Text(
-                    text = app.name,
-                    color = ThemeConfig.Foreground,
-                    style = MaterialTheme.typography.bodyLarge,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
+                // Pins always have an icon (a shortcut without one gets its app's); keeps the gap if not.
+                val icon = app.icon
+                if (icon != null) {
+                    Image(
+                        painter = rememberDrawablePainter(icon),
+                        // The name next to it already describes the row.
+                        contentDescription = null,
+                        modifier = Modifier.size(SearchConfig.ResultIconSize),
+                    )
+                } else {
+                    Spacer(Modifier.size(SearchConfig.ResultIconSize))
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = app.name,
+                        color = ThemeConfig.Foreground,
+                        style = MaterialTheme.typography.bodyLarge,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    // A shortcut says which app it belongs to, as in search.
+                    if (app is ShortcutEntry) {
+                        Text(
+                            text = app.appName,
+                            color = ThemeConfig.Foreground.copy(alpha = SearchConfig.RESULT_DETAIL_ALPHA),
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
                 // The whole row toggles; the checkbox only shows the state.
                 Checkbox(
                     checked = isPinned,

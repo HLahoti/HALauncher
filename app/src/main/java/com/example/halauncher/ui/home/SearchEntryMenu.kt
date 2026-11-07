@@ -20,6 +20,7 @@ import com.example.halauncher.model.ContactEntry
 import com.example.halauncher.model.FileEntry
 import com.example.halauncher.model.FolderEntry
 import com.example.halauncher.model.SearchEntry
+import com.example.halauncher.model.ShortcutEntry
 import com.example.halauncher.ui.components.GlassDropdownMenu
 import com.example.halauncher.ui.components.GlassMenuItem
 import com.example.halauncher.ui.components.GlassMenuTitle
@@ -30,18 +31,19 @@ import java.io.File
  * What search's long-press menus need from the rest of the launcher. With [enabled] off (the
  * default, and while picking an app for a button) results have no menu.
  *
- * @property pinnedPackages the apps pinned to the sphere, so an app's menu offers pin or unpin.
+ * @property pinKeys what's pinned to the sphere (PinnedAppsStore.keyOf), so an app's menu offers pin
+ * or unpin, and a pinned shortcut's offers unpin.
  * @property canPinMore whether there's room on the sphere for another pin.
  * @property locked whether settings are locked: pinning is left out then.
  * @property recentIds the entries that count as recents, which offer "Remove from recents".
  */
 data class SearchEntryActions(
     val enabled: Boolean = false,
-    val pinnedPackages: Set<String> = emptySet(),
+    val pinKeys: Set<String> = emptySet(),
     val canPinMore: Boolean = false,
     val locked: Boolean = false,
     val recentIds: Set<String> = emptySet(),
-    val onTogglePinned: (AppInfo) -> Unit = {},
+    val onTogglePinned: (SearchEntry) -> Unit = {},
     val onForgetRecent: (SearchEntry) -> Unit = {},
 )
 
@@ -86,6 +88,7 @@ fun hasEntryMenu(entry: SearchEntry, actions: SearchEntryActions): Boolean =
     actions.enabled && when (entry) {
         is AppInfo, is FileEntry, is FolderEntry -> true
         is ContactEntry -> entry.phoneNumber != null || entry.id in actions.recentIds
+        is ShortcutEntry -> entry.id in actions.pinKeys || entry.id in actions.recentIds
         else -> entry.id in actions.recentIds
     }
 
@@ -104,7 +107,7 @@ private fun entryMenuItems(
         is AppInfo -> {
             add(EntryMenuItem(R.string.action_app_info) { context.launchSafely(appInfoIntent(entry.packageName), entry.name) })
             if (!actions.locked) {
-                val pinned = entry.packageName in actions.pinnedPackages
+                val pinned = entry.packageName in actions.pinKeys
                 if (pinned || actions.canPinMore) {
                     add(EntryMenuItem(if (pinned) R.string.action_unpin else R.string.action_pin) { actions.onTogglePinned(entry) })
                 }
@@ -131,7 +134,11 @@ private fun entryMenuItems(
             val path = storagePath(entry.path)
             add(EntryMenuItem(R.string.action_copy_path) { context.copy(entry.name, path, R.string.path_copied, entry.name) })
         }
-        // Shortcuts and Settings screens have nothing worth a menu of their own.
+        // A shortcut added through "Add to home screen" can come off the sphere from here too.
+        // Others, and Settings screens, have nothing worth a menu of their own.
+        is ShortcutEntry -> if (!actions.locked && entry.id in actions.pinKeys) {
+            add(EntryMenuItem(R.string.action_unpin) { actions.onTogglePinned(entry) })
+        }
         else -> Unit
     }
     if (entry.id in actions.recentIds) {

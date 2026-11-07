@@ -71,7 +71,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.toSize
 import com.example.halauncher.R
 import com.example.halauncher.config.SphereConfig
-import com.example.halauncher.model.AppInfo
+import com.example.halauncher.model.SearchEntry
 import com.example.halauncher.ui.components.launchSafely
 import com.example.halauncher.ui.components.LocalHomePalette
 import com.example.halauncher.ui.components.liquidGlass
@@ -107,6 +107,7 @@ import kotlin.math.sin
  * [rotation] is read only in layout/draw blocks, so turning the sphere redraws without
  * recomposing; composition only changes when the front app does.
  *
+ * @param apps what's pinned: apps, and shortcuts added through "Add to home screen".
  * @param modifier should fill the screen; only the sphere itself takes touches.
  * @param onLeft docks it on the left edge, facing right, instead of on the right.
  * @param onTurned called each time a drag by hand turns the sphere (for the tour).
@@ -114,8 +115,8 @@ import kotlin.math.sin
  */
 @Composable
 fun PinnedAppsSphere(
-    apps: List<AppInfo>,
-    onAppOpened: (AppInfo) -> Unit,
+    apps: List<SearchEntry>,
+    onAppOpened: (SearchEntry) -> Unit,
     onEdit: () -> Unit,
     modifier: Modifier = Modifier,
     locked: Boolean = false,
@@ -344,11 +345,13 @@ fun PinnedAppsSphere(
                 )
             }
             apps.forEachIndexed { index, app ->
-                key(app.packageName) {
+                // Every pin has an icon: a shortcut without one of its own gets its app's.
+                val icon = app.icon
+                if (icon != null) key(app.id) {
                     val openLabel = stringResource(R.string.open_app, app.name)
                     val isOnFrontFace = abs(loopOffset(index, frontIndex.toFloat(), count)) <= halfVisibleSlots
                     Image(
-                        painter = rememberDrawablePainter(app.icon),
+                        painter = rememberDrawablePainter(icon),
                         contentDescription = null,
                         modifier = Modifier
                             .size(iconSize)

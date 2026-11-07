@@ -275,6 +275,22 @@
              apps don't flag the launcher. Bound only by the system (BIND_DEVICE_ADMIN), after the user
              activates it in the device-admin dialog. It declares only the force-lock policy; see
              LockAdminReceiver and res/xml/device_admin.xml. -->
+        <!-- "Add to home screen" requests from other apps (Android 8+), which put the shortcut on
+             the sphere. Shows nothing and runs in its own task, so the asking app stays on screen
+             and the home screen isn't brought forward. Only the system can start it with a real
+             request, so it's safe to export. -->
+        <activity
+            android:name=".PinShortcutActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.content.pm.action.CONFIRM_PIN_SHORTCUT" />
+            </intent-filter>
+        </activity>
+
         <receiver
             android:name=".service.LockAdminReceiver"
             android:exported="true"

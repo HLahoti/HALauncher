@@ -18,7 +18,8 @@ import com.example.halauncher.model.ShortcutEntry
  * shortcuts), plus the conversations they've cached for notifications on Android 11+. Needs no
  * permission, but only the default home app may read them, so this returns nothing on any other.
  *
- * The launcher's own shortcuts (res/xml/shortcuts.xml, such as its settings) are included too.
+ * The launcher's own shortcuts (res/xml/shortcuts.xml, such as its settings) are included too, and
+ * so are the shortcuts pinned to the sphere through "Add to home screen" (see PinShortcutActivity).
  *
  * @param findApp the installed app with this package from the latest app load; a shortcut whose
  * app isn't there (e.g. it has no launcher entry) is left out.
@@ -78,6 +79,46 @@ class ShortcutProvider(
         )
     }
 
+    /**
+     * The shortcuts this launcher has pinned, out of [ids] (ShortcutEntry ids), each with its icon
+     * loaded (the app's icon if it has none). Ones that are gone (removed by their app, or their app
+     * uninstalled or without a launcher entry) are left out.
+     */
+    @WorkerThread
+    suspend fun loadPinned(ids: Collection<String>): List<ShortcutEntry> {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N_MR1 || ids.isEmpty() || !hasAccess()) return emptyList()
+        val wanted = ids.toSet()
+        return wanted.mapNotNull(PinnedAppsStore::packageOfShortcutKey).distinct().flatMap { pkg ->
+            query(ShortcutQuery().setPackage(pkg).setQueryFlags(ShortcutQuery.FLAG_MATCH_PINNED))
+        }
+            .asSequence()
+            .filter { it.isEnabled }
+            .mapNotNull(::toEntry)
+            .filter { it.id in wanted }
+            .distinctBy { it.id }
+            .toList()
+            .mapNotNull { entry -> (icons.load(entry) ?: findApp(entry.packageName)?.icon)?.let { entry.copy(icon = it) } }
+    }
+
+    /**
+     * Unpins [entry] from this launcher, so its app knows it's no longer on the home screen (and
+     * can stop keeping it). Its other pinned shortcuts stay pinned.
+     */
+    @WorkerThread
+    fun unpin(entry: ShortcutEntry) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N_MR1 || !hasAccess()) return
+        val stillPinned = query(ShortcutQuery().setPackage(entry.packageName).setQueryFlags(ShortcutQuery.FLAG_MATCH_PINNED))
+            .map { it.id }
+            .filter { it != entry.shortcutId }
+        try {
+            launcherApps?.pinShortcuts(entry.packageName, stillPinned, Process.myUserHandle())
+        } catch (e: SecurityException) {
+            // No longer the default home app.
+        } catch (e: IllegalStateException) {
+            // The user's storage is still locked.
+        }
+    }
+
     /** What a query for [entry]'s shortcut returns: its current info, or null if it's gone. */
     @RequiresApi(Build.VERSION_CODES.N_MR1)
     private fun find(entry: ShortcutEntry): ShortcutInfo? {
@@ -102,7 +143,7 @@ class ShortcutProvider(
     private companion object {
         @RequiresApi(Build.VERSION_CODES.N_MR1)
         fun queryFlags(): Int {
-            val flags = ShortcutQuery.FLAG_MATCH_MANIFEST or ShortcutQuery.FLAG_MATCH_DYNAMIC
+            val flags = ShortcutQuery.FLAG_MATCH_MANIFEST or ShortcutQuery.FLAG_MATCH_DYNAMIC or ShortcutQuery.FLAG_MATCH_PINNED
             return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) flags or ShortcutQuery.FLAG_MATCH_CACHED else flags
         }
     }

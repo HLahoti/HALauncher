@@ -4,6 +4,7 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.content.pm.LauncherApps
+import android.graphics.drawable.Drawable
 import android.os.Build
 import android.os.Process
 
@@ -20,6 +21,8 @@ import android.os.Process
  * for the cached one.
  * @property keywords the Settings screen's keywords, when the shortcut stands in for one (see
  * SettingsDuplicates).
+ * @property icon the shortcut's icon, already loaded: set only for shortcuts pinned to the sphere,
+ * which draws icons straight away. Search loads the rest as it shows them (ShortcutIconCache).
  */
 data class ShortcutEntry(
     val packageName: String,
@@ -29,6 +32,7 @@ data class ShortcutEntry(
     override val link: Intent,
     val iconVersion: Long = 0L,
     override val keywords: String? = null,
+    override val icon: Drawable? = null,
 ) : SearchEntry {
     override val id: String get() = idFor(packageName, shortcutId)
     override val category: SearchCategory get() = SearchCategory.SHORTCUT
@@ -59,6 +63,9 @@ data class ShortcutEntry(
 
     companion object {
         /** The [id] of shortcut [shortcutId] of app [packageName]. */
-        fun idFor(packageName: String, shortcutId: String): String = "shortcut:$packageName/$shortcutId"
+        fun idFor(packageName: String, shortcutId: String): String = "$ID_PREFIX$packageName/$shortcutId"
+
+        /** What every shortcut's [id] starts with. */
+        const val ID_PREFIX = "shortcut:"
     }
 }

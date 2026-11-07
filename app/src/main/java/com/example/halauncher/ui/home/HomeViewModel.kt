@@ -66,6 +66,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.flow
@@ -208,18 +209,28 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     val installedApps: StateFlow<List<AppInfo>> = _installedApps.asStateFlow()
 
     private val pinnedAppsStore = PinnedAppsStore(application)
-    private val _pinnedPackages = MutableStateFlow(pinnedAppsStore.load())
-    /** Package names pinned to the sphere, in pin order (including any currently uninstalled). */
-    val pinnedPackages: StateFlow<List<String>> = _pinnedPackages.asStateFlow()
+    private val _pinKeys = MutableStateFlow(pinnedAppsStore.load())
+    /**
+     * What's pinned to the sphere, in pin order, as [PinnedAppsStore.keyOf] keys: package names
+     * and shortcut ids (including pins whose app is currently uninstalled).
+     */
+    val pinKeys: StateFlow<List<String>> = _pinKeys.asStateFlow()
+
+    /** Pins saved elsewhere (the "Add to home screen" activity) show up here. Held, as prefs hold it weakly. */
+    private val pinsWatcher = pinnedAppsStore.watch { _pinKeys.value = pinnedAppsStore.load() }
+
+    /** The pinned shortcuts that still exist, by id, with their icons loaded; see [refreshPinnedShortcuts]. */
+    private val pinnedShortcuts = MutableStateFlow<Map<String, ShortcutEntry>>(emptyMap())
 
     /**
-     * The pinned apps that are installed, in pin order, at most [PinPickerConfig.MAX_PINNED]:
-     * what the sphere shows.
+     * The pins that can be shown (installed apps, and shortcuts that still exist), in pin order.
+     * The sphere shows the first [PinPickerConfig.MAX_PINNED]; once that many are shown, nothing
+     * more can be pinned.
      */
-    val pinnedApps: StateFlow<List<AppInfo>> =
-        combine(_pinnedPackages, _installedApps) { packages, apps ->
+    val pinnedItems: StateFlow<List<SearchEntry>> =
+        combine(_pinKeys, _installedApps, pinnedShortcuts) { keys, apps, shortcuts ->
             val byPackage = apps.associateBy { it.packageName }
-            packages.mapNotNull(byPackage::get).take(PinPickerConfig.MAX_PINNED)
+            keys.mapNotNull { key -> shortcuts[key] ?: byPackage[key] }
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val quickActionAppStore = QuickActionAppStore(application)
@@ -584,6 +595,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
+        // Pinned shortcuts are looked up again when the pins change, and when the apps do (one
+        // uninstalled takes its shortcuts with it).
+        viewModelScope.launch {
+            combine(_pinKeys, _installedApps) { keys, _ -> keys }.collectLatest { refreshPinnedShortcuts(it) }
+        }
         refreshPermissionsPrompt()
         // The first time the launcher ever opens, walk the user through setup (making it the default
         // home, and the permissions search uses); the tour follows once setup is finished. On an
@@ -601,6 +617,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     override fun onCleared() {
         indexUpdater.stop()
+        pinnedAppsStore.unwatch(pinsWatcher)
     }
 
     /**
@@ -638,6 +655,18 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         // turned on, a SIM put in), and nothing announces it. Re-checking them (and the app
         // shortcuts they're merged with) is cheap.
         if (started) indexUpdater.requestSync(listOf(SearchCategory.SETTING), urgent = false)
+        // An app may have removed, renamed or re-iconed a pinned shortcut while the launcher was away.
+        if (started) viewModelScope.launch { refreshPinnedShortcuts(_pinKeys.value) }
+    }
+
+    /** Looks up the shortcuts among [keys] as they are now, icons and all, for [pinnedItems]. */
+    private suspend fun refreshPinnedShortcuts(keys: List<String>) {
+        val ids = keys.filter { PinnedAppsStore.packageOfShortcutKey(it) != null }
+        pinnedShortcuts.value = if (ids.isEmpty()) {
+            emptyMap()
+        } else {
+            withContext(Dispatchers.IO) { shortcutProvider.loadPinned(ids) }.associateBy { it.id }
+        }
     }
 
     /** The launcher came back to the foreground, e.g. from the "All files access" screen. */
@@ -919,7 +948,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     /** Whether [step] can be done: filtering needs a second category, and pinning needs settings unlocked. */
     private fun tourStepApplies(step: TourStep): Boolean = when (step) {
         TourStep.FILTER -> _availableCategories.value.size > 1
-        TourStep.SPHERE -> pinnedApps.value.size >= 2 || !_settingsLocked.value
+        TourStep.SPHERE -> pinnedItems.value.size >= 2 || !_settingsLocked.value
         TourStep.SEARCH, TourStep.CLOSE_SEARCH, TourStep.SETTINGS -> true
     }
 
@@ -988,26 +1017,28 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Pins [app] (at the end) or unpins it, saving immediately. Pinning does nothing once
-     * [PinPickerConfig.MAX_PINNED] installed apps are pinned; the picker disables it then too.
+     * Pins [entry] (an app, at the end) or unpins it (an app or shortcut), saving immediately.
+     * Pinning does nothing once [PinPickerConfig.MAX_PINNED] pins are shown; the picker and menus
+     * don't offer it then either. An unpinned shortcut is released by the launcher too, so its app
+     * knows it's gone from the home screen.
      */
-    fun togglePinned(app: AppInfo) {
-        val pinning = app.packageName !in _pinnedPackages.value
-        if (pinning && pinnedApps.value.size >= PinPickerConfig.MAX_PINNED) return
-        val updated = _pinnedPackages.updateAndGet { packages ->
-            if (pinning) packages + app.packageName else packages - app.packageName
-        }
+    fun togglePinned(entry: SearchEntry) {
+        val key = PinnedAppsStore.keyOf(entry) ?: return
+        val pinning = key !in _pinKeys.value
+        if (pinning && pinnedItems.value.size >= PinPickerConfig.MAX_PINNED) return
+        val updated = _pinKeys.updateAndGet { keys -> if (pinning) keys + key else keys - key }
         pinnedAppsStore.save(updated)
+        if (!pinning && entry is ShortcutEntry) viewModelScope.launch(Dispatchers.IO) { shortcutProvider.unpin(entry) }
     }
 
     /**
-     * Puts the pinned apps in [order] (package names, as arranged in the picker), saving
-     * immediately. Pins missing from [order] (e.g. uninstalled apps) keep their place after it.
+     * Puts the pins in [order] (their keys, as arranged in the picker), saving immediately. Pins
+     * missing from [order] (e.g. uninstalled apps) keep their place after it.
      */
     fun reorderPinned(order: List<String>) {
-        val updated = _pinnedPackages.updateAndGet { packages ->
-            val reordered = order.filter { it in packages }
-            reordered + (packages - reordered.toSet())
+        val updated = _pinKeys.updateAndGet { keys ->
+            val reordered = order.filter { it in keys }
+            reordered + (keys - reordered.toSet())
         }
         pinnedAppsStore.save(updated)
     }

@@ -117,8 +117,8 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     val showPermissionsPrompt by viewModel.showPermissionsPrompt.collectAsStateWithLifecycle()
     val indexedCounts by viewModel.indexedCounts.collectAsStateWithLifecycle()
     val installedApps by viewModel.installedApps.collectAsStateWithLifecycle()
-    val pinnedApps by viewModel.pinnedApps.collectAsStateWithLifecycle()
-    val pinnedPackages by viewModel.pinnedPackages.collectAsStateWithLifecycle()
+    val pinnedItems by viewModel.pinnedItems.collectAsStateWithLifecycle()
+    val pinKeys by viewModel.pinKeys.collectAsStateWithLifecycle()
     val recentIds by viewModel.recentIds.collectAsStateWithLifecycle()
     val isPinPickerOpen by viewModel.isPinPickerOpen.collectAsStateWithLifecycle()
     val isSettingsOpen by viewModel.isSettingsOpen.collectAsStateWithLifecycle()
@@ -387,7 +387,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
             // the back gesture) can't intercept theirs.
             if (!isPinPickerOpen && !isSettingsOpen && !isSetupOpen && !(isSearchOpen && searchFullyIn)) {
                 PinnedAppsSphere(
-                    apps = pinnedApps,
+                    apps = pinnedItems.take(PinPickerConfig.MAX_PINNED),
                     onAppOpened = viewModel::onEntryOpened,
                     onEdit = viewModel::openPinPicker,
                     locked = settingsLocked,
@@ -405,7 +405,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
         AnimatedVisibility(visible = isPinPickerOpen, enter = fadeIn(), exit = fadeOut()) {
             PinnedAppsPicker(
                 apps = installedApps,
-                pinnedPackages = pinnedPackages,
+                pinned = pinnedItems,
                 onToggle = viewModel::togglePinned,
                 onReorder = viewModel::reorderPinned,
                 mirrored = leftHanded,
@@ -522,8 +522,8 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
             leftHanded = leftHanded,
             entryActions = SearchEntryActions(
                 enabled = true,
-                pinnedPackages = pinnedPackages.toSet(),
-                canPinMore = pinnedApps.size < PinPickerConfig.MAX_PINNED,
+                pinKeys = pinKeys.toSet(),
+                canPinMore = pinnedItems.size < PinPickerConfig.MAX_PINNED,
                 locked = settingsLocked,
                 recentIds = recentIds,
                 onTogglePinned = viewModel::togglePinned,
@@ -545,7 +545,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
             },
             reveal = { searchReveal.value },
             sphereBounds = sphereBounds,
-            sphereCanTurn = pinnedApps.size >= 2,
+            sphereCanTurn = pinnedItems.size >= 2,
             mirrored = leftHanded,
             quickActionsBounds = quickActionsBounds.takeIf { isLandscape },
             onSkip = viewModel::endTour,
