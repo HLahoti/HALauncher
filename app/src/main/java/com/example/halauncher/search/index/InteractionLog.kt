@@ -48,6 +48,25 @@ class InteractionLog(
         pruneIfDue(db, openedAtMillis)
     }
 
+    /** Deletes every recorded open of the entry with id [entryId], so it stops counting as used. */
+    @WorkerThread
+    fun forget(entryId: String) {
+        database.writableDatabase.delete(INTERACTIONS, "$COL_ENTRY_ID = ?", arrayOf(entryId))
+    }
+
+    /** Ids of every entry opened within the retention window before [nowMillis]. */
+    @WorkerThread
+    fun openedIds(nowMillis: Long): Set<String> {
+        val ids = mutableSetOf<String>()
+        database.readableDatabase.rawQuery(
+            "SELECT DISTINCT $COL_ENTRY_ID FROM $INTERACTIONS WHERE $COL_OPENED_AT >= ?",
+            arrayOf(cutoff(nowMillis).toString()),
+        ).use { cursor ->
+            while (cursor.moveToNext()) ids += cursor.getString(0)
+        }
+        return ids
+    }
+
     /**
      * Deletes expired history if the last prune was at least [pruneIntervalMillis] ago (or the
      * clock has since gone backwards past it). Returns whether it pruned.

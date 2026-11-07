@@ -187,6 +187,15 @@ object SearchConfig {
     /** Opacity of a result's secondary line (a contact's phone number, a file's folder). */
     const val RESULT_DETAIL_ALPHA = 0.6f
 
+    /**
+     * Opacity of every other result while one's long-press menu is open. They also take no taps
+     * then, so a tap meant to close the menu can't open something else.
+     */
+    const val MENU_DIMMED_ALPHA = 0.35f
+
+    /** How long results take to dim, and to come back, as a menu opens and closes. */
+    const val MENU_DIM_DURATION_MS = 150
+
     /** Gap between a result's name and its secondary line. */
     val ResultDetailGap = 2.dp
 

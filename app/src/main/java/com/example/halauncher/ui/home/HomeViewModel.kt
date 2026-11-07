@@ -367,6 +367,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
      */
     private val openedThisSession = MutableStateFlow<List<SearchEntry>>(emptyList())
 
+    private val _recentIds = MutableStateFlow<Set<String>>(emptySet())
+    /**
+     * Ids of the entries that count as recents (opened within the history window, or this
+     * session), so search offers "Remove from recents" on just those.
+     */
+    val recentIds: StateFlow<Set<String>> = _recentIds.asStateFlow()
+
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
@@ -710,7 +717,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         val started = SystemClock.elapsedRealtime()
         val pinned = openedThisSession.value
         val built = searchEngine.buildFrequentLayer(seed = _installedApps.value, pinned = pinned)
+        val opened = searchEngine.openedIds()
         Log.d(PERF_TAG, "Frequent layer built in ${SystemClock.elapsedRealtime() - started} ms")
+        // This session's opens are recorded in the background, so they may not be on disk yet.
+        _recentIds.value = opened + openedThisSession.value.map { it.id }
         layerMutex.withLock {
             // If anything was opened while the rebuild ran, this session's opens are put back in
             // order (oldest first, so the latest ends up on top) before publishing. The new trie
@@ -744,6 +754,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     fun onEntryOpened(entry: SearchEntry) {
         // Most recent first, so it stays on top of the recents through later rebuilds.
         openedThisSession.update { opened -> listOf(entry) + opened.filterNot { it.id == entry.id } }
+        _recentIds.update { it + entry.id }
         // Goes to the front of the frequent layer now, in place on the main thread where the layer
         // is searched, so it leads the recents and answers instantly from the next keystroke on.
         viewModelScope.launch(Dispatchers.Main.immediate) {
@@ -753,6 +764,19 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
         viewModelScope.launch(Dispatchers.IO) { searchEngine.recordOpen(entry) }
         resetHome()
+    }
+
+    /**
+     * Removes [entry] from the recents: its open history is deleted and the frequent layer rebuilt
+     * without it. An app can stay in the frequent layer as a seed, after the recents, A–Z.
+     */
+    fun forgetRecent(entry: SearchEntry) {
+        openedThisSession.update { opened -> opened.filterNot { it.id == entry.id } }
+        _recentIds.update { it - entry.id }
+        viewModelScope.launch(indexUpdater.dispatcher) {
+            searchEngine.forgetOpens(entry)
+            rebuildFrequentLayer()
+        }
     }
 
     fun onSearchQueryChanged(query: String) {

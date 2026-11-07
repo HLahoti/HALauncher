@@ -4,6 +4,8 @@ import android.content.res.Resources
 import android.graphics.drawable.Drawable
 import android.widget.Toast
 import androidx.annotation.PluralsRes
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -55,6 +57,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
@@ -97,6 +100,7 @@ import com.example.halauncher.ui.components.ClickToLaunch
 import com.example.halauncher.ui.components.GridLayoutIcon
 import com.example.halauncher.ui.components.ListLayoutIcon
 import com.example.halauncher.ui.components.icon
+import com.example.halauncher.ui.components.ignoreLongPress
 import com.example.halauncher.ui.components.isLandscape
 import com.example.halauncher.ui.components.launchSafely
 import com.example.halauncher.ui.components.liquidGlass
@@ -132,6 +136,7 @@ fun SearchOverlay(
     permissions: SearchPermissions = SearchPermissions(),
     indexedCounts: Map<SearchCategory, Int> = emptyMap(),
     leftHanded: Boolean = false,
+    entryActions: SearchEntryActions = SearchEntryActions(),
 ) {
     // When picking (e.g. an app for the money button), results are chosen, not opened.
     val isPicking = pickTitle != null
@@ -185,6 +190,51 @@ fun SearchOverlay(
     }
     // Matches only need a label to set them apart from the recents above them.
     val showsMoreLabel = results.frequent.isNotEmpty() && results.more.isNotEmpty()
+
+    // The result whose long-press menu is open, if any. Meanwhile every other result dims and
+    // takes no taps, and the results don't scroll (which would carry the menu's row away from it).
+    // Choosing an app for a button has no menus.
+    // Removing a recent reorders the results under the finger, and the list would keep its place
+    // by the removed entry; it goes back to the top once they change instead.
+    var scrollToTopOnChange by remember { mutableStateOf(false) }
+    val activeEntryActions = remember(entryActions, isPicking) {
+        if (isPicking) {
+            SearchEntryActions()
+        } else {
+            entryActions.copy(
+                onForgetRecent = { entry ->
+                    scrollToTopOnChange = true
+                    entryActions.onForgetRecent(entry)
+                },
+            )
+        }
+    }
+    LaunchedEffect(results) {
+        if (scrollToTopOnChange) {
+            scrollToTopOnChange = false
+            listState.scrollToItem(0)
+            gridState.scrollToItem(0)
+        }
+    }
+    var menuEntryId by remember { mutableStateOf<String?>(null) }
+    val dimAlpha by animateFloatAsState(
+        targetValue = if (menuEntryId != null) SearchConfig.MENU_DIMMED_ALPHA else 1f,
+        animationSpec = tween(SearchConfig.MENU_DIM_DURATION_MS),
+        label = "menuDim",
+    )
+    // Gone with search, and with its result (e.g. after "Remove from recents" or a re-index).
+    LaunchedEffect(isHidden, isPicking) {
+        if (isHidden || isPicking) menuEntryId = null
+    }
+    LaunchedEffect(results, menuEntryId) {
+        val open = menuEntryId ?: return@LaunchedEffect
+        val shown = results.frequent.any { it.id == open } || results.more.any { it.id == open } ||
+            results.suggestions.any { group -> group.entries.any { it.id == open } }
+        if (!shown) menuEntryId = null
+    }
+    // The last result to have its menu open, which stays fully lit while the rest fade back.
+    var litEntryId by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(menuEntryId) { menuEntryId?.let { litEntryId = it } }
 
     val focusManager = LocalFocusManager.current
     // Only once search has fully come in; a swipe that's still bringing it in may yet let go.
@@ -416,6 +466,20 @@ fun SearchOverlay(
                     EntryRowContent(entry, contactPhotos, fileThumbnails, shortcutIcons)
                 }
             }
+            val resultItem: @Composable (SearchEntry) -> Unit = { entry ->
+                EntryItem(
+                    entry = entry,
+                    isPicking = isPicking,
+                    onOpened = onEntryOpened,
+                    onPicked = onEntryPicked,
+                    actions = activeEntryActions,
+                    menuEntryId = menuEntryId,
+                    alpha = if (entry.id == (menuEntryId ?: litEntryId)) 1f else dimAlpha,
+                    onMenuChange = { menuEntryId = it },
+                ) {
+                    entryContent(entry)
+                }
+            }
             if (showGrid || isLandscape) {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(
@@ -426,6 +490,7 @@ fun SearchOverlay(
                         },
                     ),
                     state = gridState,
+                    userScrollEnabled = menuEntryId == null,
                     modifier = Modifier
                         .fillMaxWidth()
                         // In landscape the keyboard leaves room for little more than a row of
@@ -434,70 +499,70 @@ fun SearchOverlay(
                 ) {
                     if (activeCalcResult != null) {
                         item(key = CALC_RESULT_KEY, span = { GridItemSpan(maxLineSpan) }) {
-                            CalcResultRow(query = query, result = activeCalcResult, onCopy = onCalcResultSelected)
+                            CalcResultRow(
+                                query = query,
+                                result = activeCalcResult,
+                                onCopy = onCalcResultSelected,
+                                enabled = menuEntryId == null,
+                                modifier = Modifier.alpha(dimAlpha),
+                            )
                         }
                     }
                     items(results.frequent, key = { it.id }) { entry ->
-                        EntryItem(entry = entry, isPicking = isPicking, onOpened = onEntryOpened, onPicked = onEntryPicked) {
-                            entryContent(entry)
-                        }
+                        resultItem(entry)
                     }
                     if (showsMoreLabel) {
                         item(key = MORE_RESULTS_KEY, span = { GridItemSpan(maxLineSpan) }) {
-                            SectionLabel(stringResource(R.string.more_results))
+                            SectionLabel(stringResource(R.string.more_results), Modifier.alpha(dimAlpha))
                         }
                     }
                     items(results.more, key = { it.id }) { entry ->
-                        EntryItem(entry = entry, isPicking = isPicking, onOpened = onEntryOpened, onPicked = onEntryPicked) {
-                            entryContent(entry)
-                        }
+                        resultItem(entry)
                     }
                     results.suggestions.forEach { group ->
                         item(key = suggestionsKey(group.kind), span = { GridItemSpan(maxLineSpan) }) {
-                            SectionLabel(stringResource(group.kind.label))
+                            SectionLabel(stringResource(group.kind.label), Modifier.alpha(dimAlpha))
                         }
                         items(group.entries, key = { it.id }) { entry ->
-                            EntryItem(entry = entry, isPicking = isPicking, onOpened = onEntryOpened, onPicked = onEntryPicked) {
-                                entryContent(entry)
-                            }
+                            resultItem(entry)
                         }
                     }
                     if (results.isEmpty && activeCalcResult == null && !results.isSearchingDisk && query.isNotBlank()) {
                         item(key = NO_RESULTS_KEY, span = { GridItemSpan(maxLineSpan) }) {
-                            SectionLabel(stringResource(R.string.no_results))
+                            SectionLabel(stringResource(R.string.no_results), Modifier.alpha(dimAlpha))
                         }
                     }
                 }
             } else {
-                LazyColumn(state = listState, modifier = Modifier.fillMaxWidth()) {
+                LazyColumn(state = listState, modifier = Modifier.fillMaxWidth(), userScrollEnabled = menuEntryId == null) {
                     if (activeCalcResult != null) {
                         item(key = CALC_RESULT_KEY) {
-                            CalcResultRow(query = query, result = activeCalcResult, onCopy = onCalcResultSelected)
+                            CalcResultRow(
+                                query = query,
+                                result = activeCalcResult,
+                                onCopy = onCalcResultSelected,
+                                enabled = menuEntryId == null,
+                                modifier = Modifier.alpha(dimAlpha),
+                            )
                         }
                     }
                     items(results.frequent, key = { it.id }) { entry ->
-                        EntryItem(entry = entry, isPicking = isPicking, onOpened = onEntryOpened, onPicked = onEntryPicked) {
-                            EntryRowContent(entry, contactPhotos, fileThumbnails, shortcutIcons)
-                        }
+                        resultItem(entry)
                     }
                     if (showsMoreLabel) {
-                        item(key = MORE_RESULTS_KEY) { SectionLabel(stringResource(R.string.more_results)) }
+                        item(key = MORE_RESULTS_KEY) { SectionLabel(stringResource(R.string.more_results), Modifier.alpha(dimAlpha)) }
                     }
                     items(results.more, key = { it.id }) { entry ->
-                        EntryItem(entry = entry, isPicking = isPicking, onOpened = onEntryOpened, onPicked = onEntryPicked) {
-                            EntryRowContent(entry, contactPhotos, fileThumbnails, shortcutIcons)
-                        }
+                        resultItem(entry)
                     }
                     results.suggestions.forEach { group ->
-                        item(key = suggestionsKey(group.kind)) { SectionLabel(stringResource(group.kind.label)) }
+                        item(key = suggestionsKey(group.kind)) { SectionLabel(stringResource(group.kind.label), Modifier.alpha(dimAlpha)) }
                         items(group.entries, key = { it.id }) { entry ->
-                            EntryItem(entry = entry, isPicking = isPicking, onOpened = onEntryOpened, onPicked = onEntryPicked) {
-                                EntryRowContent(entry, contactPhotos, fileThumbnails, shortcutIcons)
-                            }
+                            resultItem(entry)
                         }
                     }
                     if (results.isEmpty && activeCalcResult == null && !results.isSearchingDisk && query.isNotBlank()) {
-                        item(key = NO_RESULTS_KEY) { SectionLabel(stringResource(R.string.no_results)) }
+                        item(key = NO_RESULTS_KEY) { SectionLabel(stringResource(R.string.no_results), Modifier.alpha(dimAlpha)) }
                     }
                 }
             }
@@ -555,12 +620,12 @@ private val SuggestionKind.label: Int
     }
 
 @Composable
-private fun SectionLabel(text: String) {
+private fun SectionLabel(text: String, modifier: Modifier = Modifier) {
     Text(
         text = text,
         color = ThemeConfig.Foreground.copy(alpha = SearchConfig.SECTION_LABEL_ALPHA),
         style = MaterialTheme.typography.labelLarge,
-        modifier = Modifier
+        modifier = modifier
             .padding(SearchConfig.SectionLabelPadding)
             .semantics { heading() },
     )
@@ -656,7 +721,10 @@ private fun SearchPermissionNotice(
 
 /**
  * A result, drawn by [content] (a list row or a grid cell): tapping opens the entry, or, when
- * [isPicking], chooses it instead.
+ * [isPicking], chooses it instead. Holding it opens its [SearchEntryMenu] (when it has one) with
+ * a buzz, through [onMenuChange]; [menuEntryId] is the result whose menu is open, if any. While
+ * another result's menu is open this one takes no taps. It's drawn at [alpha], which the overlay
+ * lowers for every other result while a menu is open.
  */
 @Composable
 private fun EntryItem(
@@ -664,12 +732,17 @@ private fun EntryItem(
     isPicking: Boolean,
     onOpened: (SearchEntry) -> Unit,
     onPicked: (SearchEntry) -> Unit,
+    actions: SearchEntryActions,
+    menuEntryId: String?,
+    alpha: Float,
+    onMenuChange: (String?) -> Unit,
     content: @Composable () -> Unit,
 ) {
     if (isPicking) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
+                .ignoreLongPress()
                 .clickable(onClickLabel = stringResource(R.string.choose_app, entry.name)) { onPicked(entry) },
         ) {
             content()
@@ -689,17 +762,42 @@ private fun EntryItem(
     }
     val context = LocalContext.current
     val resources = LocalResources.current
-    ClickToLaunch(
-        element,
-        modifier = Modifier.fillMaxWidth(),
-        onLaunched = {
-            onOpened(entry)
-            // An APK opens the file manager rather than the installer; say what to tap there.
-            if (entry is FileEntry && entry.isApk) {
-                Toast.makeText(context, apkInstallNote(resources, entry), Toast.LENGTH_LONG).show()
-            }
-        },
-    )
+    val haptics = remember(context) { Haptics(context) }
+    val menuOpen = menuEntryId == entry.id
+    val dimmed = menuEntryId != null && !menuOpen
+    val optionsLabel = stringResource(R.string.entry_options, entry.name)
+    val hasMenu = hasEntryMenu(entry, actions)
+    Box(modifier = Modifier.fillMaxWidth().alpha(alpha)) {
+        ClickToLaunch(
+            element,
+            // Without a menu, holding a result does nothing, rather than opening it on release.
+            modifier = Modifier.fillMaxWidth().then(if (hasMenu) Modifier else Modifier.ignoreLongPress()),
+            enabled = !dimmed,
+            onLaunched = {
+                onOpened(entry)
+                // An APK opens the file manager rather than the installer; say what to tap there.
+                if (entry is FileEntry && entry.isApk) {
+                    Toast.makeText(context, apkInstallNote(resources, entry), Toast.LENGTH_LONG).show()
+                }
+            },
+            onLongClickLabel = optionsLabel,
+            onLongClick = if (hasMenu) {
+                {
+                    haptics.longPress()
+                    onMenuChange(entry.id)
+                }
+            } else {
+                null
+            },
+        )
+        SearchEntryMenu(
+            entry = entry,
+            expanded = menuOpen,
+            actions = actions,
+            onDismiss = { onMenuChange(null) },
+            onOpened = onOpened,
+        )
+    }
 }
 
 private fun apkInstallNote(resources: Resources, file: FileEntry): String =
@@ -851,12 +949,18 @@ private fun LayoutToggle(
  * which expression produced the number.
  */
 @Composable
-private fun CalcResultRow(query: String, result: String, onCopy: (String) -> Unit) {
+private fun CalcResultRow(
+    query: String,
+    result: String,
+    onCopy: (String) -> Unit,
+    enabled: Boolean = true,
+    modifier: Modifier = Modifier,
+) {
     val label = stringResource(R.string.copy_calc_result, result)
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .clickable(onClickLabel = label) { onCopy(result) }
+            .clickable(enabled = enabled, onClickLabel = label) { onCopy(result) }
             .padding(SearchConfig.ResultRowPadding),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(SearchConfig.ResultIconTextGap),

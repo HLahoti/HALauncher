@@ -232,4 +232,15 @@ class SearchEngine(
      */
     @WorkerThread
     fun recordOpen(entry: SearchEntry) = interactions.record(entry, clock())
+
+    /**
+     * Forgets every time [entry] was opened, so it no longer ranks as a recent. It leaves the
+     * frequent layer at the next [buildFrequentLayer] (an app may stay as a seed, in A–Z order).
+     */
+    @WorkerThread
+    fun forgetOpens(entry: SearchEntry) = interactions.forget(entry.id)
+
+    /** Ids of every entry with open history that still counts: what search shows as recents. */
+    @WorkerThread
+    fun openedIds(): Set<String> = interactions.openedIds(clock())
 }

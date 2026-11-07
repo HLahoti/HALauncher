@@ -53,6 +53,15 @@
             <action android:name="android.intent.action.DIAL" />
             <data android:scheme="tel" />
         </intent>
+        <!-- Search results' long-press menus: message a contact, show an app's info. -->
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="smsto" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.APPLICATION_DETAILS_SETTINGS" />
+            <data android:scheme="package" />
+        </intent>
         <intent>
             <action android:name="android.media.action.STILL_IMAGE_CAMERA" />
         </intent>

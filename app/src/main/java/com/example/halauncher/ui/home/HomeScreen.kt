@@ -87,6 +87,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.halauncher.R
 import com.example.halauncher.config.ClockConfig
 import com.example.halauncher.config.HomeScreenConfig
+import com.example.halauncher.config.PinPickerConfig
 import com.example.halauncher.model.AppInfo
 import com.example.halauncher.model.HomeTextColor
 import com.example.halauncher.model.LaunchableElement
@@ -117,6 +118,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     val installedApps by viewModel.installedApps.collectAsStateWithLifecycle()
     val pinnedApps by viewModel.pinnedApps.collectAsStateWithLifecycle()
     val pinnedPackages by viewModel.pinnedPackages.collectAsStateWithLifecycle()
+    val recentIds by viewModel.recentIds.collectAsStateWithLifecycle()
     val isPinPickerOpen by viewModel.isPinPickerOpen.collectAsStateWithLifecycle()
     val isSettingsOpen by viewModel.isSettingsOpen.collectAsStateWithLifecycle()
     val isAboutOpen by viewModel.isAboutOpen.collectAsStateWithLifecycle()
@@ -517,6 +519,15 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
             ),
             indexedCounts = indexedCounts,
             leftHanded = leftHanded,
+            entryActions = SearchEntryActions(
+                enabled = true,
+                pinnedPackages = pinnedPackages.toSet(),
+                canPinMore = pinnedApps.size < PinPickerConfig.MAX_PINNED,
+                locked = settingsLocked,
+                recentIds = recentIds,
+                onTogglePinned = viewModel::togglePinned,
+                onForgetRecent = viewModel::forgetRecent,
+            ),
         )
 
         // Over everything, but it only takes touches on its Skip button. Each step shows only where
