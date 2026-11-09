@@ -104,6 +104,10 @@ class IndexUpdater(
     private var loop: Job? = null
     private var scope: CoroutineScope? = null
 
+    /** How hard work may run right now, given battery saver and heat; search uses it too. */
+    val throttle: Throttle
+        get() = guard.state.value.throttle
+
     /** Whether the launcher is started (visible); flushes wait for it. */
     private val foreground = MutableStateFlow(false)
 

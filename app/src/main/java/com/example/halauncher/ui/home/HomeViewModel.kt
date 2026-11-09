@@ -49,6 +49,7 @@ import com.example.halauncher.search.index.SearchIndex
 import com.example.halauncher.search.index.ShortcutEntryCodec
 import com.example.halauncher.search.ranking.ContextMatchRanker
 import com.example.halauncher.search.sync.IndexUpdater
+import com.example.halauncher.search.sync.Throttle
 import com.example.halauncher.service.DefaultHome
 import com.example.halauncher.util.Calculator
 import java.text.SimpleDateFormat
@@ -420,7 +421,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Frequent-layer matches at once on every change; then, if nothing has changed for
-     * [SearchLayersConfig.DISK_SEARCH_DELAY_MS] (the user paused and opened nothing), ranked
+     * [SearchLayersConfig.DISK_SEARCH_DELAY_MS] (the user paused and opened nothing; longer under
+     * battery saver or heat, see [SearchLayersConfig.DISK_SEARCH_SLOW_DELAY_MS]), ranked
      * disk matches too. A new keystroke cancels a pending or running disk search. With nothing
      * typed there are no disk matches, so the disk isn't touched at all.
      *
@@ -473,7 +475,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             } else {
                 frequent
             }
-            delay(SearchLayersConfig.DISK_SEARCH_DELAY_MS)
+            delay(
+                if (indexUpdater.throttle == Throttle.NORMAL) {
+                    SearchLayersConfig.DISK_SEARCH_DELAY_MS
+                } else {
+                    SearchLayersConfig.DISK_SEARCH_SLOW_DELAY_MS
+                },
+            )
             val shownIds = shownFrequent.mapTo(mutableSetOf()) { it.id }
             val more = withContext(Dispatchers.IO) {
                 val started = SystemClock.elapsedRealtime()
