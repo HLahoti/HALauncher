@@ -4,11 +4,12 @@
          shown in Settings > About. Rewrite both with every release (see PLAY_STORE_CHECKLIST.md).
          While release_notes_version isn't the app's versionName, About leaves the list out rather
          than show another release's notes. -->
-    <string name="release_notes_version" translatable="false">1.7</string>
+    <string name="release_notes_version" translatable="false">1.8</string>
     <string-array name="release_notes">
-        <item>Left-handed mode, in settings, puts the pinned app wheel on the left, where your left thumb can spin it. The clock and quick actions move to the right, and the pinned apps editor and search\'s grid/list button follow.</item>
-        <item>HALauncher works sideways. Turn your phone and the home screen spreads out: the wheel on one edge, the clock and quick actions on the other, kept clear of the camera.</item>
-        <item>Search, settings, the pinned apps editor, set-up and About use the extra width when sideways: settings and the editor in two columns, and search with its category buttons beside the field and more results to a row.</item>
-        <item>Sideways, search opens with its results in view: tap the field to type, and scroll the results to put the keyboard away again.</item>
+        <item>Hold a search result for a menu of what you can do with it: App info and Pin to home for apps; Call, Message and Copy number for contacts; Open with, Share and Copy path for files. Anything you\'ve opened before can be removed from your recents.</item>
+        <item>\"Add to home screen\" works: a website from Chrome, a contact or a playlist joins the pinned app wheel with its own icon, as long as there\'s room.</item>
+        <item>Apps in a work profile show up, marked \"(work)\" with the work badge, next to your personal copies. Pin them, put them on a quick-action button, find their shortcuts in search, and they open in the work profile.</item>
+        <item>The long-press menus are on the same dark glass as the rest of the launcher.</item>
+        <item>Search finds everything else a little sooner after you stop typing, and waits a little longer while battery saver is on or the phone is warm.</item>
     </string-array>
 </resources>
