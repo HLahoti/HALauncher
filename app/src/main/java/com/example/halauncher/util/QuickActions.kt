@@ -24,9 +24,15 @@ sealed interface QuickAction {
     /**
      * The clock app's alarm at [hour]:[minute] (24-hour) turned off; with no [hour], whichever of its
      * alarms rings next. [nextAt], when known, is when that next one rings (epoch millis), to show
-     * which it is; it's found on the device, not typed.
+     * which it is. [opensList] is for clocks that can't turn off an alarm for another app (Samsung's):
+     * their alarm list opens instead, to switch it off there. Both are found on the device, not typed.
      */
-    data class AlarmOff(val hour: Int? = null, val minute: Int = 0, val nextAt: Long? = null) : QuickAction
+    data class AlarmOff(
+        val hour: Int? = null,
+        val minute: Int = 0,
+        val nextAt: Long? = null,
+        val opensList: Boolean = false,
+    ) : QuickAction
 
     /**
      * A ringing timer stopped. Android lets other apps stop only a timer that's ringing, not one

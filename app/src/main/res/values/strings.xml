@@ -124,6 +124,8 @@
     <!-- %1$s is when the alarm rings: "7:30 AM", or "Wed 7:30 AM" when it isn't today. -->
     <string name="quick_alarm_off">Turn off the %1$s alarm</string>
     <string name="quick_alarm_off_next">Turn off the next alarm</string>
+    <!-- For clocks that can't turn an alarm off for the launcher: their alarm list opens instead. -->
+    <string name="quick_alarm_off_list">Open alarms to turn one off</string>
     <string name="quick_timer_stop">Stop the ringing timer</string>
     <string name="quick_timer_set">%1$s timer started</string>
     <string name="quick_alarm_set">Alarm set for %1$s</string>

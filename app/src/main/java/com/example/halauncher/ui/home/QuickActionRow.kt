@@ -137,6 +137,7 @@ internal fun quickActionTitle(resources: Resources, action: QuickAction, is24Hou
     is QuickAction.Timer -> resources.getString(R.string.quick_timer, formatDuration(resources, action.seconds))
     is QuickAction.Alarm -> resources.getString(R.string.quick_alarm, formatClockTime(action.hour, action.minute, is24Hour))
     is QuickAction.AlarmOff -> when {
+        action.opensList -> resources.getString(R.string.quick_alarm_off_list)
         action.hour != null ->
             resources.getString(R.string.quick_alarm_off, formatClockTime(action.hour, action.minute, is24Hour))
         action.nextAt != null -> resources.getString(R.string.quick_alarm_off, formatAlarmTime(action.nextAt, is24Hour))

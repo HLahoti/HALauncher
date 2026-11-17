@@ -28,19 +28,7 @@ val QuickAction.intent: Intent
             .putExtra(AlarmClock.EXTRA_HOUR, hour)
             .putExtra(AlarmClock.EXTRA_MINUTES, minute)
             .putExtra(AlarmClock.EXTRA_SKIP_UI, true)
-        // Android defines no quiet mode for this, but some clocks take the same hint as for setting
-        // one; others (Google's) show their alarm list, which shows it's off.
-        is QuickAction.AlarmOff -> Intent(AlarmClock.ACTION_DISMISS_ALARM).apply {
-            putExtra(AlarmClock.EXTRA_SKIP_UI, true)
-            if (hour == null) {
-                putExtra(AlarmClock.EXTRA_ALARM_SEARCH_MODE, AlarmClock.ALARM_SEARCH_MODE_NEXT)
-            } else {
-                putExtra(AlarmClock.EXTRA_ALARM_SEARCH_MODE, AlarmClock.ALARM_SEARCH_MODE_TIME)
-                putExtra(AlarmClock.EXTRA_HOUR, hour)
-                putExtra(AlarmClock.EXTRA_MINUTES, minute)
-                putExtra(AlarmClock.EXTRA_IS_PM, hour >= NOON)
-            }
-        }
+        is QuickAction.AlarmOff -> alarmOffIntent()
         // Added in Android 9; before that no app handles it, so the action isn't offered. Without
         // the quiet hint Google's clock just shows the ringing timer instead of stopping it.
         is QuickAction.TimerStop -> Intent(ACTION_DISMISS_TIMER).putExtra(AlarmClock.EXTRA_SKIP_UI, true)
@@ -53,6 +41,26 @@ val QuickAction.intent: Intent
             .setDataAndType(CalendarContract.Events.CONTENT_URI, EventEntry.EVENTS_TYPE)
             .putExtra(CalendarContract.Events.TITLE, title)
     }
+
+/**
+ * Turns off [QuickAction.AlarmOff]'s alarm, or for a clock that can't, opens its alarm list. Android
+ * defines no quiet mode for turning one off, but some clocks take the same hint as for setting one;
+ * others (Google's) show their alarm list, which shows it's off.
+ */
+private fun QuickAction.AlarmOff.alarmOffIntent(): Intent {
+    if (opensList) return Intent(AlarmClock.ACTION_SHOW_ALARMS)
+    return Intent(AlarmClock.ACTION_DISMISS_ALARM).apply {
+        putExtra(AlarmClock.EXTRA_SKIP_UI, true)
+        if (hour == null) {
+            putExtra(AlarmClock.EXTRA_ALARM_SEARCH_MODE, AlarmClock.ALARM_SEARCH_MODE_NEXT)
+        } else {
+            putExtra(AlarmClock.EXTRA_ALARM_SEARCH_MODE, AlarmClock.ALARM_SEARCH_MODE_TIME)
+            putExtra(AlarmClock.EXTRA_HOUR, hour)
+            putExtra(AlarmClock.EXTRA_MINUTES, minute)
+            putExtra(AlarmClock.EXTRA_IS_PM, hour >= NOON)
+        }
+    }
+}
 
 /**
  * [actions] that some installed app handles, each with the app that will. Asks the package
@@ -72,21 +80,31 @@ fun resolveQuickActions(context: Context, actions: List<QuickAction>): List<Quic
             ?.takeIf { it.packageName != ANDROID_PACKAGE }
             ?.applicationInfo?.loadLabel(pm)?.toString()
         val handler = default?.activityInfo?.packageName
-        QuickActionTarget(action.withNextAlarm(context, handler), appName)
+        QuickActionTarget(action.forClock(context, handler), appName)
     }
 }
 
 /**
- * For "turn off the next alarm", when it rings, so its row can say which alarm that is. Only the
- * next alarm of [clockPackage], the app that will turn it off: Android's next alarm may be another
- * app's (a sleep tracker's), which the clock wouldn't touch.
+ * Turning off an alarm, fitted to [clockPackage], the clock that will do it. A clock that can't
+ * turn one off for another app opens its alarm list instead. Otherwise, for "the next alarm", when
+ * it rings, so its row can say which alarm that is: only [clockPackage]'s next alarm, since
+ * Android's next alarm may be another app's (a reminder's), which the clock wouldn't touch.
  */
-private fun QuickAction.withNextAlarm(context: Context, clockPackage: String?): QuickAction {
-    if (this !is QuickAction.AlarmOff || hour != null || clockPackage == null) return this
+private fun QuickAction.forClock(context: Context, clockPackage: String?): QuickAction {
+    if (this !is QuickAction.AlarmOff || clockPackage == null) return this
+    if (clockPackage in CLOCKS_THAT_CANNOT_TURN_OFF) return copy(opensList = true)
+    if (hour != null) return this
     val next = context.getSystemService(AlarmManager::class.java)?.nextAlarmClock ?: return this
     if (next.showIntent?.creatorPackage != clockPackage) return this
     return copy(nextAt = next.triggerTime)
 }
+
+/**
+ * Clocks whose DISMISS_ALARM only stops a ringing alarm, ignoring which alarm is asked for. Samsung's
+ * opens its alarm list in delete mode instead, where a tap deletes an alarm rather than switching
+ * it off.
+ */
+private val CLOCKS_THAT_CANNOT_TURN_OFF = setOf("com.sec.android.app.clockpackage")
 
 /** AlarmClock.ACTION_DISMISS_TIMER, which is only in the SDK from Android 9. */
 private const val ACTION_DISMISS_TIMER = "android.intent.action.DISMISS_TIMER"
