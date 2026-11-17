@@ -531,9 +531,11 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                     ).show()
                 }
             },
-            quickActions = quickActions,
+            quickActions = quickActions.targets,
+            quickActionsQuery = quickActions.query,
             onQuickActionRun = viewModel::onQuickActionRun,
             commandHints = commandHints,
+            supportedCommands = tipCommands,
             permissions = SearchPermissions(
                 contacts = contactsAccess,
                 calendar = calendarAccess,

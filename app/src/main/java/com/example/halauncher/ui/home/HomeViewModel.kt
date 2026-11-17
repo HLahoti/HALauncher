@@ -34,6 +34,7 @@ import com.example.halauncher.data.ShortcutProvider
 import com.example.halauncher.model.AccessState
 import com.example.halauncher.model.AppInfo
 import com.example.halauncher.model.ContactEntry
+import com.example.halauncher.model.EventEntry
 import com.example.halauncher.model.HomeTextColor
 import com.example.halauncher.model.SearchCategory
 import com.example.halauncher.model.SearchEntry
@@ -58,7 +59,7 @@ import com.example.halauncher.service.DefaultHome
 import com.example.halauncher.util.Calculator
 import com.example.halauncher.util.ContactCommand
 import com.example.halauncher.util.QuickAction
-import com.example.halauncher.util.QuickActionTarget
+import com.example.halauncher.util.QuickActionsFor
 import com.example.halauncher.util.QuickCommand
 import com.example.halauncher.util.QuickActions
 import com.example.halauncher.util.resolveQuickActions
@@ -582,7 +583,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
      * Shown above the results while picking is off.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
-    val quickActions: StateFlow<List<QuickActionTarget>> =
+    val quickActions: StateFlow<QuickActionsFor> =
         _searchQuery.map(String::trim).distinctUntilChanged()
             .mapLatest { query ->
                 withContext(Dispatchers.IO) {
@@ -590,10 +591,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     val actions = QuickActions.parse(query).ifEmpty {
                         QuickActions.contactCommand(query)?.let(::contactActions).orEmpty()
                     }
-                    resolveQuickActions(getApplication(), actions)
+                    QuickActionsFor(query, resolveQuickActions(getApplication(), actions))
                 }
             }
-            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+            .stateIn(viewModelScope, SharingStarted.Eagerly, QuickActionsFor("", emptyList()))
 
     /**
      * [command]'s action for each of the contacts it may mean, best match first: their number to call
@@ -632,8 +633,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /**
-     * Every command some installed app can carry out, for the Search tips page. Checked once, in the
-     * background, when first needed; the apps that handle these rarely come and go.
+     * Every command some installed app can carry out, for the Search tips page, the "All" tab's tips
+     * and the tour. Checked once, in the background, at start; the apps that handle these rarely
+     * come and go.
      */
     val supportedCommands: StateFlow<List<QuickCommand>> = flow {
         emit(
@@ -643,7 +645,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 }
             },
         )
-    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /** A quick action was started: it's done, so search closes, as it does when a result is opened. */
     fun onQuickActionRun() = closeSearch()
@@ -696,6 +698,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                         _installedApps.value = apps
                         refreshOpenedThisSession(apps)
                     }
+                    if (SearchCategory.EVENT in update.changedCategories) refreshOpenedEvents()
                     rebuildFrequentLayer()
                     publishIndexedCategories()
                 }
@@ -703,7 +706,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
         // Typing something search can do (the tour asks for "timer 1m") finishes the tour's step for it.
         viewModelScope.launch {
-            quickActions.collect { actions ->
+            quickActions.collect { (_, actions) ->
                 if (actions.isNotEmpty() && _searchPurpose.value == SearchPurpose.FIND) advanceTour(TourStep.QUICK_ACTION)
             }
         }
@@ -849,6 +852,21 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     else -> entry
                 }
             }
+        }
+    }
+
+    /**
+     * Brings the events opened this session up to date with the index, which was just re-read: an
+     * event is listed by its next occurrence ("Today, 10:00" becomes tomorrow's), and may have been
+     * renamed or deleted. Otherwise a recent would keep the event as it was when opened, and open
+     * that past occurrence.
+     */
+    private fun refreshOpenedEvents() {
+        val events = openedThisSession.value.filterIsInstance<EventEntry>()
+        if (events.isEmpty()) return
+        val current = searchEngine.entriesByIds(events.map { it.id }).associateBy { it.id }
+        openedThisSession.update { opened ->
+            opened.mapNotNull { entry -> if (entry is EventEntry) current[entry.id] else entry }
         }
     }
 
@@ -1085,7 +1103,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private fun tourStepApplies(step: TourStep): Boolean = when (step) {
         TourStep.FILTER -> _availableCategories.value.size > 1
         TourStep.SPHERE -> pinnedItems.value.size >= 2 || !_settingsLocked.value
-        TourStep.SEARCH, TourStep.QUICK_ACTION, TourStep.CLOSE_SEARCH, TourStep.SETTINGS -> true
+        // It asks for "timer 1m", which needs a clock app that sets timers.
+        TourStep.QUICK_ACTION -> QuickCommand.TIMER in supportedCommands.value
+        TourStep.SEARCH, TourStep.CLOSE_SEARCH, TourStep.SETTINGS -> true
     }
 
     /**

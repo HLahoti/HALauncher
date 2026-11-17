@@ -20,6 +20,9 @@ import com.example.halauncher.model.EventEntry
  */
 data class QuickActionTarget(val action: QuickAction, val appName: String?)
 
+/** The quick actions for [query] (trimmed), as worked out for it: newer typing may not have caught up yet. */
+data class QuickActionsFor(val query: String, val targets: List<QuickActionTarget>)
+
 /** What starts [this] in the app that does it. Nothing happens until it's started. */
 val QuickAction.intent: Intent
     get() = when (this) {

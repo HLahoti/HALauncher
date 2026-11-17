@@ -38,6 +38,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -99,6 +101,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalContext
@@ -176,8 +179,10 @@ fun SearchOverlay(
     calcResult: String? = null,
     onCalcResultSelected: (String) -> Unit = {},
     quickActions: List<QuickActionTarget> = emptyList(),
+    quickActionsQuery: String = "",
     onQuickActionRun: () -> Unit = {},
     commandHints: List<QuickCommand> = emptyList(),
+    supportedCommands: List<QuickCommand> = emptyList(),
     permissions: SearchPermissions = SearchPermissions(),
     indexedCounts: Map<SearchCategory, Int> = emptyMap(),
     leftHanded: Boolean = false,
@@ -208,13 +213,14 @@ fun SearchOverlay(
     // what search can do gets found; a different one each time search comes in (picked while it's
     // hidden, so it never changes in view). The field itself stays empty. Picking an app for a button
     // keeps its plain hint and has no tips: only apps are listed then.
-    val hints = stringArrayResource(categoryFilter.hintsRes)
+    val hints = tabHints(categoryFilter, supportedCommands)
     var hintSeed by remember { mutableIntStateOf(Random.nextInt(HINT_SEED_RANGE)) }
     val isHidden by remember(reveal) { derivedStateOf { reveal != null && reveal.value == 0f } }
     LaunchedEffect(isHidden) {
         if (isHidden) hintSeed = Random.nextInt(HINT_SEED_RANGE)
     }
     val placeholder = if (isPicking) stringResource(R.string.search_apps) else null
+    val fieldLabel = placeholder ?: stringResource(R.string.search_field_label)
     val keyboard = LocalSoftwareKeyboardController.current
     // Every tab says how much it's searching (on "All", every readable source together), so it's
     // clear the index is there and working, even on a tab with no recents yet. A source that can't
@@ -236,7 +242,9 @@ fun SearchOverlay(
     val statusCount = when {
         isPicking -> null
         isQueryBlank -> readableCounts.takeIf { it.isNotEmpty() }?.sum()
-        else -> results.matchCounts.values.sum().takeIf { it > 0 }
+        // Quick actions ("Call Mahak") and the calculator's answer are things found too, so they count.
+        else -> (results.matchCounts.values.sum() + activeQuickActions.size + (if (activeCalcResult != null) 1 else 0))
+            .takeIf { it > 0 }
     }
     // Beside the count: while a command's word is being typed ("tim"), how to finish it, tapped to
     // type the word; otherwise, with nothing typed, the tab's tip.
@@ -400,13 +408,19 @@ fun SearchOverlay(
                 )
             }
             // What Go acts on: the calc answer, which sits above everything else; then a quick action
-            // the query can only mean ("timer 5m"); then the top result; then a free-text quick action
-            // ("maps coffee"), which may just be a search, so only when nothing else matched. Its row
-            // is marked while something's typed, so it's clear what Go will do.
+            // the query can only mean ("timer 5m"), or the best-matching contact for a contact command
+            // ("call ma": a call was asked for, so not a result that merely has "call" in it); then the
+            // top result; then a free-text quick action ("maps coffee"), which may just be a search, so
+            // only when nothing else matched. Its row is marked while something's typed, so it's clear
+            // what Go will do.
+            // The actions are worked out in the background; until they're for what's typed now, Go
+            // waits for them ([goPending]) rather than run the last query's ("alarm 7" for "alarm 7:30").
+            val actionsAreCurrent = quickActionsQuery == query.trim()
             val goTarget: GoTarget? = run {
                 if (activeCalcResult != null) return@run GoTarget.Calc(activeCalcResult)
                 val entry = results.firstOrNull()
-                val action = activeQuickActions.firstOrNull()?.takeIf { it.action.isExact || entry == null }
+                val action = activeQuickActions.firstOrNull()
+                    ?.takeIf { it.action.isExact || it.action is QuickAction.ForContact || entry == null }
                 when {
                     action != null -> GoTarget.Action(action)
                     entry != null -> GoTarget.Entry(entry)
@@ -414,6 +428,26 @@ fun SearchOverlay(
                 }
             }
             val goKey = goTarget?.key?.takeIf { !isQueryBlank && !isPicking }
+            // Go does what tapping [goTarget] would.
+            val runGo = {
+                when (val target = goTarget) {
+                    is GoTarget.Calc -> onCalcResultSelected(target.result)
+                    is GoTarget.Action -> runQuickAction(context, target.target, onQuickActionRun)
+                    is GoTarget.Entry -> when {
+                        isPicking -> onEntryPicked(target.entry)
+                        context.launchSafely(target.entry, resources.getString(R.string.open_app, target.entry.name)) ->
+                            onEntryOpened(target.entry)
+                    }
+                    null -> Unit
+                }
+            }
+            var goPending by remember { mutableStateOf(false) }
+            LaunchedEffect(goPending, actionsAreCurrent) {
+                if (goPending && actionsAreCurrent) {
+                    goPending = false
+                    runGo()
+                }
+            }
             // A plain TextField with its fill and underline cleared, so the glass is the surface.
             // It keeps its own cursor: text set from outside (a command hint typing "timer ")
             // puts the cursor at the end, ready for the rest, rather than where it was.
@@ -444,22 +478,15 @@ fun SearchOverlay(
                         unfocusedPlaceholderColor = placeholderColor,
                     ),
                     placeholder = placeholder?.let { { Text(it, maxLines = 1, overflow = TextOverflow.Ellipsis) } },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    // With no placeholder, the icon names the field for screen readers (the field reads
+                    // out what's inside it).
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = fieldLabel) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
                     keyboardActions = KeyboardActions(
-                        // Go does what tapping [goTarget] would.
                         onGo = {
-                            when (val target = goTarget) {
-                                is GoTarget.Calc -> onCalcResultSelected(target.result)
-                                is GoTarget.Action -> runQuickAction(context, target.target, onQuickActionRun)
-                                is GoTarget.Entry -> when {
-                                    isPicking -> onEntryPicked(target.entry)
-                                    context.launchSafely(target.entry, resources.getString(R.string.open_app, target.entry.name)) ->
-                                        onEntryOpened(target.entry)
-                                }
-                                null -> Unit
-                            }
+                            // Picking ignores quick actions, so it never needs to wait for them.
+                            if (actionsAreCurrent || isPicking || activeCalcResult != null) runGo() else goPending = true
                         },
                     ),
                 )
@@ -617,7 +644,19 @@ fun SearchOverlay(
                     .weight(1f)
                     .fillMaxWidth()
                     .onSizeChanged { resultsHeight = it.height }
-                    .onGloballyPositioned { resultsOrigin.set(it.positionInRoot()) },
+                    .onGloballyPositioned { resultsOrigin.set(it.positionInRoot()) }
+                    // Left open by a tap, the slider closes when anything else is touched. Watched on
+                    // the way down (Initial) and left unconsumed, so that touch still does what it
+                    // would (scrolls the results, focuses the field) instead of being spent closing it.
+                    // The pill opens and closes the slider itself.
+                    .pointerInput(sliderState) {
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                            if (!sliderState.sticky) return@awaitEachGesture
+                            val atRoot = down.position + Offset(resultsOrigin.x, resultsOrigin.y)
+                            if (!sliderState.isOnSlider(atRoot)) sliderState.close()
+                        }
+                    },
             ) {
                 val listModifier = Modifier
                     .fillMaxSize()
@@ -757,14 +796,6 @@ fun SearchOverlay(
                         .onSizeChanged { controlsHeight = it.height },
                 )
                 if (showsCategoryBar) {
-                    // Left open by a tap, the slider closes on a tap anywhere else.
-                    if (sliderState.sticky) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .pointerInput(sliderState) { detectTapGestures { sliderState.close() } },
-                        )
-                    }
                     CategorySlider(
                         state = sliderState,
                         categories = categories,
@@ -1063,6 +1094,22 @@ private fun IndexStatus(
             null -> Unit
         }
     }
+}
+
+/**
+ * The tips the status line picks from on [tab] (null for "All"). On "All", those about commands are
+ * only offered when some app here can carry them out ([supported]): no calling tips without a dialer.
+ */
+@Composable
+private fun tabHints(tab: SearchCategory?, supported: List<QuickCommand>): List<String> {
+    val tips = stringArrayResource(tab.hintsRes).toList()
+    if (tab != null) return tips
+    val commandTips = listOfNotNull(
+        stringResource(R.string.search_hint_timer).takeIf { QuickCommand.TIMER in supported },
+        stringResource(R.string.search_hint_call_contact).takeIf { QuickCommand.CALL in supported },
+        stringResource(R.string.search_hint_call_number).takeIf { QuickCommand.CALL in supported },
+    )
+    return tips + commandTips
 }
 
 /** The tips the status line picks from on this tab (null for "All"). */

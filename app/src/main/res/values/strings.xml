@@ -40,11 +40,14 @@
          line beside the search icon. When search learns something new, add a hint for it here. -->
     <!-- Tips shown beside the status line above search's results while nothing is typed, one per
          visit, picked from the list for the tab showing. -->
+    <!-- Added to search_hints_all only when some app can do what they say. -->
+    <string name="search_hint_timer">Try “timer 10m” or “alarm 7:30”</string>
+    <string name="search_hint_call_contact">Try “call Mom” to ring a contact</string>
+    <string name="search_hint_call_number">Type a number to call or text it</string>
+    <!-- What screen readers call the search field, which shows no placeholder. -->
+    <string name="search_field_label">Search</string>
     <string-array name="search_hints_all">
         <item>Search apps, people, events and files at once</item>
-        <item>Try “timer 10m” or “alarm 7:30”</item>
-        <item>Try “call Mom” to ring a contact</item>
-        <item>Type a number to call or text it</item>
         <item>Do quick maths, like 24*7 or sqrt(2)</item>
         <item>Swipe sideways to change what\'s searched</item>
     </string-array>

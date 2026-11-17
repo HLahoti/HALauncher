@@ -89,6 +89,13 @@ class CategorySliderState {
     internal var bounds: Rect? = null
     internal var segmentCount: Int = 0
 
+    /** Where the filter pill is, in root coordinates. */
+    internal var pillBounds: Rect? = null
+
+    /** Whether [rootPosition] is on the slider or the pill that opens it. */
+    internal fun isOnSlider(rootPosition: Offset): Boolean =
+        bounds?.contains(rootPosition) == true || pillBounds?.contains(rootPosition) == true
+
     internal fun press() {
         held = true
     }
@@ -158,7 +165,10 @@ fun FilterPill(
         modifier = modifier
             .height(SearchConfig.FilterPillHeight)
             .liquidGlass(RoundedCornerShape(percent = 50), tint = SearchConfig.FIELD_GLASS_TINT)
-            .onGloballyPositioned { origin = it.positionInRoot() }
+            .onGloballyPositioned {
+                origin = it.positionInRoot()
+                state.pillBounds = it.boundsInRoot()
+            }
             .pointerInput(Unit) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
