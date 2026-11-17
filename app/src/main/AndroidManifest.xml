@@ -6,9 +6,9 @@
     <!-- Tapping the time opens the clock's alarm list. AOSP-based clocks (OnePlus, Oppo, …) only
          accept that from apps holding this. Granted at install; it shows no prompt. -->
     <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
-    <!-- Contacts appear in search. Requested the first time search opens. -->
+    <!-- Contacts appear in search. Requested when the user taps to allow it (in search or setup). -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
-    <!-- Calendar events appear in search. Requested the first time the Events tab opens. -->
+    <!-- Calendar events appear in search. Requested when the user taps to allow it (in search or setup). -->
     <uses-permission android:name="android.permission.READ_CALENDAR" />
     <!-- File names appear in search. Android 11+: "All files access", granted by the user in
          Settings from the prompt in search. Older versions: the storage permission. -->

@@ -23,12 +23,16 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -77,7 +81,9 @@ import com.example.halauncher.config.SettingsPanelConfig
 import com.example.halauncher.config.SphereConfig
 import com.example.halauncher.config.ThemeConfig
 import com.example.halauncher.config.TourConfig
+import com.example.halauncher.ui.components.isLandscape
 import com.example.halauncher.ui.components.liquidGlass
+import com.example.halauncher.ui.components.overlayTopSpacing
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -152,20 +158,31 @@ fun GuidedTour(
     var size by remember { mutableStateOf(Size.Zero) }
     var origin by remember { mutableStateOf(Offset.Zero) }
     var captionTop by remember { mutableFloatStateOf(0f) }
+    var captionBottom by remember { mutableFloatStateOf(0f) }
     val statusTop = WindowInsets.statusBars.getTop(density).toFloat()
+    // Inside search the field and filter bar sit at the bottom, on the keyboard; the caption goes at
+    // the top instead, and gestures play out between the two.
+    val bottomInset = WindowInsets.ime.union(WindowInsets.navigationBars).getBottom(density).toFloat()
+    val landscape = isLandscape()
     val sphere = sphereBounds?.translate(-origin)
     val homeGap = if (current.inSearch) null else gapBetween(quickActionsBounds?.translate(-origin), sphere)
-    val gesture = if (size == Size.Zero || captionTop == 0f) {
+    val gesture = if (size == Size.Zero || captionBottom == 0f) {
         null
     } else {
         // Home-screen gestures are worked out for the usual layout, then mirrored to match the screen.
         val mirror = mirrored && !current.inSearch
         fun flip(x: Float) = if (mirror) size.width - x else x
+        val controls = if (landscape) TourConfig.SearchControlsHeightLandscape else TourConfig.SearchControlsHeight
+        val searchArea = with(density) {
+            val top = captionBottom + TourConfig.CaptionGap.toPx()
+            top..max(size.height - bottomInset - controls.toPx(), top)
+        }
         tourGesture(
             current,
             sphereCanTurn,
             size,
             captionTop,
+            searchArea,
             statusTop,
             sphere?.let { if (mirror) it.mirrored(size.width) else it },
             homeX = homeGap?.let { flip((it.start + it.endInclusive) / 2) },
@@ -229,7 +246,15 @@ fun GuidedTour(
             sphereCanTurn = sphereCanTurn,
             steps = steps,
             onSkip = onSkip,
-            modifier = Modifier
+            modifier = if (current.inSearch) {
+                // At the top, over the first results, clear of the field and the keyboard.
+                Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding()
+                    .padding(top = overlayTopSpacing())
+                    .padding(horizontal = SearchConfig.HorizontalPadding)
+                    .onGloballyPositioned { captionBottom = it.positionInParent().y + it.size.height }
+            } else Modifier
                 .align(Alignment.BottomCenter)
                 .then(
                     if (homeGap != null) {
@@ -247,7 +272,10 @@ fun GuidedTour(
                 .imePadding()
                 .padding(horizontal = SearchConfig.HorizontalPadding)
                 .padding(bottom = SearchConfig.BottomSpacing)
-                .onGloballyPositioned { captionTop = it.positionInParent().y },
+                .onGloballyPositioned {
+                    captionTop = it.positionInParent().y
+                    captionBottom = captionTop + it.size.height
+                },
         )
     }
 }
@@ -287,23 +315,23 @@ private fun Rect.mirrored(width: Float) = Rect(width - right, top, width - left,
 
 /**
  * Where [step]'s gesture is acted out, in the tour's own coordinates: on the home screen, kept clear
- * of the caption (whose top is [captionTop]) and the [sphere]; in search, between the filter bar
- * and the caption, which sits above the keyboard. Null while the sphere hasn't been placed yet.
+ * of the caption (whose top is [captionTop]) and the [sphere]; in search, within [searchArea], the
+ * results between the caption at the top and the field and filter bar on the keyboard. Null while
+ * the sphere hasn't been placed yet.
  */
 private fun tourGesture(
     step: TourStep,
     sphereCanTurn: Boolean,
     size: Size,
     captionTop: Float,
+    searchArea: ClosedFloatingPointRange<Float>,
     statusTop: Float,
     sphere: Rect?,
     homeX: Float?,
     density: Density,
 ): TourGesture? = with(density) {
-    // Search's results area, below its field and filter bar.
-    val contentTop = if (size.width > size.height) TourConfig.SearchContentTopLandscape else TourConfig.SearchContentTop
-    val searchTop = statusTop + contentTop.toPx()
-    val searchBottom = max(captionTop - TourConfig.CaptionGap.toPx(), searchTop)
+    val searchTop = searchArea.start
+    val searchBottom = searchArea.endInclusive
     when (step) {
         TourStep.SEARCH -> {
             val x = homeX ?: (size.width * TourConfig.SWIPE_X_FRACTION)
@@ -443,6 +471,11 @@ private fun TourCaption(
     Column(
         modifier = modifier
             .fillMaxWidth()
+            // A dark backing under the glass, so results behind it (inside search) don't show through the text.
+            .background(
+                Color.Black.copy(alpha = TourConfig.CAPTION_BACKING_ALPHA),
+                RoundedCornerShape(SettingsPanelConfig.CardCornerRadius),
+            )
             .liquidGlass(RoundedCornerShape(SettingsPanelConfig.CardCornerRadius), tint = TourConfig.CAPTION_GLASS_TINT)
             .padding(SettingsPanelConfig.CardPadding),
         verticalArrangement = Arrangement.spacedBy(SettingsPanelConfig.CardPadding),
