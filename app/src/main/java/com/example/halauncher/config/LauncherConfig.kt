@@ -178,6 +178,15 @@ object SearchConfig {
     /** Gap between the search field and the keyboard while it's up. */
     val KeyboardGap = 8.dp
 
+    /**
+     * How far the results must be scrolled back up, in one go, to unfold the search field and filter
+     * bar once scrolling down has folded them into a row (reaching the top always does).
+     */
+    val ExpandAfterScrollUp = 120.dp
+
+    /** Size of the round search button the field folds into. */
+    val CollapsedSearchSize = 48.dp
+
     /** How strongly the results are blurred behind the search field and filter bar. */
     val ControlsBlurRadius = 20.dp
 

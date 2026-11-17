@@ -32,6 +32,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import com.example.halauncher.R
 import com.example.halauncher.config.CategoryFilterConfig
@@ -51,6 +52,7 @@ import kotlin.math.roundToInt
  * each segment with a haptic tick, and on release it springs to the nearest segment.
  *
  * @param selected the chosen category, or null for "All".
+ * @param segmentWidth width of each segment; narrower where the bar shares its line with other buttons.
  */
 @Composable
 fun CategoryFilterBar(
@@ -58,6 +60,7 @@ fun CategoryFilterBar(
     selected: SearchCategory?,
     onSelected: (SearchCategory?) -> Unit,
     modifier: Modifier = Modifier,
+    segmentWidth: Dp = CategoryFilterConfig.SegmentWidth,
 ) {
     // null stands for "All" and always comes first.
     val segments: List<SearchCategory?> = remember(categories) { listOf(null) + categories }
@@ -85,13 +88,12 @@ fun CategoryFilterBar(
         currentOnSelected(currentSegments[index])
     }
 
-    val segmentWidth = CategoryFilterConfig.SegmentWidth
     Box(
         modifier = modifier
             .height(CategoryFilterConfig.Height)
             .width(segmentWidth * segments.size)
             .liquidGlass(RoundedCornerShape(percent = 50))
-            .pointerInput(Unit) {
+            .pointerInput(segmentWidth) {
                 val segmentPx = segmentWidth.toPx()
                 fun positionAt(x: Float) =
                     (x / segmentPx - 0.5f).coerceIn(0f, currentSegments.lastIndex.toFloat())
