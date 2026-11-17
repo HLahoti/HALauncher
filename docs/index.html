@@ -4,11 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>HALauncher</title>
-  <meta name="description" content="A calm, fast home screen for Android. Swipe up to search apps, contacts, files and app shortcuts, spin your favourite apps on a sphere, and do quick maths without opening a calculator.">
+  <meta name="description" content="A calm, fast home screen for Android. Swipe up to search apps, contacts, calendar events, files and app shortcuts, type “timer 10m” or “call Mom” to get it done, and spin your favourite apps on a sphere.">
   <meta name="theme-color" content="#0b0d14">
   <meta name="color-scheme" content="dark">
   <meta property="og:title" content="HALauncher — a calm home screen for Android">
-  <meta property="og:description" content="Search everything with one swipe. Free, private, no internet permission.">
+  <meta property="og:description" content="Search everything with one swipe, and get things done by typing them. Free, private, no internet permission.">
   <meta property="og:image" content="assets/screen-home.webp">
   <link rel="icon" href="assets/icon.webp" type="image/webp">
   <link rel="stylesheet" href="styles.css">
@@ -31,7 +31,7 @@
     <section class="hero">
       <div class="hero-copy">
         <h1 class="load-in">A home screen that gets out of your way.</h1>
-        <p class="lede load-in">Swipe up to find any app, contact, file or shortcut. Spin your favourite apps on a sphere. Type a sum and get the answer. That's it — no clutter, no ads, no account.</p>
+        <p class="lede load-in">Swipe up to find any app, contact, event, file or shortcut. Type what you want done — “timer 10m”, “call Mom” — and it's done. Spin your favourite apps on a sphere. That's it — no clutter, no ads, no account.</p>
         <div class="cta load-in">
           <a class="btn btn-primary" href="https://github.com/HLahoti/HALauncher/releases/latest/download/HALauncher.apk" data-download>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-5-5m5 5 5-5M5 21h14"/></svg>
@@ -50,23 +50,50 @@
 
       <div class="hero-phone load-in">
         <div class="phone phone-float">
-          <video class="screen" src="assets/demo.mp4" poster="assets/demo-poster.webp" autoplay muted loop playsinline preload="metadata" aria-label="HALauncher demo: spinning the app sphere, then swiping up and typing “ma” to find an app, two contacts and two documents"></video>
+          <video class="screen" src="assets/demo.mp4" poster="assets/demo-poster.webp" autoplay muted loop playsinline preload="metadata" aria-label="HALauncher demo: spinning the app sphere, swiping up and typing “ma” to find apps, contacts and documents, sliding the filter to just contacts and back, then typing “call m” to call Mom, Maya or Marco"></video>
         </div>
       </div>
     </section>
 
     <section class="features" aria-label="Features">
       <article class="feature reveal">
-        <div class="feature-shot"><div class="phone"><img class="screen" src="assets/screen-search.webp" alt="Search results for “ma”: the Maps app, two contacts with photos and two PDFs with previews" width="720" height="1600" loading="lazy"></div></div>
+        <div class="feature-shot"><div class="phone"><img class="screen" src="assets/screen-search.webp" alt="Search results for “ma” in a grid: Maps and its Home and Work shortcuts, contacts with photos, two PDFs with previews and Settings screens, with the search bar at the bottom" width="720" height="1600" loading="lazy"></div></div>
         <div class="feature-copy">
           <p class="eyebrow">Search</p>
           <h2>One swipe finds everything.</h2>
-          <p>Swipe up anywhere and start typing. Apps, contacts, files and app shortcuts land in a single list, best match first, with a count of what turned up. Swipe sideways to narrow it to just apps, people or files.</p>
+          <p>Swipe up anywhere and start typing. Apps, contacts, calendar events, files, folders, Settings screens and app shortcuts land together, best match first, with a count of what turned up. The search bar sits at the bottom, right under your thumb, on frosted glass over your results.</p>
         </div>
       </article>
 
       <article class="feature reveal">
-        <div class="feature-shot"><div class="phone"><img class="screen" src="assets/screen-shortcuts.webp" alt="Searching “new” lists app shortcuts: New tab in Chrome, New event in Calendar, Create new alarm in Clock and more" width="720" height="1600" loading="lazy"></div></div>
+        <div class="feature-shot"><div class="phone"><img class="screen" src="assets/screen-filter.webp" alt="The category slider open above the filter button: All, Apps, Contacts, Events and Files" width="720" height="1600" loading="lazy"></div></div>
+        <div class="feature-copy">
+          <p class="eyebrow">Filter</p>
+          <h2>Narrow it down in one slide.</h2>
+          <p>Press the filter button beside the search bar and slide to apps, people, events or files — let go and you're there. Tap it instead to leave the choices open, or swipe sideways anywhere in search. The dots under its name show where you are.</p>
+        </div>
+      </article>
+
+      <article class="feature reveal">
+        <div class="feature-shot"><div class="phone"><img class="screen" src="assets/screen-actions.webp" alt="Typing “call m” offers to call Mom, Maya Patel or Marco Rossi, each with their number and the Phone app" width="720" height="1600" loading="lazy"></div></div>
+        <div class="feature-copy">
+          <p class="eyebrow">Quick actions</p>
+          <h2>Type what you want done.</h2>
+          <p>“timer 10m”, “alarm 7:30”, “call Mom”, “text Sam”, “maps coffee”, “event Lunch with Sam” — type it and press Go. Timers and alarms are set without leaving your home screen, and “alarm off” and “timer stop” are there for when plans change. Calls, messages and emails find the right contact by name, and each one says which app will open before you tap.</p>
+        </div>
+      </article>
+
+      <article class="feature reveal">
+        <div class="feature-shot"><div class="phone"><img class="screen" src="assets/screen-events.webp" alt="The Events tab listing upcoming events: Standup tomorrow, a Holiday trip and the Weekly sync, each with its day and time" width="720" height="1600" loading="lazy"></div></div>
+        <div class="feature-copy">
+          <p class="eyebrow">Calendar</p>
+          <h2>Your day, a swipe away.</h2>
+          <p>Meetings and events from your calendar turn up in search by name or place, and the Events tab lists what's coming up. Each shows when it is — “Today”, “Tomorrow” — and opens straight in your calendar. Hold one to join its video call or get directions to it.</p>
+        </div>
+      </article>
+
+      <article class="feature reveal">
+        <div class="feature-shot"><div class="phone"><img class="screen" src="assets/screen-shortcuts.webp" alt="Searching “new” lists app shortcuts as a grid: New tab in Chrome, New event in Calendar, New contact, New conversation, Create new alarm and Create new timer" width="720" height="1600" loading="lazy"></div></div>
         <div class="feature-copy">
           <p class="eyebrow">App shortcuts</p>
           <h2>Skip straight to the thing you wanted.</h2>
@@ -75,20 +102,29 @@
       </article>
 
       <article class="feature reveal">
-        <div class="feature-shot"><div class="phone"><img class="screen" src="assets/screen-files.webp" alt="The Files tab as a grid of recently added photos and documents, each with a preview" width="720" height="1600" loading="lazy"></div></div>
+        <div class="feature-shot"><div class="phone"><img class="screen" src="assets/screen-files.webp" alt="The Files tab as a grid of recently added photos and PDFs, each with a preview" width="720" height="1600" loading="lazy"></div></div>
         <div class="feature-copy">
           <p class="eyebrow">At a glance</p>
           <h2>See it before you open it.</h2>
-          <p>Contacts show their photos and files show a preview, so the right one stands out. Before you type, the Contacts tab lists your favourites and recently updated people, and the Files tab your newest files. Any tab can be a list or a grid.</p>
+          <p>Contacts show their photos and files show a preview, so the right one stands out. Before you type, the Contacts tab lists your favourites and recently updated people, the Events tab what's coming up, and the Files tab your newest files. Any tab can be a list or a grid.</p>
         </div>
       </article>
 
       <article class="feature reveal">
-        <div class="feature-shot"><div class="phone"><img class="screen" src="assets/screen-calc.webp" alt="Typing 1250*0.18 in search shows the answer, 225" width="720" height="1600" loading="lazy"></div></div>
+        <div class="feature-shot"><div class="phone"><img class="screen" src="assets/screen-calc.webp" alt="Typing 1250*0.18 in search shows the answer, 225, above the search bar" width="720" height="1600" loading="lazy"></div></div>
         <div class="feature-copy">
           <p class="eyebrow">Quick maths</p>
           <h2>Type the sum, see the answer.</h2>
           <p>Splitting a bill or working out a tip? Type it straight into search and the result appears as you type. Tap it to copy.</p>
+        </div>
+      </article>
+
+      <article class="feature reveal">
+        <div class="feature-shot"><div class="phone"><img class="screen" src="assets/screen-tips.webp" alt="Search tips: every command with an example to try — timer 10m, timer stop, alarm 7:30am, alarm off, call, text, email, maps and event" width="720" height="1600" loading="lazy"></div></div>
+        <div class="feature-copy">
+          <p class="eyebrow">Search tips</p>
+          <h2>Learn it as you type.</h2>
+          <p>Start typing a command and a hint beside the result count shows how to finish it. Before you type, each tab offers a tip of its own. Search tips in settings lists everything search can find and do — tap an example to try it.</p>
         </div>
       </article>
 
@@ -120,7 +156,7 @@
       </article>
 
       <article class="feature reveal">
-        <div class="feature-shot"><div class="phone"><img class="screen" src="assets/screen-settings.webp" alt="Settings: double-tap to lock, default search category, home screen colour and reduce index size" width="720" height="1600" loading="lazy"></div></div>
+        <div class="feature-shot"><div class="phone"><img class="screen" src="assets/screen-settings.webp" alt="Settings: lock settings, double-tap to lock, default search category and home screen colour" width="720" height="1600" loading="lazy"></div></div>
         <div class="feature-copy">
           <p class="eyebrow">Settings</p>
           <h2>Set it up once. Lock it in.</h2>
@@ -129,11 +165,11 @@
       </article>
 
       <article class="feature reveal">
-        <div class="feature-shot"><div class="phone"><img class="screen" src="assets/screen-setup.webp" alt="Setup showing HALauncher set as home and contacts and file access enabled" width="720" height="1600" loading="lazy"></div></div>
+        <div class="feature-shot"><div class="phone"><img class="screen" src="assets/screen-setup.webp" alt="Setup showing HALauncher set as home, with contacts, calendar and file access enabled" width="720" height="1600" loading="lazy"></div></div>
         <div class="feature-copy">
           <p class="eyebrow">Private</p>
           <h2>Nothing leaves your phone.</h2>
-          <p>HALauncher doesn't even ask for internet access, so it has no way to send anything anywhere. Contacts and files are read only so you can search them, and each permission is optional.</p>
+          <p>HALauncher doesn't even ask for internet access, so it has no way to send anything anywhere. Contacts, your calendar and files are read only so you can search them, and each permission is optional — search just offers to turn one on when you visit its tab.</p>
         </div>
       </article>
     </section>
@@ -149,10 +185,15 @@
       <div class="gallery" tabindex="0" aria-label="Screenshots, scroll sideways">
         <figure><div class="phone"><img class="screen" src="assets/screen-home.webp" alt="Home screen with clock, quick buttons and the app sphere" width="720" height="1600" loading="lazy"></div><figcaption>Home</figcaption></figure>
         <figure><div class="phone"><img class="screen" src="assets/screen-search.webp" alt="Search results" width="720" height="1600" loading="lazy"></div><figcaption>Search</figcaption></figure>
+        <figure><div class="phone"><img class="screen" src="assets/screen-filter.webp" alt="The category slider" width="720" height="1600" loading="lazy"></div><figcaption>Filter</figcaption></figure>
+        <figure><div class="phone"><img class="screen" src="assets/screen-actions.webp" alt="Calling a contact by name" width="720" height="1600" loading="lazy"></div><figcaption>Quick actions</figcaption></figure>
+        <figure><div class="phone"><img class="screen" src="assets/screen-hints.webp" alt="Typing “alarm” shows how to set or turn off an alarm beside the result count" width="720" height="1600" loading="lazy"></div><figcaption>Hints as you type</figcaption></figure>
+        <figure><div class="phone"><img class="screen" src="assets/screen-events.webp" alt="The Events tab with upcoming events" width="720" height="1600" loading="lazy"></div><figcaption>Events</figcaption></figure>
         <figure><div class="phone"><img class="screen" src="assets/screen-shortcuts.webp" alt="App shortcuts in search" width="720" height="1600" loading="lazy"></div><figcaption>App shortcuts</figcaption></figure>
         <figure><div class="phone"><img class="screen" src="assets/screen-contacts.webp" alt="The Contacts tab with favourites and recently updated contacts" width="720" height="1600" loading="lazy"></div><figcaption>Contacts</figcaption></figure>
         <figure><div class="phone"><img class="screen" src="assets/screen-files.webp" alt="The Files tab as a grid of previews" width="720" height="1600" loading="lazy"></div><figcaption>Files</figcaption></figure>
         <figure><div class="phone"><img class="screen" src="assets/screen-calc.webp" alt="Calculator answer in search" width="720" height="1600" loading="lazy"></div><figcaption>Quick maths</figcaption></figure>
+        <figure><div class="phone"><img class="screen" src="assets/screen-tips.webp" alt="The Search tips page" width="720" height="1600" loading="lazy"></div><figcaption>Search tips</figcaption></figure>
         <figure><div class="phone"><img class="screen" src="assets/screen-picker.webp" alt="Pinned apps editor" width="720" height="1600" loading="lazy"></div><figcaption>Pin apps</figcaption></figure>
         <figure><div class="phone"><img class="screen" src="assets/screen-choose.webp" alt="Choosing which app the payments button opens" width="720" height="1600" loading="lazy"></div><figcaption>Choose your apps</figcaption></figure>
         <figure><div class="phone"><img class="screen" src="assets/screen-settings.webp" alt="Settings panel" width="720" height="1600" loading="lazy"></div><figcaption>Settings</figcaption></figure>
