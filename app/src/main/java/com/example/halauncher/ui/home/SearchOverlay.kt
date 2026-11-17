@@ -23,6 +23,7 @@ import android.content.res.Resources
 import android.text.format.DateFormat
 import android.graphics.drawable.Drawable
 import android.widget.Toast
+import androidx.annotation.ArrayRes
 import androidx.annotation.PluralsRes
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -194,16 +195,17 @@ fun SearchOverlay(
     val isLandscape = isLandscape()
     val searchFieldShape = RoundedCornerShape(percent = 50)
     val placeholderColor = ThemeConfig.Foreground.copy(alpha = SearchConfig.PLACEHOLDER_ALPHA)
-    // The empty field shows a different hint each time search comes in, so its features get
-    // found. It's picked while search is hidden, so it never changes in view. Picking an app for
-    // a button keeps the plain hint: only apps are listed then.
-    val hints = stringArrayResource(R.array.search_hints)
-    var hintIndex by remember { mutableIntStateOf(if (hints.isEmpty()) 0 else hints.indices.random()) }
+    // While nothing's typed, the status line above the results carries a tip for the tab showing, so
+    // what search can do gets found; a different one each time search comes in (picked while it's
+    // hidden, so it never changes in view). The field itself stays empty. Picking an app for a button
+    // keeps its plain hint and has no tips: only apps are listed then.
+    val hints = stringArrayResource(categoryFilter.hintsRes)
+    var hintSeed by remember { mutableIntStateOf(Random.nextInt(HINT_SEED_RANGE)) }
     val isHidden by remember(reveal) { derivedStateOf { reveal != null && reveal.value == 0f } }
     LaunchedEffect(isHidden) {
-        if (isHidden && hints.size > 1) hintIndex = (hintIndex + Random.nextInt(1, hints.size)) % hints.size
+        if (isHidden) hintSeed = Random.nextInt(HINT_SEED_RANGE)
     }
-    val placeholder = hints.getOrNull(hintIndex).takeIf { !isPicking } ?: stringResource(R.string.search_apps)
+    val placeholder = if (isPicking) stringResource(R.string.search_apps) else null
     val keyboard = LocalSoftwareKeyboardController.current
     // Every tab says how much it's searching (on "All", every readable source together), so it's
     // clear the index is there and working, even on a tab with no recents yet. A source that can't
@@ -226,6 +228,15 @@ fun SearchOverlay(
         isPicking -> null
         isQueryBlank -> readableCounts.takeIf { it.isNotEmpty() }?.sum()
         else -> results.matchCounts.values.sum().takeIf { it > 0 }
+    }
+    // Beside the count: while a command's word is being typed ("tim"), how to finish it, tapped to
+    // type the word; otherwise, with nothing typed, the tab's tip.
+    val commandHint = activeCommandHints.firstOrNull()
+    val statusHint: StatusHint? = when {
+        isPicking -> null
+        commandHint != null -> StatusHint.Command(commandHint)
+        isQueryBlank && hints.isNotEmpty() -> StatusHint.Tip(hints[hintSeed % hints.size])
+        else -> null
     }
     // Matches only need a label to set them apart from the recents above them.
     val showsMoreLabel = results.frequent.isNotEmpty() && results.more.isNotEmpty()
@@ -421,7 +432,7 @@ fun SearchOverlay(
                         focusedPlaceholderColor = placeholderColor,
                         unfocusedPlaceholderColor = placeholderColor,
                     ),
-                    placeholder = { Text(placeholder, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    placeholder = placeholder?.let { { Text(it, maxLines = 1, overflow = TextOverflow.Ellipsis) } },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
@@ -496,8 +507,13 @@ fun SearchOverlay(
                 }
             }
             // In landscape the keyboard leaves room for about a row of results; the status line would take it.
-            if (statusCount != null && !(isLandscape && imeVisible)) {
-                IndexStatus(statusCount, if (isQueryBlank) R.plurals.items_indexed else R.plurals.results_found)
+            if ((statusCount != null || statusHint != null) && !(isLandscape && imeVisible)) {
+                IndexStatus(
+                    count = statusCount,
+                    summary = if (isQueryBlank) R.plurals.items_indexed else R.plurals.results_found,
+                    hint = statusHint,
+                    onTypeCommand = onQueryChange,
+                )
             }
             // A new query or category starts the list from the top, and so does coming back:
             // search stays composed while hidden, so the list would otherwise keep its place.
@@ -608,16 +624,6 @@ fun SearchOverlay(
                                 )
                             }
                         }
-                        activeCommandHints.forEach { hint ->
-                            item(key = commandHintKey(hint), span = { GridItemSpan(maxLineSpan) }) {
-                                CommandHintRow(
-                                    command = hint,
-                                    onType = onQueryChange,
-                                    enabled = menuEntryId == null,
-                                    modifier = Modifier.alpha(dimAlpha),
-                                )
-                            }
-                        }
                         items(results.frequent, key = { it.id }) { entry ->
                             resultItem(entry)
                         }
@@ -637,7 +643,7 @@ fun SearchOverlay(
                                 resultItem(entry)
                             }
                         }
-                        if (results.isEmpty && activeCalcResult == null && activeQuickActions.isEmpty() && activeCommandHints.isEmpty() && !results.isSearchingDisk && query.isNotBlank()) {
+                        if (results.isEmpty && activeCalcResult == null && activeQuickActions.isEmpty() && !results.isSearchingDisk && query.isNotBlank()) {
                             item(key = NO_RESULTS_KEY, span = { GridItemSpan(maxLineSpan) }) {
                                 SectionLabel(stringResource(R.string.no_results), Modifier.alpha(dimAlpha))
                             }
@@ -674,16 +680,6 @@ fun SearchOverlay(
                                 )
                             }
                         }
-                        activeCommandHints.forEach { hint ->
-                            item(key = commandHintKey(hint)) {
-                                CommandHintRow(
-                                    command = hint,
-                                    onType = onQueryChange,
-                                    enabled = menuEntryId == null,
-                                    modifier = Modifier.alpha(dimAlpha),
-                                )
-                            }
-                        }
                         items(results.frequent, key = { it.id }) { entry ->
                             resultItem(entry)
                         }
@@ -699,7 +695,7 @@ fun SearchOverlay(
                                 resultItem(entry)
                             }
                         }
-                        if (results.isEmpty && activeCalcResult == null && activeQuickActions.isEmpty() && activeCommandHints.isEmpty() && !results.isSearchingDisk && query.isNotBlank()) {
+                        if (results.isEmpty && activeCalcResult == null && activeQuickActions.isEmpty() && !results.isSearchingDisk && query.isNotBlank()) {
                             item(key = NO_RESULTS_KEY) { SectionLabel(stringResource(R.string.no_results), Modifier.alpha(dimAlpha)) }
                         }
                     }
@@ -900,8 +896,6 @@ private fun Modifier.goHighlight(on: Boolean): Modifier =
         this
     }
 
-private fun commandHintKey(command: QuickCommand) = "section-hint-${command.name}"
-
 /** Starts [target]'s action in its app; once it's started, [onRun] (search closes). */
 private fun runQuickAction(context: Context, target: QuickActionTarget, onRun: () -> Unit) {
     val title = quickActionTitle(context.resources, target.action, DateFormat.is24HourFormat(context))
@@ -930,20 +924,89 @@ private fun SectionLabel(text: String, modifier: Modifier = Modifier) {
     )
 }
 
+/** What the status line says beside its count. */
+private sealed interface StatusHint {
+    /** A tip for the tab showing, while nothing's typed. */
+    data class Tip(val text: String) : StatusHint
+
+    /** How to finish the command being typed ("tim" → "timer 10m"); tapping it types the word. */
+    data class Command(val command: QuickCommand) : StatusHint
+}
+
 /**
  * "41,136 items indexed": how many entries the index holds for the current tab, so it's clear
  * search has everything it should. With a query, [summary] is [R.plurals.results_found] and
- * [count] is the matches listed: "5 results found".
+ * [count] is the matches listed: "5 results found". Beside it, [hint], if any, wrapping to a second
+ * line rather than being cut short; a command hint is tapped to type its word ([onTypeCommand]).
+ * With no count (nothing found yet), just the hint.
  */
 @Composable
-private fun IndexStatus(count: Int, @PluralsRes summary: Int) {
-    Text(
-        text = pluralStringResource(summary, count, NumberFormat.getIntegerInstance().format(count)),
-        color = ThemeConfig.Foreground.copy(alpha = SearchConfig.SECTION_LABEL_ALPHA),
-        style = MaterialTheme.typography.labelMedium,
-        modifier = Modifier.padding(start = SearchConfig.SectionLabelPadding, bottom = SearchConfig.ResultsSpacing),
-    )
+private fun IndexStatus(
+    count: Int?,
+    @PluralsRes summary: Int,
+    hint: StatusHint?,
+    onTypeCommand: (String) -> Unit,
+) {
+    val color = ThemeConfig.Foreground.copy(alpha = SearchConfig.SECTION_LABEL_ALPHA)
+    val style = MaterialTheme.typography.labelMedium
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = SearchConfig.SectionLabelPadding)
+            .padding(bottom = SearchConfig.ResultsSpacing),
+        horizontalArrangement = Arrangement.spacedBy(SearchConfig.StatusHintGap),
+    ) {
+        if (count != null) {
+            Text(
+                text = pluralStringResource(summary, count, NumberFormat.getIntegerInstance().format(count)),
+                color = color,
+                style = style,
+                maxLines = 1,
+            )
+        }
+        when (hint) {
+            is StatusHint.Tip -> Text(
+                text = if (count != null) stringResource(R.string.status_hint_beside, hint.text) else hint.text,
+                color = color,
+                style = style,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            is StatusHint.Command -> {
+                val command = hint.command
+                val text = stringResource(R.string.status_hint_command, stringResource(command.descriptionRes), command.example)
+                Text(
+                    text = if (count != null) stringResource(R.string.status_hint_beside, text) else text,
+                    color = ThemeConfig.Foreground,
+                    style = style,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable(onClickLabel = stringResource(R.string.hint_type_command, command.word)) {
+                            onTypeCommand(command.word + " ")
+                        },
+                )
+            }
+            null -> Unit
+        }
+    }
 }
+
+/** The tips the status line picks from on this tab (null for "All"). */
+@get:ArrayRes
+private val SearchCategory?.hintsRes: Int
+    get() = when (this?.tab) {
+        null -> R.array.search_hints_all
+        SearchCategory.CONTACT -> R.array.search_hints_contacts
+        SearchCategory.EVENT -> R.array.search_hints_events
+        SearchCategory.FILE, SearchCategory.FOLDER -> R.array.search_hints_files
+        SearchCategory.APP, SearchCategory.SHORTCUT, SearchCategory.SETTING -> R.array.search_hints_apps
+    }
+
+/** Tips are picked as this seed modulo the tab's count, so each tab gets its own, stable while in view. */
+private const val HINT_SEED_RANGE = 1_000
 
 /**
  * Where search's permissions stand, and what to do about them. Each tab whose source can't be read

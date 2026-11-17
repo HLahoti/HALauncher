@@ -21,12 +21,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextOverflow
 import com.example.halauncher.R
 import com.example.halauncher.config.SearchConfig
@@ -85,59 +83,6 @@ fun QuickActionRow(
             val app = target.appName ?: stringResource(R.string.quick_action_choose_app)
             Text(
                 text = listOfNotNull(target.action.contactDetail, app).joinToString(DETAIL_SEPARATOR),
-                color = ThemeConfig.Foreground.copy(alpha = SearchConfig.RESULT_DETAIL_ALPHA),
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
-}
-
-/**
- * A dimmed example of [command] ("timer 10m · Start a timer"), shown while its word is being typed so
- * the command can be learned without reading about it. Tapping it types the word for the user,
- * through [onType], ready for the rest.
- */
-@Composable
-fun CommandHintRow(
-    command: QuickCommand,
-    onType: (String) -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-) {
-    val label = stringResource(R.string.hint_type_command, command.word)
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(enabled = enabled, onClickLabel = label) { onType(command.word + " ") }
-            .padding(SearchConfig.ResultRowPadding)
-            .alpha(SearchConfig.COMMAND_HINT_ALPHA),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(SearchConfig.ResultIconTextGap),
-    ) {
-        Box(modifier = Modifier.size(SearchConfig.ResultIconSize), contentAlignment = Alignment.Center) {
-            Icon(
-                imageVector = command.icon,
-                contentDescription = null,
-                tint = ThemeConfig.Foreground,
-                modifier = Modifier.size(SearchConfig.QuickActionIconSize),
-            )
-        }
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(SearchConfig.ResultDetailGap),
-        ) {
-            Text(
-                text = command.example,
-                color = ThemeConfig.Foreground,
-                style = MaterialTheme.typography.bodyLarge,
-                fontStyle = FontStyle.Italic,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = stringResource(command.descriptionRes),
                 color = ThemeConfig.Foreground.copy(alpha = SearchConfig.RESULT_DETAIL_ALPHA),
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1,

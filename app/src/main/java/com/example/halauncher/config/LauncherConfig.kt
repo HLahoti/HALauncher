@@ -232,8 +232,8 @@ object SearchConfig {
     /** Corner radius of that backdrop. */
     val GoTargetCornerRadius = 16.dp
 
-    /** Opacity of a command hint ("timer 10m · Start a timer"), so it reads as a suggestion, not a result. */
-    const val COMMAND_HINT_ALPHA = 0.6f
+    /** Gap between the status line's count and the hint beside it. */
+    val StatusHintGap = 6.dp
 
     /** Size of a quick action's glyph ("timer 5m"), centred in a [ResultIconSize] box like the calculator's "=". */
     val QuickActionIconSize = 24.dp

@@ -38,18 +38,41 @@
     <!-- The empty search field shows one of these each time search opens, a different one from
          last time, so people discover what search can do. Keep each short enough to fit on one
          line beside the search icon. When search learns something new, add a hint for it here. -->
-    <string-array name="search_hints">
+    <!-- Tips shown beside the status line above search's results while nothing is typed, one per
+         visit, picked from the list for the tab showing. -->
+    <string-array name="search_hints_all">
+        <item>Search apps, people, events and files at once</item>
+        <item>Try “timer 10m” or “alarm 7:30”</item>
+        <item>Try “call Mom” to ring a contact</item>
+        <item>Type a number to call or text it</item>
+        <item>Do quick maths, like 24*7 or sqrt(2)</item>
+        <item>Swipe sideways to change what\'s searched</item>
+    </string-array>
+    <string-array name="search_hints_apps">
         <item>Type an app\'s name, or any word in it</item>
         <item>Try “clock” to jump to its new alarm</item>
-        <item>Type a name to find a contact</item>
-        <item>Find a meeting or event by its name or place</item>
-        <item>Try “timer 10m” or “alarm 7:30”</item>
-        <item>Type a number to call or text it</item>
-        <item>Find files and folders by name</item>
-        <item>Do quick maths, like 24*7 or sqrt(2)</item>
         <item>Open a setting, like Wi‑Fi or Bluetooth</item>
         <item>Try “brightness” to find display settings</item>
+        <item>Hold an app to pin it to your home screen</item>
     </string-array>
+    <string-array name="search_hints_contacts">
+        <item>Type a name to find a contact</item>
+        <item>Hold a contact to call or message them</item>
+        <item>Try “text” and a name to message someone</item>
+    </string-array>
+    <string-array name="search_hints_events">
+        <item>Find a meeting or event by its name or place</item>
+        <item>Hold an event to join it or get directions</item>
+        <item>Try “event Lunch” to add one to your calendar</item>
+    </string-array>
+    <string-array name="search_hints_files">
+        <item>Find files and folders by name</item>
+        <item>Hold a file to share it or open it with another app</item>
+    </string-array>
+    <!-- A tip beside the count above the results: "41 items indexed · Try …". %1$s is the tip. -->
+    <string name="status_hint_beside">· %1$s</string>
+    <!-- How to finish a command being typed, e.g. "Start a timer: try “timer 10m”". -->
+    <string name="status_hint_command">%1$s: try “%2$s”</string>
     <string name="launch_failed">%1$s: no app found</string>
     <string name="apk_install_from_folder">Tap %1$s in %2$s to install it</string>
     <string name="apk_install_from_file_manager">Tap %1$s in your file manager to install it</string>
