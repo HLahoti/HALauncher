@@ -33,6 +33,7 @@ import com.example.halauncher.data.SettingsProvider
 import com.example.halauncher.data.ShortcutProvider
 import com.example.halauncher.model.AccessState
 import com.example.halauncher.model.AppInfo
+import com.example.halauncher.model.ContactEntry
 import com.example.halauncher.model.HomeTextColor
 import com.example.halauncher.model.SearchCategory
 import com.example.halauncher.model.SearchEntry
@@ -55,6 +56,8 @@ import com.example.halauncher.search.sync.IndexUpdater
 import com.example.halauncher.search.sync.Throttle
 import com.example.halauncher.service.DefaultHome
 import com.example.halauncher.util.Calculator
+import com.example.halauncher.util.ContactCommand
+import com.example.halauncher.util.QuickAction
 import com.example.halauncher.util.QuickActionTarget
 import com.example.halauncher.util.QuickCommand
 import com.example.halauncher.util.QuickActions
@@ -592,9 +595,39 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
      */
     @OptIn(ExperimentalCoroutinesApi::class)
     val quickActions: StateFlow<List<QuickActionTarget>> =
-        _searchQuery.map(QuickActions::parse).distinctUntilChanged()
-            .mapLatest { actions -> withContext(Dispatchers.IO) { resolveQuickActions(getApplication(), actions) } }
+        _searchQuery.map(String::trim).distinctUntilChanged()
+            .mapLatest { query ->
+                withContext(Dispatchers.IO) {
+                    // "call mom": once the query isn't a number or address, look the name up in contacts.
+                    val actions = QuickActions.parse(query).ifEmpty {
+                        QuickActions.contactCommand(query)?.let(::contactActions).orEmpty()
+                    }
+                    resolveQuickActions(getApplication(), actions)
+                }
+            }
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /**
+     * [command]'s action for each of the contacts it may mean, best match first: their number to call
+     * or text, or their email address; contacts without one are left out. Nothing without the
+     * contacts permission.
+     */
+    @WorkerThread
+    private fun contactActions(command: ContactCommand): List<QuickAction> {
+        if (!contactProvider.hasPermission()) return emptyList()
+        val contacts = searchEngine.deepSearch(command.name, SearchCategory.CONTACT, excludeIds = emptySet())
+            .filterIsInstance<ContactEntry>()
+            .take(SearchLayersConfig.CONTACT_ACTIONS)
+        return contacts.mapNotNull { contact ->
+            val exact = command.isClearly(contact.name, contacts.size)
+            when (command.kind) {
+                ContactCommand.Kind.CALL -> contact.phoneNumber?.let { QuickAction.Call(it, contact.name, exact) }
+                ContactCommand.Kind.MESSAGE -> contact.phoneNumber?.let { QuickAction.Message(it, contact.name, exact) }
+                ContactCommand.Kind.EMAIL ->
+                    contactProvider.loadBestEmail(contact.contactId)?.let { QuickAction.Email(it, contact.name, exact) }
+            }
+        }
+    }
 
     /**
      * The commands the query looks like the start of ("tim" → timer), for search to show how they're

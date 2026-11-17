@@ -99,9 +99,9 @@
     <!-- Under a dimmed example of a command (e.g. "timer 10m") shown while its word is being typed. -->
     <string name="hint_timer">Start a timer</string>
     <string name="hint_alarm">Set an alarm</string>
-    <string name="hint_call">Call a number</string>
-    <string name="hint_text">Text a number</string>
-    <string name="hint_email">Write an email</string>
+    <string name="hint_call">Call a number or a contact</string>
+    <string name="hint_text">Text a number or a contact</string>
+    <string name="hint_email">Email an address or a contact</string>
     <string name="hint_maps">Get directions</string>
     <string name="hint_event">Add a calendar event</string>
     <!-- Spoken action for tapping a command hint, which types the command's word. %1$s is the word. -->
@@ -262,7 +262,7 @@
     <string name="tips_find_body">Apps and their shortcuts, contacts, calendar events, files and folders, and Settings screens: type any word in a name. An event\'s place finds it too.</string>
     <string name="tips_do_title">Do things</string>
     <string name="tips_do_body">Type a command and press Go, or tap its row. It opens in the app you use for it.</string>
-    <string name="tips_bare_body">Or just type a phone number, email address or website to call, write to or open it.</string>
+    <string name="tips_bare_body">Use a contact\'s name too, like “call Mom”. Or just type a phone number, email address or website to call, write to or open it.</string>
     <string name="tips_maths_title">Quick maths</string>
     <string name="tips_maths_body">Type a sum and see the answer as you type. Tap it to copy.</string>
     <string name="tips_move_title">Getting around</string>

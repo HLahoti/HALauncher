@@ -180,4 +180,38 @@ class QuickActionsTest {
         assertEquals(emptyList<QuickCommand>(), QuickActions.hints("timers "))
         assertEquals(emptyList<QuickCommand>(), QuickActions.hints("chrome"))
     }
+
+    // Contacts by name
+
+    @Test fun `a command with a name looks the name up`() {
+        assertEquals(ContactCommand(ContactCommand.Kind.CALL, "mom"), QuickActions.contactCommand("call mom"))
+        assertEquals(ContactCommand(ContactCommand.Kind.MESSAGE, "Maya Patel"), QuickActions.contactCommand("text Maya Patel"))
+        assertEquals(ContactCommand(ContactCommand.Kind.EMAIL, "Sam"), QuickActions.contactCommand("Email  Sam "))
+    }
+
+    @Test fun `numbers and addresses aren't names`() {
+        assertEquals(null, QuickActions.contactCommand("call 112"))
+        assertEquals(null, QuickActions.contactCommand("call 98"))
+        assertEquals(null, QuickActions.contactCommand("email a@b.com"))
+        assertEquals(null, QuickActions.contactCommand("email sam@"))
+    }
+
+    @Test fun `no command or no name, no lookup`() {
+        assertEquals(null, QuickActions.contactCommand("call"))
+        assertEquals(null, QuickActions.contactCommand("mom"))
+        assertEquals(null, QuickActions.contactCommand("timer 5m"))
+    }
+
+    @Test fun `a name clearly means a contact when it's all of their name, their first name, or the only match`() {
+        val command = ContactCommand(ContactCommand.Kind.CALL, "maya")
+        assertTrue(command.isClearly("Maya Patel", matchCount = 3))
+        assertTrue(command.isClearly("Maya", matchCount = 3))
+        assertTrue(command.isClearly("Mayank Rao", matchCount = 1))
+        assertFalse(command.isClearly("Mayank Rao", matchCount = 3))
+    }
+
+    @Test fun `a contact's action is exact only when the name was clear`() {
+        assertTrue(Call("123", "Mom").isExact)
+        assertFalse(Call("123", "Mayank Rao", isExact = false).isExact)
+    }
 }

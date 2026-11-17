@@ -21,14 +21,37 @@ sealed interface QuickAction {
     /** An alarm at [hour]:[minute] (24-hour), in the clock app. */
     data class Alarm(val hour: Int, val minute: Int) : QuickAction
 
-    /** [number] dialled (not called) in the phone app. */
-    data class Call(val number: String) : QuickAction
+    /**
+     * [number] dialled (not called) in the phone app; for a contact found by name ("call mom"),
+     * [contactName] is who it is.
+     */
+    data class Call(
+        val number: String,
+        override val contactName: String? = null,
+        override val isExact: Boolean = true,
+    ) : QuickAction, ForContact
 
-    /** A new text message to [number]. */
-    data class Message(val number: String) : QuickAction
+    /** A new text message to [number], or to [contactName]'s number. */
+    data class Message(
+        val number: String,
+        override val contactName: String? = null,
+        override val isExact: Boolean = true,
+    ) : QuickAction, ForContact
 
-    /** A new email to [address]. */
-    data class Email(val address: String) : QuickAction
+    /** A new email to [address], or to [contactName]'s address. */
+    data class Email(
+        val address: String,
+        override val contactName: String? = null,
+        override val isExact: Boolean = true,
+    ) : QuickAction, ForContact
+
+    /**
+     * An action that can be for a contact found by name. [isExact] is false when the name typed may
+     * mean someone else too, so Go leaves it to the results.
+     */
+    interface ForContact {
+        val contactName: String?
+    }
 
     /** [place] in the maps app, to get directions. */
     data class Navigate(val place: String) : QuickAction {
@@ -59,6 +82,25 @@ enum class QuickCommand(val word: String, val example: String) {
     EMAIL("email", "email name@example.com"),
     MAPS("maps", "maps coffee near me"),
     EVENT("event", "event Lunch with Sam"),
+}
+
+/**
+ * "call mom", "text mom", "email mom": a [kind] of action for whoever in the contacts is called [name].
+ * Search looks them up and offers the action for each match (see [QuickActions.contactCommand]).
+ */
+data class ContactCommand(val kind: Kind, val name: String) {
+    enum class Kind { CALL, MESSAGE, EMAIL }
+
+    /**
+     * Whether [contactName], one of [matchCount] contacts found, is clearly who [name] meant: the
+     * only match, or [name] is their whole name or first name.
+     */
+    fun isClearly(contactName: String, matchCount: Int): Boolean {
+        if (matchCount == 1) return true
+        val typed = name.trim()
+        return contactName.equals(typed, ignoreCase = true) ||
+            contactName.substringBefore(' ').equals(typed, ignoreCase = true)
+    }
 }
 
 /**
@@ -161,6 +203,24 @@ object QuickActions {
         if (emailAddress.matches(text)) return listOf(QuickAction.Email(text))
         webUrl(text)?.let { return listOf(QuickAction.OpenLink(it)) }
         return emptyList()
+    }
+
+    /**
+     * The contact command in [query] ("call mom"): a call, text or email command followed by
+     * something that isn't a number or address, so it must be a name. Null for anything else,
+     * including what [parse] already handles ("call 112", "email a@b.com").
+     */
+    fun contactCommand(query: String): ContactCommand? {
+        val text = query.trim().replace(whitespace, " ")
+        if (text.isEmpty() || parse(text).isNotEmpty()) return null
+        val (kind, rest) = callCommand.matchEntire(text)?.let { ContactCommand.Kind.CALL to it.groupValues[1] }
+            ?: messageCommand.matchEntire(text)?.let { ContactCommand.Kind.MESSAGE to it.groupValues[1] }
+            ?: emailCommand.matchEntire(text)?.let { ContactCommand.Kind.EMAIL to it.groupValues[1] }
+            ?: return null
+        val name = rest.trim()
+        // Digits or an @ mean a number or address still being typed, not a name.
+        if (name.isEmpty() || name.any(Char::isDigit) || '@' in name) return null
+        return ContactCommand(kind, name)
     }
 
     /**

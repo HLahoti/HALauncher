@@ -329,6 +329,9 @@ object SearchLayersConfig {
      */
     const val RECENTLY_ADDED_FILES = 10
 
+    /** How many contacts "call mom" (or "text", "email") offers its action for, best match first. */
+    const val CONTACT_ACTIONS = 3
+
     /** How many upcoming events the Events tab lists under "Upcoming" while nothing is typed. */
     const val UPCOMING_EVENTS = 30
 

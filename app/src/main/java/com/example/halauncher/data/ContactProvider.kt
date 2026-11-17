@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.ContactsContract
+import android.provider.ContactsContract.CommonDataKinds.Email
 import android.provider.ContactsContract.CommonDataKinds.Phone
 import android.provider.ContactsContract.Contacts
 import androidx.annotation.WorkerThread
@@ -107,6 +108,29 @@ class ContactProvider(private val context: Context) : SearchEntryProvider {
             }
         }
         return contacts
+    }
+
+    /**
+     * The email address of the contact with [contactId]: the one marked default, else primary, else
+     * the first; null if they have none (or contacts can't be read). Read when needed, for "email
+     * mom", since the search index keeps only phone numbers.
+     */
+    @WorkerThread
+    fun loadBestEmail(contactId: Long): String? {
+        if (!hasPermission()) return null
+        val sortOrder = "${Email.IS_SUPER_PRIMARY} DESC, ${Email.IS_PRIMARY} DESC"
+        return try {
+            context.contentResolver.query(
+                Email.CONTENT_URI, arrayOf(Email.ADDRESS), "${Email.CONTACT_ID} = ?", arrayOf(contactId.toString()), sortOrder,
+            )?.use { cursor ->
+                val col = cursor.getColumnIndexOrThrow(Email.ADDRESS)
+                generateSequence { if (cursor.moveToNext()) cursor.getString(col) else null }
+                    .firstOrNull { it.isNotBlank() }
+            }
+        } catch (e: SecurityException) {
+            // Permission revoked between the check and the query.
+            null
+        }
     }
 
     /** One number per contact: the one marked default, else primary, else the first. */

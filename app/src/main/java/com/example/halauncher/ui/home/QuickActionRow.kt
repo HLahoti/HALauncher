@@ -81,8 +81,10 @@ fun QuickActionRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+            // For a contact found by name, who's being reached comes first: their number or address.
+            val app = target.appName ?: stringResource(R.string.quick_action_choose_app)
             Text(
-                text = target.appName ?: stringResource(R.string.quick_action_choose_app),
+                text = listOfNotNull(target.action.contactDetail, app).joinToString(DETAIL_SEPARATOR),
                 color = ThemeConfig.Foreground.copy(alpha = SearchConfig.RESULT_DETAIL_ALPHA),
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1,
@@ -186,13 +188,24 @@ private val QuickAction.icon: ImageVector
 internal fun quickActionTitle(resources: Resources, action: QuickAction, is24Hour: Boolean): String = when (action) {
     is QuickAction.Timer -> resources.getString(R.string.quick_timer, formatDuration(resources, action.seconds))
     is QuickAction.Alarm -> resources.getString(R.string.quick_alarm, formatClockTime(action.hour, action.minute, is24Hour))
-    is QuickAction.Call -> resources.getString(R.string.quick_call, action.number)
-    is QuickAction.Message -> resources.getString(R.string.quick_message, action.number)
-    is QuickAction.Email -> resources.getString(R.string.quick_email, action.address)
+    is QuickAction.Call -> resources.getString(R.string.quick_call, action.contactName ?: action.number)
+    is QuickAction.Message -> resources.getString(R.string.quick_message, action.contactName ?: action.number)
+    is QuickAction.Email -> resources.getString(R.string.quick_email, action.contactName ?: action.address)
     is QuickAction.Navigate -> resources.getString(R.string.quick_navigate, action.place)
     is QuickAction.OpenLink -> resources.getString(R.string.quick_open_link, action.url.substringAfter("://"))
     is QuickAction.NewEvent -> resources.getString(R.string.quick_new_event, action.title)
 }
+
+/** The number or address a contact found by name is reached at, shown under their name; null otherwise. */
+private val QuickAction.contactDetail: String?
+    get() = when (this) {
+        is QuickAction.Call -> number.takeIf { contactName != null }
+        is QuickAction.Message -> number.takeIf { contactName != null }
+        is QuickAction.Email -> address.takeIf { contactName != null }
+        else -> null
+    }
+
+private const val DETAIL_SEPARATOR = " · "
 
 /** "1 h 30 min", "45 s": each non-zero part, largest first. */
 private fun formatDuration(resources: Resources, totalSeconds: Int): String = listOfNotNull(
