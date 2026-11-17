@@ -35,10 +35,11 @@ sealed interface QuickAction {
     ) : QuickAction
 
     /**
-     * A ringing timer stopped. Android lets other apps stop only a timer that's ringing, not one
-     * still counting down, so that's all this can do.
+     * A timer stopped. Android lets other apps stop only a timer that's ringing, not one still
+     * counting down, so with none ringing ([opensList], found on the device, not typed) the clock's
+     * timers open instead, to stop it there.
      */
-    data object TimerStop : QuickAction
+    data class TimerStop(val opensList: Boolean = false) : QuickAction
 
     /**
      * [number] dialled (not called) in the phone app; for a contact found by name ("call mom"),
@@ -202,7 +203,7 @@ object QuickActions {
         if (text.isEmpty()) return emptyList()
 
         // Before setting ones: "timer stop" and "alarm off 7:30" start with the same words.
-        if (timerStopCommand.matches(text)) return listOf(QuickAction.TimerStop)
+        if (timerStopCommand.matches(text)) return listOf(QuickAction.TimerStop())
         alarmOffCommand.matchEntire(text)?.let { match ->
             val time = match.groupValues[1]
             if (time.isEmpty()) return listOf(QuickAction.AlarmOff())

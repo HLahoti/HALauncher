@@ -101,9 +101,9 @@ class QuickActionsTest {
     }
 
     @Test fun `timer stop`() {
-        assertEquals(listOf(TimerStop), parse("timer stop"))
-        assertEquals(listOf(TimerStop), parse("Timer off"))
-        assertEquals(listOf(TimerStop), parse("stop the timer"))
+        assertEquals(listOf(TimerStop()), parse("timer stop"))
+        assertEquals(listOf(TimerStop()), parse("Timer off"))
+        assertEquals(listOf(TimerStop()), parse("stop the timer"))
         assertEquals(emptyList<QuickAction>(), parse("timer stopwatch"))
     }
 
@@ -183,7 +183,7 @@ class QuickActionsTest {
             val action = parse(command.example).firstOrNull()
             val expected = when (command) {
                 QuickCommand.TIMER -> action is Timer
-                QuickCommand.TIMER_STOP -> action == TimerStop
+                QuickCommand.TIMER_STOP -> action is TimerStop
                 QuickCommand.ALARM -> action is Alarm
                 QuickCommand.ALARM_OFF -> action is AlarmOff
                 QuickCommand.CALL -> action is Call

@@ -127,6 +127,8 @@
     <!-- For clocks that can't turn an alarm off for the launcher: their alarm list opens instead. -->
     <string name="quick_alarm_off_list">Open alarms to turn one off</string>
     <string name="quick_timer_stop">Stop the ringing timer</string>
+    <!-- No timer ringing: other apps can't stop one counting down, so the clock's timers open. -->
+    <string name="quick_timer_stop_list">Open timers to stop one</string>
     <string name="quick_timer_set">%1$s timer started</string>
     <string name="quick_alarm_set">Alarm set for %1$s</string>
     <string name="quick_call">Call %1$s</string>
@@ -141,7 +143,7 @@
     <string name="hint_timer">Start a timer</string>
     <string name="hint_alarm">Set an alarm</string>
     <string name="hint_alarm_off">Turn off an alarm</string>
-    <string name="hint_timer_stop">Stop a ringing timer</string>
+    <string name="hint_timer_stop">Stop a timer</string>
     <string name="hint_call">Call a number or a contact</string>
     <string name="hint_text">Text a number or a contact</string>
     <string name="hint_email">Email an address or a contact</string>

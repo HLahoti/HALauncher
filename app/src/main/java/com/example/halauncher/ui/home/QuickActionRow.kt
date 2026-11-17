@@ -122,7 +122,7 @@ internal val QuickCommand.icon: ImageVector
 
 private val QuickAction.icon: ImageVector
     get() = when (this) {
-        is QuickAction.Timer, QuickAction.TimerStop -> TimerIcon
+        is QuickAction.Timer, is QuickAction.TimerStop -> TimerIcon
         is QuickAction.Alarm, is QuickAction.AlarmOff -> AlarmIcon
         is QuickAction.Call -> Icons.Default.Call
         is QuickAction.Message -> MessageIcon
@@ -143,7 +143,8 @@ internal fun quickActionTitle(resources: Resources, action: QuickAction, is24Hou
         action.nextAt != null -> resources.getString(R.string.quick_alarm_off, formatAlarmTime(action.nextAt, is24Hour))
         else -> resources.getString(R.string.quick_alarm_off_next)
     }
-    QuickAction.TimerStop -> resources.getString(R.string.quick_timer_stop)
+    is QuickAction.TimerStop ->
+        resources.getString(if (action.opensList) R.string.quick_timer_stop_list else R.string.quick_timer_stop)
     is QuickAction.Call -> resources.getString(R.string.quick_call, action.contactName ?: action.number)
     is QuickAction.Message -> resources.getString(R.string.quick_message, action.contactName ?: action.number)
     is QuickAction.Email -> resources.getString(R.string.quick_email, action.contactName ?: action.address)

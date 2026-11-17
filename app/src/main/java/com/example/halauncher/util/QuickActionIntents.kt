@@ -4,7 +4,10 @@ import android.app.AlarmManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.AudioAttributes
+import android.media.AudioManager
 import android.net.Uri
+import android.os.Build
 import android.provider.AlarmClock
 import android.provider.CalendarContract
 import androidx.annotation.WorkerThread
@@ -31,7 +34,11 @@ val QuickAction.intent: Intent
         is QuickAction.AlarmOff -> alarmOffIntent()
         // Added in Android 9; before that no app handles it, so the action isn't offered. Without
         // the quiet hint Google's clock just shows the ringing timer instead of stopping it.
-        is QuickAction.TimerStop -> Intent(ACTION_DISMISS_TIMER).putExtra(AlarmClock.EXTRA_SKIP_UI, true)
+        is QuickAction.TimerStop -> if (opensList) {
+            Intent(ACTION_SHOW_TIMERS)
+        } else {
+            Intent(ACTION_DISMISS_TIMER).putExtra(AlarmClock.EXTRA_SKIP_UI, true)
+        }
         is QuickAction.Call -> Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", number, null))
         is QuickAction.Message -> Intent(Intent.ACTION_SENDTO, Uri.fromParts("smsto", number, null))
         is QuickAction.Email -> Intent(Intent.ACTION_SENDTO, Uri.fromParts("mailto", address, null))
@@ -79,24 +86,41 @@ fun resolveQuickActions(context: Context, actions: List<QuickAction>): List<Quic
         val appName = default?.activityInfo
             ?.takeIf { it.packageName != ANDROID_PACKAGE }
             ?.applicationInfo?.loadLabel(pm)?.toString()
-        val handler = default?.activityInfo?.packageName
-        QuickActionTarget(action.forClock(context, handler), appName)
+        val fitted = action.forClock(context, default?.activityInfo?.packageName)
+        // Fitting it may swap in another of the clock's screens; keep the original if there's none.
+        val runnable = if (fitted == action || fitted.intent.resolveActivity(pm) != null) fitted else action
+        QuickActionTarget(runnable, appName)
     }
 }
 
 /**
- * Turning off an alarm, fitted to [clockPackage], the clock that will do it. A clock that can't
- * turn one off for another app opens its alarm list instead. Otherwise, for "the next alarm", when
- * it rings, so its row can say which alarm that is: only [clockPackage]'s next alarm, since
- * Android's next alarm may be another app's (a reminder's), which the clock wouldn't touch.
+ * Stopping a timer or turning off an alarm, fitted to what the clock ([clockPackage]) can do now.
+ *
+ * A timer can only be stopped while it rings, so with nothing ringing the clock's timers open
+ * instead. An alarm, for a clock that can't turn one off for another app, opens its alarm list.
+ * Otherwise, for "the next alarm", when it rings, so its row can say which alarm that is: only
+ * [clockPackage]'s next alarm, since Android's next alarm may be another app's (a reminder's),
+ * which the clock wouldn't touch.
  */
 private fun QuickAction.forClock(context: Context, clockPackage: String?): QuickAction {
+    if (this is QuickAction.TimerStop) return copy(opensList = !isAlarmSounding(context))
     if (this !is QuickAction.AlarmOff || clockPackage == null) return this
     if (clockPackage in CLOCKS_THAT_CANNOT_TURN_OFF) return copy(opensList = true)
     if (hour != null) return this
     val next = context.getSystemService(AlarmManager::class.java)?.nextAlarmClock ?: return this
     if (next.showIntent?.creatorPackage != clockPackage) return this
     return copy(nextAt = next.triggerTime)
+}
+
+/**
+ * Whether something is ringing: an alarm or timer, played as an alarm sound. Android doesn't say
+ * whose, but a clock's is by far the likeliest. False before Android 8, which can't tell, and for
+ * one ringing silently (vibrate only), which the clock's own screen can still stop.
+ */
+private fun isAlarmSounding(context: Context): Boolean {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return false
+    val audio = context.getSystemService(AudioManager::class.java) ?: return false
+    return audio.activePlaybackConfigurations.any { it.audioAttributes.usage == AudioAttributes.USAGE_ALARM }
 }
 
 /**
@@ -108,6 +132,9 @@ private val CLOCKS_THAT_CANNOT_TURN_OFF = setOf("com.sec.android.app.clockpackag
 
 /** AlarmClock.ACTION_DISMISS_TIMER, which is only in the SDK from Android 9. */
 private const val ACTION_DISMISS_TIMER = "android.intent.action.DISMISS_TIMER"
+
+/** AlarmClock.ACTION_SHOW_TIMERS, which is only in the SDK from Android 8. */
+private const val ACTION_SHOW_TIMERS = "android.intent.action.SHOW_TIMERS"
 
 private const val NOON = 12
 
