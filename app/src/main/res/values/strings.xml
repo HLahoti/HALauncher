@@ -115,10 +115,6 @@
     <string name="hint_maps">Get directions</string>
     <string name="hint_event">Add a calendar event</string>
     <!-- Spoken action for tapping a command hint, which types the command's word. %1$s is the word. -->
-    <!-- The search field folded into a button while the results are scrolled; tapping it unfolds it. -->
-    <string name="search_expand">Search</string>
-    <!-- The same, while something's typed. %1$s is what's typed. -->
-    <string name="search_expand_with_query">Search: %1$s</string>
     <string name="hint_type_command">Type %1$s</string>
     <string name="duration_hours">%1$d h</string>
     <string name="duration_minutes">%1$d min</string>

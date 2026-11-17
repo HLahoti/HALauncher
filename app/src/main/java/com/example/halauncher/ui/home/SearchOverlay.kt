@@ -1,7 +1,5 @@
 package com.example.halauncher.ui.home
 
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.draw.drawBehind
@@ -295,54 +293,12 @@ fun SearchOverlay(
     // list that starts only once the list is scrolled to the top: it gets the drag first.
     val dismissScroll = remember(reveal) { reveal?.let(::SearchDismissScroll) }
 
-    // Scrolling down the results puts the keyboard away and folds the field and filter bar into one
-    // row, the field just a search button, to leave the results more room. Scrolling back up a way
-    // (or to the top) unfolds them, without the keyboard; tapping the search button unfolds them and
-    // brings the keyboard back up. Picking an app has no filter bar, so nothing to fold.
     // The category slider the filter pill opens (see FilterPill). It closes with search, while
     // picking an app (no filter then), and once the query changes.
     val sliderState = remember { CategorySliderState() }
     LaunchedEffect(isHidden, isPicking, query) { sliderState.close() }
-    var collapsed by remember { mutableStateOf(false) }
-    var focusOnExpand by remember { mutableStateOf(false) }
-    val canCollapse = showsCategoryBar
-    val usesGrid = showGrid || isLandscape
-    val currentUsesGrid by rememberUpdatedState(usesGrid)
-    val currentCanCollapse by rememberUpdatedState(canCollapse)
-    val expandAfterPx = with(LocalDensity.current) { SearchConfig.ExpandAfterScrollUp.toPx() }
-    val collapseOnScroll = remember(keyboard, focusManager, expandAfterPx) {
-        CollapseOnScroll(
-            expandAfterPx = expandAfterPx,
-            isCollapsed = { collapsed },
-            canScrollBackward = { if (currentUsesGrid) gridState.canScrollBackward else listState.canScrollBackward },
-            onCollapse = {
-                if (currentCanCollapse) {
-                    focusManager.clearFocus()
-                    keyboard?.hide()
-                    collapsed = true
-                }
-            },
-            onExpand = { collapsed = false },
-        )
-    }
-    // Gone with search (it opens unfolded), and whenever there's nothing to fold.
-    LaunchedEffect(isHidden, canCollapse) {
-        if (isHidden || !canCollapse) collapsed = false
-    }
-    // Tapping the search button: once the field is back, focus it and bring the keyboard up.
-    LaunchedEffect(collapsed, focusOnExpand) {
-        if (collapsed || !focusOnExpand) return@LaunchedEffect
-        // The field joins the layout a frame after it's composed; focusing it before then fails.
-        // (The flag is only cleared at the end: it's a key here, so clearing it restarts this effect.)
-        for (attempt in 1..FOCUS_ATTEMPTS) {
-            withFrameNanos { }
-            if (runCatching { focusRequester.requestFocus() }.isSuccess) {
-                keyboard?.show()
-                break
-            }
-        }
-        focusOnExpand = false
-    }
+    // In landscape the keyboard covers nearly all the results, so scrolling them puts it away.
+    val hideKeyboardOnScroll = remember(keyboard) { HideKeyboardOnScroll { keyboard?.hide() } }
 
     // Swiping sideways anywhere in search steps the category filter, like dragging the bar's
     // thumb one segment: left for the next category, right for the previous one.
@@ -502,9 +458,8 @@ fun SearchOverlay(
                         .fillMaxWidth()
                         .padding(bottom = if (imeVisible) SearchConfig.KeyboardGap else SearchConfig.BottomSpacing),
                 ) {
-                // One row: the field (or, folded, the search button), then the filter pill and the
-                // grid/list toggle, or the mirror image in left-handed mode. Folding swaps only the
-                // field for the button; the pill and toggle stay where they are.
+                // One row: the field, then the filter pill and the grid/list toggle, or the mirror
+                // image in left-handed mode.
                 val filterPill = @Composable {
                     FilterPill(
                         state = sliderState,
@@ -532,37 +487,12 @@ fun SearchOverlay(
                         }
                     }
                 }
-                ActiveSearchControlsTransition.Content(
-                    collapsed = collapsed,
-                    modifier = Modifier.fillMaxWidth(),
-                    folded = {
-                        val searchButton = @Composable {
-                            CollapsedSearchButton(
-                                query = query,
-                                onClick = {
-                                    focusOnExpand = true
-                                    collapsed = false
-                                },
-                            )
-                        }
-                        // The button at the outer edge, the space the field had left empty.
-                        controlsRow {
-                            if (!leftHanded) searchButton()
-                            Spacer(Modifier.weight(1f))
-                            if (leftHanded) searchButton()
-                        }
-                    },
-                    expanded = {
-                        if (showsCategoryBar) {
-                            controlsRow { searchField(Modifier.weight(1f)) }
-                        } else {
-                            Column(modifier = Modifier.fillMaxWidth()) {
-                                Spacer(Modifier.height(SearchConfig.ResultsSpacing))
-                                searchField(Modifier.fillMaxWidth())
-                            }
-                        }
-                    },
-                )
+                if (showsCategoryBar) {
+                    controlsRow { searchField(Modifier.weight(1f)) }
+                } else {
+                    Spacer(Modifier.height(SearchConfig.ResultsSpacing))
+                    searchField(Modifier.fillMaxWidth())
+                }
                 }
             }
             // In landscape the keyboard leaves room for about a row of results; the status line would take it.
@@ -632,14 +562,7 @@ fun SearchOverlay(
             var resultsHeight by remember { mutableIntStateOf(0) }
             val density = LocalDensity.current
             val fadePx = with(density) { SearchConfig.ControlsFadeHeight.toPx() }
-            // The list's end padding follows the bars' height once a change in it has settled: changed
-            // on every frame of the fold animation, it would re-lay the list out under the finger.
-            var paddedHeight by remember { mutableIntStateOf(0) }
-            LaunchedEffect(controlsHeight) {
-                if (paddedHeight != 0) delay(ActiveSearchControlsTransition.durationMillis.toLong())
-                paddedHeight = controlsHeight
-            }
-            val endPadding = with(density) { paddedHeight.toDp() } + SearchConfig.ResultsSpacing
+            val endPadding = with(density) { controlsHeight.toDp() } + SearchConfig.ResultsSpacing
             Box(modifier = Modifier.weight(1f).fillMaxWidth().onSizeChanged { resultsHeight = it.height }) {
                 val listModifier = Modifier
                     .fillMaxSize()
@@ -659,7 +582,7 @@ fun SearchOverlay(
                         modifier = listModifier
                             // In landscape the keyboard leaves room for little more than a row of
                             // results, so scrolling them puts it away to show the rest.
-                            .nestedScroll(collapseOnScroll),
+                            .then(if (isLandscape) Modifier.nestedScroll(hideKeyboardOnScroll) else Modifier),
                     ) {
                         if (showsPermissionNotice) {
                             item(key = PERMISSION_NOTICE_KEY, span = { GridItemSpan(maxLineSpan) }) { permissionNotice() }
@@ -723,7 +646,7 @@ fun SearchOverlay(
                 } else {
                     LazyColumn(
                         state = listState,
-                        modifier = listModifier.nestedScroll(collapseOnScroll),
+                        modifier = listModifier,
                         contentPadding = PaddingValues(bottom = endPadding),
                         userScrollEnabled = menuEntryId == null,
                     ) {
@@ -905,70 +828,11 @@ private fun BlurredBackdrop(
     )
 }
 
-/**
- * Folds and unfolds search's field and filter bar as the results scroll (see `collapsed` in
- * [SearchOverlay]): the finger scrolling them further down calls [onCollapse]; scrolling back up by
- * [expandAfterPx] in one go, or reaching the top, calls [onExpand]. Only what the list actually
- * scrolled counts, so a drag on a list too short to scroll, or a pull down past its top (which closes
- * search), does neither.
- */
-private class CollapseOnScroll(
-    private val expandAfterPx: Float,
-    private val isCollapsed: () -> Boolean,
-    private val canScrollBackward: () -> Boolean,
-    private val onCollapse: () -> Unit,
-    private val onExpand: () -> Unit,
-) : NestedScrollConnection {
-    /** How far the results have scrolled back up since they last went down. */
-    private var scrolledUp = 0f
-
-    override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
-        when {
-            // Only the finger folds them, not a fling carrying on after it.
-            consumed.y < 0f -> {
-                scrolledUp = 0f
-                if (source == NestedScrollSource.UserInput && !isCollapsed()) onCollapse()
-            }
-            consumed.y > 0f && isCollapsed() -> {
-                scrolledUp += consumed.y
-                if (scrolledUp >= expandAfterPx || !canScrollBackward()) {
-                    scrolledUp = 0f
-                    onExpand()
-                }
-            }
-        }
+/** Calls [hide] (to put the keyboard away) as soon as the finger scrolls the results. */
+private class HideKeyboardOnScroll(private val hide: () -> Unit) : NestedScrollConnection {
+    override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+        if (source == NestedScrollSource.UserInput && available.y != 0f) hide()
         return Offset.Zero
-    }
-}
-
-/** Frames to keep trying to focus the field once it's back, while it joins the layout. */
-private const val FOCUS_ATTEMPTS = 5
-
-/**
- * The search field folded into a round button, with just the search icon. Tapping it ([onClick])
- * unfolds the field and brings up the keyboard. Screen readers hear what's typed in it, if anything.
- */
-@Composable
-private fun CollapsedSearchButton(query: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val label = if (query.isBlank()) {
-        stringResource(R.string.search_expand)
-    } else {
-        stringResource(R.string.search_expand_with_query, query)
-    }
-    Box(
-        modifier = modifier
-            .size(SearchConfig.CollapsedSearchSize)
-            .liquidGlass(CircleShape, tint = SearchConfig.FIELD_GLASS_TINT)
-            .clickable(onClickLabel = label, role = Role.Button, onClick = onClick)
-            .semantics { contentDescription = label },
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = Icons.Default.Search,
-            contentDescription = null,
-            tint = ThemeConfig.Foreground,
-            modifier = Modifier.size(SearchConfig.LayoutToggleIconSize),
-        )
     }
 }
 
