@@ -210,7 +210,7 @@
     <string name="tour_search_title">Swipe up to search</string>
     <string name="tour_search_hint">Your apps, contacts, events and files, all in one place.</string>
     <string name="tour_filter_title">Swipe sideways to filter</string>
-    <string name="tour_filter_hint">Or tap a category at the top.</string>
+    <string name="tour_filter_hint">Or tap a category above the search field.</string>
     <string name="tour_quick_action_title">Type “timer 1m”</string>
     <string name="tour_quick_action_hint">Search does things, too: set alarms, call a number, get directions. Search tips in settings lists them all.</string>
     <string name="tour_close_title">Swipe down to close</string>

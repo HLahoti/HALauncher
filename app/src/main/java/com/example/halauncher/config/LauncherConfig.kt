@@ -172,10 +172,22 @@ object SearchConfig {
     /** The same in landscape, where height is short. */
     val TopSpacingLandscape = 8.dp
 
-    /** Gap below the results (above the keyboard, or the navigation bar when it's hidden). */
+    /** Gap below the search field, above the navigation bar, while the keyboard is down. */
     val BottomSpacing = 24.dp
 
-    /** Gap between the search field and the first result. */
+    /** Gap between the search field and the keyboard while it's up. */
+    val KeyboardGap = 8.dp
+
+    /** How strongly the results are blurred behind the search field and filter bar. */
+    val ControlsBlurRadius = 20.dp
+
+    /** How far above the filter bar the sharp results fade into the blurred ones. */
+    val ControlsFadeHeight = 40.dp
+
+    /** Darkening over the blurred results behind the field and filter bar, for the field's text to stand out. */
+    const val CONTROLS_BACKDROP_DIM = 0.25f
+
+    /** Gap between the results and the search field (or, without the filter bar, the field and the results). */
     val ResultsSpacing = 8.dp
 
     /** App icon size in a result row. */
@@ -186,6 +198,12 @@ object SearchConfig {
 
     /** Gap between an event's time and that pin. */
     val EventPinGap = 2.dp
+
+    /** Opacity of the backdrop marking the row Go (the keyboard's action key) would act on. */
+    const val GO_TARGET_ALPHA = 0.08f
+
+    /** Corner radius of that backdrop. */
+    val GoTargetCornerRadius = 16.dp
 
     /** Opacity of a command hint ("timer 10m · Start a timer"), so it reads as a suggestion, not a result. */
     const val COMMAND_HINT_ALPHA = 0.6f
@@ -872,6 +890,9 @@ object TourConfig {
     /** Darkness of the caption's glass: dark enough to read over search's results. */
     const val CAPTION_GLASS_TINT = 0.8f
 
+    /** Darkness of the backing under the caption's glass, so what's behind can't be read through it. */
+    const val CAPTION_BACKING_ALPHA = 0.88f
+
     /** Room left around the spotlit sphere. */
     val SpotlightPadding = 8.dp
 
@@ -912,11 +933,14 @@ object TourConfig {
     /** Clearance kept between the swipe up and the sphere. */
     val SphereClearance = 48.dp
 
-    /** Where search's results start, below the field and the filter bar; its gestures play out below this. */
-    val SearchContentTop = 180.dp
+    /**
+     * Height of search's field and filter bar with the gap under them, at the bottom on the keyboard;
+     * its gestures play out above this.
+     */
+    val SearchControlsHeight = 130.dp
 
-    /** The same in landscape, where the field and the filter bar share one line nearer the top. */
-    val SearchContentTopLandscape = 96.dp
+    /** The same in landscape, where the field and the filter bar share one line. */
+    val SearchControlsHeightLandscape = 80.dp
 
     /** Gap between the gestures' area and the caption. */
     val CaptionGap = 16.dp

@@ -1,5 +1,21 @@
 package com.example.halauncher.ui.home
 
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.BlurEffect
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.layer.GraphicsLayer
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import android.os.Build
 import android.content.Context
 import android.content.res.Resources
 import android.text.format.DateFormat
@@ -18,11 +34,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
@@ -121,6 +140,7 @@ import kotlin.math.abs
 import kotlin.random.Random
 import kotlinx.coroutines.delay
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SearchOverlay(
     query: String,
@@ -327,13 +347,15 @@ fun SearchOverlay(
                 )
             },
     ) {
+        // The keyboard's own edge sets the field apart from it, so the gap under the field shrinks
+        // while it's up, leaving the results that much more room.
+        val imeVisible = WindowInsets.isImeVisible
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .systemBarsPadding()
                 .imePadding()
-                .padding(horizontal = SearchConfig.HorizontalPadding)
-                .padding(bottom = SearchConfig.BottomSpacing),
+                .padding(horizontal = SearchConfig.HorizontalPadding),
         ) {
             Spacer(Modifier.height(overlayTopSpacing()))
             if (pickTitle != null) {
@@ -346,6 +368,21 @@ fun SearchOverlay(
                         .semantics { heading() },
                 )
             }
+            // What Go acts on: the calc answer, which sits above everything else; then a quick action
+            // the query can only mean ("timer 5m"); then the top result; then a free-text quick action
+            // ("maps coffee"), which may just be a search, so only when nothing else matched. Its row
+            // is marked while something's typed, so it's clear what Go will do.
+            val goTarget: GoTarget? = run {
+                if (activeCalcResult != null) return@run GoTarget.Calc(activeCalcResult)
+                val entry = results.firstOrNull()
+                val action = activeQuickActions.firstOrNull()?.takeIf { it.action.isExact || entry == null }
+                when {
+                    action != null -> GoTarget.Action(action)
+                    entry != null -> GoTarget.Entry(entry)
+                    else -> null
+                }
+            }
+            val goKey = goTarget?.key?.takeIf { !isQueryBlank && !isPicking }
             // A plain TextField with its fill and underline cleared, so the glass is the surface.
             // It keeps its own cursor: text set from outside (a command hint typing "timer ")
             // puts the cursor at the end, ready for the rest, rather than where it was.
@@ -380,27 +417,17 @@ fun SearchOverlay(
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
                     keyboardActions = KeyboardActions(
-                        // Go acts on the top result, the same as tapping it. The calc answer, when
-                        // it's there, sits above everything else, so Go copies it to the clipboard.
-                        // A quick action comes next: one the query can only mean ("timer 5m") runs
-                        // ahead of the results; a free-text one ("maps coffee") only when nothing
-                        // else matched, as it may just be a search.
+                        // Go does what tapping [goTarget] would.
                         onGo = {
-                            activeCalcResult?.let {
-                                onCalcResultSelected(it)
-                                return@KeyboardActions
-                            }
-                            val entry = results.firstOrNull()
-                            val action = activeQuickActions.firstOrNull()?.takeIf { it.action.isExact || entry == null }
-                            if (action != null) {
-                                runQuickAction(context, action, onQuickActionRun)
-                                return@KeyboardActions
-                            }
-                            if (entry == null) return@KeyboardActions
-                            when {
-                                isPicking -> onEntryPicked(entry)
-                                context.launchSafely(entry, resources.getString(R.string.open_app, entry.name)) ->
-                                    onEntryOpened(entry)
+                            when (val target = goTarget) {
+                                is GoTarget.Calc -> onCalcResultSelected(target.result)
+                                is GoTarget.Action -> runQuickAction(context, target.target, onQuickActionRun)
+                                is GoTarget.Entry -> when {
+                                    isPicking -> onEntryPicked(target.entry)
+                                    context.launchSafely(target.entry, resources.getString(R.string.open_app, target.entry.name)) ->
+                                        onEntryOpened(target.entry)
+                                }
+                                null -> Unit
                             }
                         },
                     ),
@@ -414,54 +441,64 @@ fun SearchOverlay(
                     modifier = toggleModifier,
                 )
             }
-            if (showsCategoryBar && isLandscape) {
-                // Landscape is short, so the bar and the grid/list toggle share the field's line,
-                // the field taking what's left: field, bar, toggle from the left, or the mirror
-                // image (toggle, bar, field) in left-handed mode.
-                val categoryBar = @Composable {
-                    CategoryFilterBar(
-                        categories = categories,
-                        selected = categoryFilter,
-                        onSelected = onCategoryFilterChange,
-                    )
-                }
-                Row(
-                    modifier = Modifier
+            // The field and the filter bar, under the results: on top of the keyboard while it's up,
+            // at the bottom of the screen otherwise, where the swipe that opened search ended.
+            val searchControls = @Composable { controlsModifier: Modifier ->
+                Column(
+                    modifier = controlsModifier
                         .fillMaxWidth()
-                        .padding(bottom = CategoryFilterConfig.VerticalSpacing),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(SearchConfig.LandscapeHeaderGap),
+                        .padding(bottom = if (imeVisible) SearchConfig.KeyboardGap else SearchConfig.BottomSpacing),
                 ) {
-                    if (leftHanded) {
-                        layoutToggle(Modifier)
-                        categoryBar()
-                        searchField(Modifier.weight(1f))
-                    } else {
-                        searchField(Modifier.weight(1f))
-                        categoryBar()
-                        layoutToggle(Modifier)
+                if (showsCategoryBar && isLandscape) {
+                    // Landscape is short, so the bar and the grid/list toggle share the field's line,
+                    // the field taking what's left: field, bar, toggle from the left, or the mirror
+                    // image (toggle, bar, field) in left-handed mode.
+                    val categoryBar = @Composable {
+                        CategoryFilterBar(
+                            categories = categories,
+                            selected = categoryFilter,
+                            onSelected = onCategoryFilterChange,
+                        )
                     }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = CategoryFilterConfig.VerticalSpacing),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(SearchConfig.LandscapeHeaderGap),
+                    ) {
+                        if (leftHanded) {
+                            layoutToggle(Modifier)
+                            categoryBar()
+                            searchField(Modifier.weight(1f))
+                        } else {
+                            searchField(Modifier.weight(1f))
+                            categoryBar()
+                            layoutToggle(Modifier)
+                        }
+                    }
+                } else if (showsCategoryBar) {
+                    // The bar sits just above the field, both on top of the keyboard. It stays centred;
+                    // the grid/list toggle sits at the right end of its line, or the left in left-handed mode.
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = CategoryFilterConfig.VerticalSpacing),
+                    ) {
+                        CategoryFilterBar(
+                            categories = categories,
+                            selected = categoryFilter,
+                            onSelected = onCategoryFilterChange,
+                            modifier = Modifier.align(Alignment.Center),
+                        )
+                        layoutToggle(Modifier.align(if (leftHanded) Alignment.CenterStart else Alignment.CenterEnd))
+                    }
+                    searchField(Modifier.fillMaxWidth())
+                } else {
+                    Spacer(Modifier.height(SearchConfig.ResultsSpacing))
+                    searchField(Modifier.fillMaxWidth())
                 }
-            } else if (showsCategoryBar) {
-                searchField(Modifier.fillMaxWidth())
-                // The bar stays centred; the grid/list toggle sits at the right end of its line, or
-                // the left in left-handed mode.
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = CategoryFilterConfig.VerticalSpacing),
-                ) {
-                    CategoryFilterBar(
-                        categories = categories,
-                        selected = categoryFilter,
-                        onSelected = onCategoryFilterChange,
-                        modifier = Modifier.align(Alignment.Center),
-                    )
-                    layoutToggle(Modifier.align(if (leftHanded) Alignment.CenterStart else Alignment.CenterEnd))
                 }
-            } else {
-                searchField(Modifier.fillMaxWidth())
-                Spacer(Modifier.height(SearchConfig.ResultsSpacing))
             }
             if (!isPicking) {
                 SearchPermissionNotice(
@@ -470,7 +507,8 @@ fun SearchOverlay(
                     modifier = Modifier.padding(bottom = SearchConfig.ResultsSpacing),
                 )
             }
-            if (statusCount != null) {
+            // In landscape the keyboard leaves room for about a row of results; the status line would take it.
+            if (statusCount != null && !(isLandscape && imeVisible)) {
                 IndexStatus(statusCount, if (isQueryBlank) R.plurals.items_indexed else R.plurals.results_found)
             }
             // A new query or category starts the list from the top, and so does coming back:
@@ -500,6 +538,7 @@ fun SearchOverlay(
             }
             val resultItem: @Composable (SearchEntry) -> Unit = { entry ->
                 EntryItem(
+                    modifier = Modifier.goHighlight(entry.id == goKey),
                     entry = entry,
                     isPicking = isPicking,
                     onOpened = onEntryOpened,
@@ -512,134 +551,239 @@ fun SearchOverlay(
                     entryContent(entry)
                 }
             }
-            if (showGrid || isLandscape) {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(
-                        when {
-                            !showGrid -> SearchConfig.LIST_COLUMNS_LANDSCAPE
-                            isLandscape -> SearchConfig.GRID_COLUMNS_LANDSCAPE
-                            else -> SearchConfig.GRID_COLUMNS
-                        },
-                    ),
-                    state = gridState,
-                    userScrollEnabled = menuEntryId == null,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        // In landscape the keyboard leaves room for little more than a row of
-                        // results, so scrolling them puts it away to show the rest.
-                        .then(if (isLandscape) Modifier.nestedScroll(hideKeyboardOnScroll) else Modifier),
-                ) {
-                    if (activeCalcResult != null) {
-                        item(key = CALC_RESULT_KEY, span = { GridItemSpan(maxLineSpan) }) {
-                            CalcResultRow(
-                                query = query,
-                                result = activeCalcResult,
-                                onCopy = onCalcResultSelected,
-                                enabled = menuEntryId == null,
-                                modifier = Modifier.alpha(dimAlpha),
-                            )
+            // The results run on under the field and filter bar, which float over a blurred copy of
+            // them that fades into the sharp ones above (see resultsBackdrop). Padding at the end of
+            // the list lets the last results scroll up clear of the bars.
+            val resultsLayer = rememberGraphicsLayer()
+            val blurLayer = rememberGraphicsLayer()
+            var controlsHeight by remember { mutableIntStateOf(0) }
+            // Read while the blurred band draws, so it redraws when the results area changes height
+            // (the keyboard coming or going) and lines its copy up with them again.
+            var resultsHeight by remember { mutableIntStateOf(0) }
+            val density = LocalDensity.current
+            val fadePx = with(density) { SearchConfig.ControlsFadeHeight.toPx() }
+            val endPadding = with(density) { controlsHeight.toDp() } + SearchConfig.ResultsSpacing
+            Box(modifier = Modifier.weight(1f).fillMaxWidth().onSizeChanged { resultsHeight = it.height }) {
+                val listModifier = Modifier
+                    .fillMaxSize()
+                    .resultsBackdrop(resultsLayer, sharpUntil = { it - controlsHeight - fadePx }, fadePx = fadePx)
+                if (showGrid || isLandscape) {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(
+                            when {
+                                !showGrid -> SearchConfig.LIST_COLUMNS_LANDSCAPE
+                                isLandscape -> SearchConfig.GRID_COLUMNS_LANDSCAPE
+                                else -> SearchConfig.GRID_COLUMNS
+                            },
+                        ),
+                        state = gridState,
+                        userScrollEnabled = menuEntryId == null,
+                        contentPadding = PaddingValues(bottom = endPadding),
+                        modifier = listModifier
+                            // In landscape the keyboard leaves room for little more than a row of
+                            // results, so scrolling them puts it away to show the rest.
+                            .then(if (isLandscape) Modifier.nestedScroll(hideKeyboardOnScroll) else Modifier),
+                    ) {
+                        if (activeCalcResult != null) {
+                            item(key = CALC_RESULT_KEY, span = { GridItemSpan(maxLineSpan) }) {
+                                CalcResultRow(
+                                    query = query,
+                                    result = activeCalcResult,
+                                    onCopy = onCalcResultSelected,
+                                    enabled = menuEntryId == null,
+                                    modifier = Modifier.alpha(dimAlpha).goHighlight(goKey == CALC_RESULT_KEY),
+                                )
+                            }
                         }
-                    }
-                    activeQuickActions.forEachIndexed { index, target ->
-                        item(key = quickActionKey(index), span = { GridItemSpan(maxLineSpan) }) {
-                            QuickActionRow(
-                                target = target,
-                                onRun = { runQuickAction(context, it, onQuickActionRun) },
-                                enabled = menuEntryId == null,
-                                modifier = Modifier.alpha(dimAlpha),
-                            )
+                        activeQuickActions.forEachIndexed { index, target ->
+                            item(key = quickActionKey(index), span = { GridItemSpan(maxLineSpan) }) {
+                                QuickActionRow(
+                                    target = target,
+                                    onRun = { runQuickAction(context, it, onQuickActionRun) },
+                                    enabled = menuEntryId == null,
+                                    modifier = Modifier.alpha(dimAlpha).goHighlight(goKey == quickActionKey(index)),
+                                )
+                            }
                         }
-                    }
-                    activeCommandHints.forEach { hint ->
-                        item(key = commandHintKey(hint), span = { GridItemSpan(maxLineSpan) }) {
-                            CommandHintRow(
-                                command = hint,
-                                onType = onQueryChange,
-                                enabled = menuEntryId == null,
-                                modifier = Modifier.alpha(dimAlpha),
-                            )
+                        activeCommandHints.forEach { hint ->
+                            item(key = commandHintKey(hint), span = { GridItemSpan(maxLineSpan) }) {
+                                CommandHintRow(
+                                    command = hint,
+                                    onType = onQueryChange,
+                                    enabled = menuEntryId == null,
+                                    modifier = Modifier.alpha(dimAlpha),
+                                )
+                            }
                         }
-                    }
-                    items(results.frequent, key = { it.id }) { entry ->
-                        resultItem(entry)
-                    }
-                    if (showsMoreLabel) {
-                        item(key = MORE_RESULTS_KEY, span = { GridItemSpan(maxLineSpan) }) {
-                            SectionLabel(stringResource(R.string.more_results), Modifier.alpha(dimAlpha))
-                        }
-                    }
-                    items(results.more, key = { it.id }) { entry ->
-                        resultItem(entry)
-                    }
-                    results.suggestions.forEach { group ->
-                        item(key = suggestionsKey(group.kind), span = { GridItemSpan(maxLineSpan) }) {
-                            SectionLabel(stringResource(group.kind.label), Modifier.alpha(dimAlpha))
-                        }
-                        items(group.entries, key = { it.id }) { entry ->
+                        items(results.frequent, key = { it.id }) { entry ->
                             resultItem(entry)
                         }
+                        if (showsMoreLabel) {
+                            item(key = MORE_RESULTS_KEY, span = { GridItemSpan(maxLineSpan) }) {
+                                SectionLabel(stringResource(R.string.more_results), Modifier.alpha(dimAlpha))
+                            }
+                        }
+                        items(results.more, key = { it.id }) { entry ->
+                            resultItem(entry)
+                        }
+                        results.suggestions.forEach { group ->
+                            item(key = suggestionsKey(group.kind), span = { GridItemSpan(maxLineSpan) }) {
+                                SectionLabel(stringResource(group.kind.label), Modifier.alpha(dimAlpha))
+                            }
+                            items(group.entries, key = { it.id }) { entry ->
+                                resultItem(entry)
+                            }
+                        }
+                        if (results.isEmpty && activeCalcResult == null && activeQuickActions.isEmpty() && activeCommandHints.isEmpty() && !results.isSearchingDisk && query.isNotBlank()) {
+                            item(key = NO_RESULTS_KEY, span = { GridItemSpan(maxLineSpan) }) {
+                                SectionLabel(stringResource(R.string.no_results), Modifier.alpha(dimAlpha))
+                            }
+                        }
                     }
-                    if (results.isEmpty && activeCalcResult == null && activeQuickActions.isEmpty() && activeCommandHints.isEmpty() && !results.isSearchingDisk && query.isNotBlank()) {
-                        item(key = NO_RESULTS_KEY, span = { GridItemSpan(maxLineSpan) }) {
-                            SectionLabel(stringResource(R.string.no_results), Modifier.alpha(dimAlpha))
+                } else {
+                    LazyColumn(
+                        state = listState,
+                        modifier = listModifier,
+                        contentPadding = PaddingValues(bottom = endPadding),
+                        userScrollEnabled = menuEntryId == null,
+                    ) {
+                        if (activeCalcResult != null) {
+                            item(key = CALC_RESULT_KEY) {
+                                CalcResultRow(
+                                    query = query,
+                                    result = activeCalcResult,
+                                    onCopy = onCalcResultSelected,
+                                    enabled = menuEntryId == null,
+                                    modifier = Modifier.alpha(dimAlpha).goHighlight(goKey == CALC_RESULT_KEY),
+                                )
+                            }
+                        }
+                        activeQuickActions.forEachIndexed { index, target ->
+                            item(key = quickActionKey(index)) {
+                                QuickActionRow(
+                                    target = target,
+                                    onRun = { runQuickAction(context, it, onQuickActionRun) },
+                                    enabled = menuEntryId == null,
+                                    modifier = Modifier.alpha(dimAlpha).goHighlight(goKey == quickActionKey(index)),
+                                )
+                            }
+                        }
+                        activeCommandHints.forEach { hint ->
+                            item(key = commandHintKey(hint)) {
+                                CommandHintRow(
+                                    command = hint,
+                                    onType = onQueryChange,
+                                    enabled = menuEntryId == null,
+                                    modifier = Modifier.alpha(dimAlpha),
+                                )
+                            }
+                        }
+                        items(results.frequent, key = { it.id }) { entry ->
+                            resultItem(entry)
+                        }
+                        if (showsMoreLabel) {
+                            item(key = MORE_RESULTS_KEY) { SectionLabel(stringResource(R.string.more_results), Modifier.alpha(dimAlpha)) }
+                        }
+                        items(results.more, key = { it.id }) { entry ->
+                            resultItem(entry)
+                        }
+                        results.suggestions.forEach { group ->
+                            item(key = suggestionsKey(group.kind)) { SectionLabel(stringResource(group.kind.label), Modifier.alpha(dimAlpha)) }
+                            items(group.entries, key = { it.id }) { entry ->
+                                resultItem(entry)
+                            }
+                        }
+                        if (results.isEmpty && activeCalcResult == null && activeQuickActions.isEmpty() && activeCommandHints.isEmpty() && !results.isSearchingDisk && query.isNotBlank()) {
+                            item(key = NO_RESULTS_KEY) { SectionLabel(stringResource(R.string.no_results), Modifier.alpha(dimAlpha)) }
                         }
                     }
                 }
-            } else {
-                LazyColumn(state = listState, modifier = Modifier.fillMaxWidth(), userScrollEnabled = menuEntryId == null) {
-                    if (activeCalcResult != null) {
-                        item(key = CALC_RESULT_KEY) {
-                            CalcResultRow(
-                                query = query,
-                                result = activeCalcResult,
-                                onCopy = onCalcResultSelected,
-                                enabled = menuEntryId == null,
-                                modifier = Modifier.alpha(dimAlpha),
-                            )
-                        }
-                    }
-                    activeQuickActions.forEachIndexed { index, target ->
-                        item(key = quickActionKey(index)) {
-                            QuickActionRow(
-                                target = target,
-                                onRun = { runQuickAction(context, it, onQuickActionRun) },
-                                enabled = menuEntryId == null,
-                                modifier = Modifier.alpha(dimAlpha),
-                            )
-                        }
-                    }
-                    activeCommandHints.forEach { hint ->
-                        item(key = commandHintKey(hint)) {
-                            CommandHintRow(
-                                command = hint,
-                                onType = onQueryChange,
-                                enabled = menuEntryId == null,
-                                modifier = Modifier.alpha(dimAlpha),
-                            )
-                        }
-                    }
-                    items(results.frequent, key = { it.id }) { entry ->
-                        resultItem(entry)
-                    }
-                    if (showsMoreLabel) {
-                        item(key = MORE_RESULTS_KEY) { SectionLabel(stringResource(R.string.more_results), Modifier.alpha(dimAlpha)) }
-                    }
-                    items(results.more, key = { it.id }) { entry ->
-                        resultItem(entry)
-                    }
-                    results.suggestions.forEach { group ->
-                        item(key = suggestionsKey(group.kind)) { SectionLabel(stringResource(group.kind.label), Modifier.alpha(dimAlpha)) }
-                        items(group.entries, key = { it.id }) { entry ->
-                            resultItem(entry)
-                        }
-                    }
-                    if (results.isEmpty && activeCalcResult == null && activeQuickActions.isEmpty() && activeCommandHints.isEmpty() && !results.isSearchingDisk && query.isNotBlank()) {
-                        item(key = NO_RESULTS_KEY) { SectionLabel(stringResource(R.string.no_results), Modifier.alpha(dimAlpha)) }
-                    }
+                if (controlsHeight > 0) {
+                    BlurredBackdrop(
+                        source = resultsLayer,
+                        blurLayer = blurLayer,
+                        sourceHeight = { resultsHeight },
+                        fadePx = fadePx,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .height(with(density) { (controlsHeight + fadePx).toDp() }),
+                    )
                 }
+                searchControls(
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .onSizeChanged { controlsHeight = it.height },
+                )
             }
         }
     }
+}
+
+/**
+ * Records the results into [layer] (for [BlurredBackdrop] to blur), then draws them fading out from
+ * [sharpUntil] (given the results' height, where the fade starts) over [fadePx]: below that they're
+ * only seen blurred, behind the field and filter bar. Without blur (before Android 12) they simply
+ * fade out there.
+ */
+private fun Modifier.resultsBackdrop(layer: GraphicsLayer, sharpUntil: (Float) -> Float, fadePx: Float): Modifier = this
+    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+    .drawWithContent {
+        layer.record { this@drawWithContent.drawContent() }
+        drawLayer(layer)
+        val fadeStart = sharpUntil(size.height).coerceIn(0f, size.height)
+        val fadeEnd = (fadeStart + fadePx).coerceAtMost(size.height)
+        if (fadeStart >= size.height) return@drawWithContent
+        drawRect(
+            brush = Brush.verticalGradient(
+                0f to Color.Black,
+                fadeStart / size.height to Color.Black,
+                fadeEnd / size.height to Color.Transparent,
+                1f to Color.Transparent,
+            ),
+            blendMode = BlendMode.DstIn,
+        )
+    }
+
+/**
+ * A blurred copy of the results (recorded in [source], [sourceHeight] tall, which end where this does),
+ * fading in over its top [fadePx]: the frosted backing of the field and filter bar. Android 12+ only;
+ * before that, nothing (the results fade out instead).
+ */
+@Composable
+private fun BlurredBackdrop(
+    source: GraphicsLayer,
+    blurLayer: GraphicsLayer,
+    sourceHeight: () -> Int,
+    fadePx: Float,
+    modifier: Modifier = Modifier,
+) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+    val radius = with(LocalDensity.current) { SearchConfig.ControlsBlurRadius.toPx() }
+    Box(
+        modifier = modifier
+            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+            .drawBehind {
+                // The results above this band, whose own top is that much further up.
+                val top = sourceHeight() - size.height
+                if (blurLayer.renderEffect == null) {
+                    // Decal, not clamp: past the results' edges the blur fades out rather than smearing them.
+                    blurLayer.renderEffect = BlurEffect(radius, radius, TileMode.Decal)
+                }
+                blurLayer.record(source.size) { drawLayer(source) }
+                translate(top = -top) { drawLayer(blurLayer) }
+                // Toned down a little, so bright icons blurred behind the field don't wash out its text.
+                drawRect(Color.Black.copy(alpha = SearchConfig.CONTROLS_BACKDROP_DIM))
+                drawRect(
+                    brush = Brush.verticalGradient(
+                        0f to Color.Transparent,
+                        (fadePx / size.height).coerceIn(0f, 1f) to Color.Black,
+                        1f to Color.Black,
+                    ),
+                    blendMode = BlendMode.DstIn,
+                )
+            },
+    )
 }
 
 /** Calls [hide] (to put the keyboard away) as soon as the finger scrolls the results. */
@@ -683,6 +827,35 @@ private const val NO_RESULTS_KEY = "section-none"
 private const val CALC_RESULT_KEY = "section-calc"
 
 private fun quickActionKey(index: Int) = "section-quick-$index"
+
+/** What Go acts on (see `goTarget` in [SearchOverlay]), with the list key of its row. */
+private sealed interface GoTarget {
+    val key: String
+
+    data class Calc(val result: String) : GoTarget {
+        override val key: String get() = CALC_RESULT_KEY
+    }
+
+    /** Always the first quick action, as only that one is ever Go's. */
+    data class Action(val target: QuickActionTarget) : GoTarget {
+        override val key: String get() = quickActionKey(0)
+    }
+
+    data class Entry(val entry: SearchEntry) : GoTarget {
+        override val key: String get() = entry.id
+    }
+}
+
+/** A faint rounded backdrop marking the row Go would act on, when [on]. */
+private fun Modifier.goHighlight(on: Boolean): Modifier =
+    if (on) {
+        background(
+            ThemeConfig.Foreground.copy(alpha = SearchConfig.GO_TARGET_ALPHA),
+            RoundedCornerShape(SearchConfig.GoTargetCornerRadius),
+        )
+    } else {
+        this
+    }
 
 private fun commandHintKey(command: QuickCommand) = "section-hint-${command.name}"
 
@@ -830,6 +1003,7 @@ private fun EntryItem(
     menuEntryId: String?,
     alpha: Float,
     onMenuChange: (String?) -> Unit,
+    modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
     if (isPicking) {
@@ -861,7 +1035,7 @@ private fun EntryItem(
     val dimmed = menuEntryId != null && !menuOpen
     val optionsLabel = stringResource(R.string.entry_options, entry.name)
     val hasMenu = hasEntryMenu(entry, actions)
-    Box(modifier = Modifier.fillMaxWidth().alpha(alpha)) {
+    Box(modifier = modifier.fillMaxWidth().alpha(alpha)) {
         ClickToLaunch(
             element,
             // Without a menu, holding a result does nothing, rather than opening it on release.
