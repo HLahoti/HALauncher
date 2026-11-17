@@ -144,6 +144,7 @@ import com.example.halauncher.ui.components.liquidGlass
 import com.example.halauncher.ui.components.overlayTopSpacing
 import com.example.halauncher.ui.components.rememberDrawablePainter
 import com.example.halauncher.util.Haptics
+import com.example.halauncher.util.QuickAction
 import com.example.halauncher.util.QuickActionTarget
 import com.example.halauncher.util.QuickCommand
 import com.example.halauncher.util.intent
@@ -239,7 +240,9 @@ fun SearchOverlay(
     }
     // Beside the count: while a command's word is being typed ("tim"), how to finish it, tapped to
     // type the word; otherwise, with nothing typed, the tab's tip.
+    // Commands sharing the word ("alarm 7:30am", "alarm off") are shown together.
     val commandHint = activeCommandHints.firstOrNull()
+        ?.let { first -> activeCommandHints.filter { it.word == first.word } }
     val statusHint: StatusHint? = when {
         isPicking -> null
         commandHint != null -> StatusHint.Command(commandHint)
@@ -946,10 +949,23 @@ private fun Modifier.goHighlight(on: Boolean): Modifier =
         this
     }
 
-/** Starts [target]'s action in its app; once it's started, [onRun] (search closes). */
+/**
+ * Starts [target]'s action in its app; once it's started, [onRun] (search closes). Timers and alarms
+ * are set without the clock opening, so a toast says it worked.
+ */
 private fun runQuickAction(context: Context, target: QuickActionTarget, onRun: () -> Unit) {
-    val title = quickActionTitle(context.resources, target.action, DateFormat.is24HourFormat(context))
-    if (context.launchSafely(target.action.intent, title)) onRun()
+    val is24Hour = DateFormat.is24HourFormat(context)
+    val title = quickActionTitle(context.resources, target.action, is24Hour)
+    if (!context.launchSafely(target.action.intent, title)) return
+    val done = when (val action = target.action) {
+        is QuickAction.Timer ->
+            context.getString(R.string.quick_timer_set, formatDuration(context.resources, action.seconds))
+        is QuickAction.Alarm ->
+            context.getString(R.string.quick_alarm_set, formatClockTime(action.hour, action.minute, is24Hour))
+        else -> null
+    }
+    if (done != null) Toast.makeText(context, done, Toast.LENGTH_SHORT).show()
+    onRun()
 }
 
 private fun suggestionsKey(kind: SuggestionKind) = "section-suggested-${kind.name}"
@@ -979,8 +995,11 @@ private sealed interface StatusHint {
     /** A tip for the tab showing, while nothing's typed. */
     data class Tip(val text: String) : StatusHint
 
-    /** How to finish the command being typed ("tim" → "timer 10m"); tapping it types the word. */
-    data class Command(val command: QuickCommand) : StatusHint
+    /**
+     * How to finish the command being typed ("tim" → "timer 10m"), for each of [commands] (all
+     * with the same word); tapping it types the word.
+     */
+    data class Command(val commands: List<QuickCommand>) : StatusHint
 }
 
 /**
@@ -1024,8 +1043,10 @@ private fun IndexStatus(
                 modifier = Modifier.weight(1f),
             )
             is StatusHint.Command -> {
-                val command = hint.command
-                val text = stringResource(R.string.status_hint_command, stringResource(command.descriptionRes), command.example)
+                val command = hint.commands.first()
+                val text = hint.commands
+                    .map { stringResource(R.string.status_hint_command, stringResource(it.descriptionRes), it.example) }
+                    .joinToString(HINT_SEPARATOR)
                 Text(
                     text = if (count != null) stringResource(R.string.status_hint_beside, text) else text,
                     color = ThemeConfig.Foreground,
@@ -1054,6 +1075,8 @@ private val SearchCategory?.hintsRes: Int
         SearchCategory.FILE, SearchCategory.FOLDER -> R.array.search_hints_files
         SearchCategory.APP, SearchCategory.SHORTCUT, SearchCategory.SETTING -> R.array.search_hints_apps
     }
+
+private const val HINT_SEPARATOR = " · "
 
 /** Tips are picked as this seed modulo the tab's count, so each tab gets its own, stable while in view. */
 private const val HINT_SEED_RANGE = 1_000

@@ -22,6 +22,19 @@ sealed interface QuickAction {
     data class Alarm(val hour: Int, val minute: Int) : QuickAction
 
     /**
+     * The clock app's alarm at [hour]:[minute] (24-hour) turned off; with no [hour], whichever of its
+     * alarms rings next. [nextAt], when known, is when that next one rings (epoch millis), to show
+     * which it is; it's found on the device, not typed.
+     */
+    data class AlarmOff(val hour: Int? = null, val minute: Int = 0, val nextAt: Long? = null) : QuickAction
+
+    /**
+     * A ringing timer stopped. Android lets other apps stop only a timer that's ringing, not one
+     * still counting down, so that's all this can do.
+     */
+    data object TimerStop : QuickAction
+
+    /**
      * [number] dialled (not called) in the phone app; for a contact found by name ("call mom"),
      * [contactName] is who it is.
      */
@@ -76,7 +89,9 @@ sealed interface QuickAction {
  */
 enum class QuickCommand(val word: String, val example: String) {
     TIMER("timer", "timer 10m"),
+    TIMER_STOP("timer", "timer stop"),
     ALARM("alarm", "alarm 7:30am"),
+    ALARM_OFF("alarm", "alarm off"),
     CALL("call", "call 555 0100"),
     TEXT("text", "text 555 0100"),
     EMAIL("email", "email name@example.com"),
@@ -119,6 +134,14 @@ object QuickActions {
     private const val BARE_NUMBER_MIN_DIGITS = 7
     private const val COMMAND_NUMBER_MIN_DIGITS = 3
 
+    private val timerStopCommand = Regex(
+        """^(?:timers? (?:stop|off|cancel|dismiss)|(?:stop|cancel|dismiss) (?:the |my )?timers?)$""",
+        RegexOption.IGNORE_CASE,
+    )
+    private val alarmOffCommand = Regex(
+        """^(?:alarms? off|(?:turn off|cancel) (?:the |my )?alarm)(?: (?:at |for )?(.+))?$""",
+        RegexOption.IGNORE_CASE,
+    )
     private val timerCommand = Regex("""^(?:set (?:a )?)?timer(?: for)? (.+)$|^(.+?) timer$""", RegexOption.IGNORE_CASE)
     private val alarmCommand = Regex("""^(?:(?:set (?:an )?)?alarm(?: for| at)?|wake me(?: up)?(?: at)?) (.+)$""", RegexOption.IGNORE_CASE)
     private val callCommand = Regex("""^(?:call|dial|phone) (.+)$""", RegexOption.IGNORE_CASE)
@@ -172,6 +195,17 @@ object QuickActions {
         val text = query.trim().replace(whitespace, " ")
         if (text.isEmpty()) return emptyList()
 
+        // Before setting ones: "timer stop" and "alarm off 7:30" start with the same words.
+        if (timerStopCommand.matches(text)) return listOf(QuickAction.TimerStop)
+        alarmOffCommand.matchEntire(text)?.let { match ->
+            val time = match.groupValues[1]
+            if (time.isEmpty()) return listOf(QuickAction.AlarmOff())
+            parseClockTime(time.lowercase(Locale.ROOT))?.let { (hour, minute) ->
+                return listOf(QuickAction.AlarmOff(hour, minute))
+            }
+            // Not a time yet ("alarm off 7:"): nothing, rather than an alarm at "off 7:".
+            return emptyList()
+        }
         timerCommand.matchEntire(text)?.let { match ->
             val duration = match.groupValues[1].ifEmpty { match.groupValues[2] }
             parseDuration(duration.lowercase(Locale.ROOT))?.let { return listOf(QuickAction.Timer(it)) }

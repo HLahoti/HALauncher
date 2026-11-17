@@ -1,6 +1,8 @@
 package com.example.halauncher.util
 
 import com.example.halauncher.util.QuickAction.Alarm
+import com.example.halauncher.util.QuickAction.AlarmOff
+import com.example.halauncher.util.QuickAction.TimerStop
 import com.example.halauncher.util.QuickAction.Call
 import com.example.halauncher.util.QuickAction.Email
 import com.example.halauncher.util.QuickAction.Message
@@ -79,6 +81,32 @@ class QuickActionsTest {
         assertEquals(emptyList<QuickAction>(), parse("alarm clock"))
     }
 
+    // Turning off
+
+    @Test fun `alarm off with no time is the next alarm`() {
+        assertEquals(listOf(AlarmOff()), parse("alarm off"))
+        assertEquals(listOf(AlarmOff()), parse("Alarms off"))
+        assertEquals(listOf(AlarmOff()), parse("turn off my alarm"))
+    }
+
+    @Test fun `alarm off at a time`() {
+        assertEquals(listOf(AlarmOff(7, 30)), parse("alarm off 7:30"))
+        assertEquals(listOf(AlarmOff(19, 0)), parse("alarm off at 7pm"))
+        assertEquals(listOf(AlarmOff(6, 45)), parse("cancel the alarm 6:45"))
+    }
+
+    @Test fun `alarm off with a time still being typed does nothing yet`() {
+        assertEquals(emptyList<QuickAction>(), parse("alarm off 7:"))
+        assertEquals(emptyList<QuickAction>(), parse("alarm off tomorrow"))
+    }
+
+    @Test fun `timer stop`() {
+        assertEquals(listOf(TimerStop), parse("timer stop"))
+        assertEquals(listOf(TimerStop), parse("Timer off"))
+        assertEquals(listOf(TimerStop), parse("stop the timer"))
+        assertEquals(emptyList<QuickAction>(), parse("timer stopwatch"))
+    }
+
     // Numbers and addresses
 
     @Test fun `call and text commands`() {
@@ -155,7 +183,9 @@ class QuickActionsTest {
             val action = parse(command.example).firstOrNull()
             val expected = when (command) {
                 QuickCommand.TIMER -> action is Timer
+                QuickCommand.TIMER_STOP -> action == TimerStop
                 QuickCommand.ALARM -> action is Alarm
+                QuickCommand.ALARM_OFF -> action is AlarmOff
                 QuickCommand.CALL -> action is Call
                 QuickCommand.TEXT -> action is Message
                 QuickCommand.EMAIL -> action is Email
@@ -167,9 +197,11 @@ class QuickActionsTest {
     }
 
     @Test fun `the start of a command word hints at it`() {
-        assertEquals(listOf(QuickCommand.TIMER), QuickActions.hints("tim"))
-        assertEquals(listOf(QuickCommand.TIMER), QuickActions.hints("Timer"))
-        assertEquals(listOf(QuickCommand.TIMER), QuickActions.hints("timer "))
+        val timer = listOf(QuickCommand.TIMER, QuickCommand.TIMER_STOP)
+        assertEquals(timer, QuickActions.hints("tim"))
+        assertEquals(timer, QuickActions.hints("Timer"))
+        assertEquals(timer, QuickActions.hints("timer "))
+        assertEquals(listOf(QuickCommand.ALARM, QuickCommand.ALARM_OFF), QuickActions.hints("alarm"))
         assertEquals(listOf(QuickCommand.EVENT), QuickActions.hints("eve"))
     }
 

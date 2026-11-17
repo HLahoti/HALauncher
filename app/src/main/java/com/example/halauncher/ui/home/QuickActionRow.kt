@@ -2,6 +2,7 @@ package com.example.halauncher.ui.home
 
 import android.content.res.Resources
 import android.text.format.DateFormat
+import android.text.format.DateUtils
 import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -97,7 +98,9 @@ fun QuickActionRow(
 internal val QuickCommand.descriptionRes: Int
     get() = when (this) {
         QuickCommand.TIMER -> R.string.hint_timer
+        QuickCommand.TIMER_STOP -> R.string.hint_timer_stop
         QuickCommand.ALARM -> R.string.hint_alarm
+        QuickCommand.ALARM_OFF -> R.string.hint_alarm_off
         QuickCommand.CALL -> R.string.hint_call
         QuickCommand.TEXT -> R.string.hint_text
         QuickCommand.EMAIL -> R.string.hint_email
@@ -108,8 +111,8 @@ internal val QuickCommand.descriptionRes: Int
 /** The icon of the action [this] command carries out. */
 internal val QuickCommand.icon: ImageVector
     get() = when (this) {
-        QuickCommand.TIMER -> TimerIcon
-        QuickCommand.ALARM -> AlarmIcon
+        QuickCommand.TIMER, QuickCommand.TIMER_STOP -> TimerIcon
+        QuickCommand.ALARM, QuickCommand.ALARM_OFF -> AlarmIcon
         QuickCommand.CALL -> Icons.Default.Call
         QuickCommand.TEXT -> MessageIcon
         QuickCommand.EMAIL -> Icons.Default.Email
@@ -119,8 +122,8 @@ internal val QuickCommand.icon: ImageVector
 
 private val QuickAction.icon: ImageVector
     get() = when (this) {
-        is QuickAction.Timer -> TimerIcon
-        is QuickAction.Alarm -> AlarmIcon
+        is QuickAction.Timer, QuickAction.TimerStop -> TimerIcon
+        is QuickAction.Alarm, is QuickAction.AlarmOff -> AlarmIcon
         is QuickAction.Call -> Icons.Default.Call
         is QuickAction.Message -> MessageIcon
         is QuickAction.Email -> Icons.Default.Email
@@ -133,6 +136,13 @@ private val QuickAction.icon: ImageVector
 internal fun quickActionTitle(resources: Resources, action: QuickAction, is24Hour: Boolean): String = when (action) {
     is QuickAction.Timer -> resources.getString(R.string.quick_timer, formatDuration(resources, action.seconds))
     is QuickAction.Alarm -> resources.getString(R.string.quick_alarm, formatClockTime(action.hour, action.minute, is24Hour))
+    is QuickAction.AlarmOff -> when {
+        action.hour != null ->
+            resources.getString(R.string.quick_alarm_off, formatClockTime(action.hour, action.minute, is24Hour))
+        action.nextAt != null -> resources.getString(R.string.quick_alarm_off, formatAlarmTime(action.nextAt, is24Hour))
+        else -> resources.getString(R.string.quick_alarm_off_next)
+    }
+    QuickAction.TimerStop -> resources.getString(R.string.quick_timer_stop)
     is QuickAction.Call -> resources.getString(R.string.quick_call, action.contactName ?: action.number)
     is QuickAction.Message -> resources.getString(R.string.quick_message, action.contactName ?: action.number)
     is QuickAction.Email -> resources.getString(R.string.quick_email, action.contactName ?: action.address)
@@ -153,14 +163,26 @@ private val QuickAction.contactDetail: String?
 private const val DETAIL_SEPARATOR = " · "
 
 /** "1 h 30 min", "45 s": each non-zero part, largest first. */
-private fun formatDuration(resources: Resources, totalSeconds: Int): String = listOfNotNull(
+internal fun formatDuration(resources: Resources, totalSeconds: Int): String = listOfNotNull(
     (totalSeconds / 3600).takeIf { it > 0 }?.let { resources.getString(R.string.duration_hours, it) },
     (totalSeconds % 3600 / 60).takeIf { it > 0 }?.let { resources.getString(R.string.duration_minutes, it) },
     (totalSeconds % 60).takeIf { it > 0 }?.let { resources.getString(R.string.duration_seconds, it) },
 ).joinToString(" ")
 
+/**
+ * When an alarm rings, [epochMillis]: its time ("7:30 AM") if that's today, else with the weekday
+ * ("Wed 7:30 AM"). Alarms are at most a week away.
+ */
+private fun formatAlarmTime(epochMillis: Long, is24Hour: Boolean): String {
+    val time = Calendar.getInstance().apply { timeInMillis = epochMillis }
+    val clock = formatClockTime(time.get(Calendar.HOUR_OF_DAY), time.get(Calendar.MINUTE), is24Hour)
+    if (DateUtils.isToday(epochMillis)) return clock
+    val weekday = DateFormat.format(DateFormat.getBestDateTimePattern(java.util.Locale.getDefault(), "EEE"), time)
+    return "$weekday $clock"
+}
+
 /** [hour]:[minute] in the device's 12- or 24-hour style and language ("7:30 AM", "07:30"). */
-private fun formatClockTime(hour: Int, minute: Int, is24Hour: Boolean): String {
+internal fun formatClockTime(hour: Int, minute: Int, is24Hour: Boolean): String {
     val time = Calendar.getInstance().apply {
         set(Calendar.HOUR_OF_DAY, hour)
         set(Calendar.MINUTE, minute)

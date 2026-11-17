@@ -121,6 +121,12 @@
     <!-- Quick actions: rows above search results that do what was typed, e.g. "timer 5m". -->
     <string name="quick_timer">Start a %1$s timer</string>
     <string name="quick_alarm">Set an alarm for %1$s</string>
+    <!-- %1$s is when the alarm rings: "7:30 AM", or "Wed 7:30 AM" when it isn't today. -->
+    <string name="quick_alarm_off">Turn off the %1$s alarm</string>
+    <string name="quick_alarm_off_next">Turn off the next alarm</string>
+    <string name="quick_timer_stop">Stop the ringing timer</string>
+    <string name="quick_timer_set">%1$s timer started</string>
+    <string name="quick_alarm_set">Alarm set for %1$s</string>
     <string name="quick_call">Call %1$s</string>
     <string name="quick_message">Message %1$s</string>
     <string name="quick_email">Email %1$s</string>
@@ -132,6 +138,8 @@
     <!-- Under a dimmed example of a command (e.g. "timer 10m") shown while its word is being typed. -->
     <string name="hint_timer">Start a timer</string>
     <string name="hint_alarm">Set an alarm</string>
+    <string name="hint_alarm_off">Turn off an alarm</string>
+    <string name="hint_timer_stop">Stop a ringing timer</string>
     <string name="hint_call">Call a number or a contact</string>
     <string name="hint_text">Text a number or a contact</string>
     <string name="hint_email">Email an address or a contact</string>
