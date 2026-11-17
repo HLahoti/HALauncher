@@ -187,6 +187,9 @@ object SearchConfig {
     /** Size of the round search button the field folds into. */
     val CollapsedSearchSize = 48.dp
 
+    /** How long search's field and filter bar take to fold into a row, or unfold, when animated. */
+    const val CONTROLS_TRANSITION_MS = 250
+
     /** How strongly the results are blurred behind the search field and filter bar. */
     val ControlsBlurRadius = 20.dp
 
