@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import android.os.Build
@@ -42,6 +43,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.isImeVisible
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
@@ -758,8 +760,10 @@ private fun Modifier.resultsBackdrop(layer: GraphicsLayer, sharpUntil: (Float) -
 
 /**
  * A blurred copy of the results (recorded in [source], [sourceHeight] tall, which end where this does),
- * fading in over its top [fadePx]: the frosted backing of the field and filter bar. Android 12+ only;
- * before that, nothing (the results fade out instead).
+ * fading in over its top [fadePx]: the frosted backing of the field and filter bar. It runs to the
+ * screen's edges, past search's side margins and down behind the navigation bar, so the blur fades out
+ * there rather than stopping in a straight line. Android 12+ only; before that, nothing (the results
+ * fade out instead).
  */
 @Composable
 private fun BlurredBackdrop(
@@ -771,18 +775,33 @@ private fun BlurredBackdrop(
 ) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
     val radius = with(LocalDensity.current) { SearchConfig.ControlsBlurRadius.toPx() }
+    var margin by remember { mutableIntStateOf(0) }
+    // Search stops above the navigation bar (or the keyboard, which then covers this extra anyway).
+    val below = WindowInsets.navigationBars.getBottom(LocalDensity.current)
     Box(
         modifier = modifier
+            // Out to the screen's edges: across both side margins, centred on the results, and down
+            // behind the navigation bar.
+            .layout { measurable, constraints ->
+                margin = SearchConfig.HorizontalPadding.roundToPx()
+                val width = constraints.maxWidth + 2 * margin
+                val height = constraints.maxHeight + below
+                val placeable = measurable.measure(
+                    constraints.copy(minWidth = width, maxWidth = width, minHeight = height, maxHeight = height),
+                )
+                layout(constraints.maxWidth, constraints.maxHeight) { placeable.place(-margin, 0) }
+            }
             .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
             .drawBehind {
                 // The results above this band, whose own top is that much further up.
-                val top = sourceHeight() - size.height
+                // (The part behind the navigation bar hangs below the results' end, so it's left out.)
+                val top = sourceHeight() - (size.height - below)
                 if (blurLayer.renderEffect == null) {
                     // Decal, not clamp: past the results' edges the blur fades out rather than smearing them.
                     blurLayer.renderEffect = BlurEffect(radius, radius, TileMode.Decal)
                 }
                 blurLayer.record(source.size) { drawLayer(source) }
-                translate(top = -top) { drawLayer(blurLayer) }
+                translate(left = margin.toFloat(), top = -top) { drawLayer(blurLayer) }
                 // Toned down a little, so bright icons blurred behind the field don't wash out its text.
                 drawRect(Color.Black.copy(alpha = SearchConfig.CONTROLS_BACKDROP_DIM))
                 drawRect(
