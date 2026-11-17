@@ -202,6 +202,9 @@ object SearchConfig {
     /** After a tap leaves the slider open, how long it stays after a category is picked in it. */
     const val SLIDER_CLOSE_AFTER_PICK_MS = 350L
 
+    /** Darkness of the base under the category slider's frosted backing, covering the sharp results. */
+    const val SLIDER_BASE_ALPHA = 0.85f
+
     /** Gap between the category slider and the field's row under it. */
     val SliderGap = 10.dp
 

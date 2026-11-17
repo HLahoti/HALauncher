@@ -255,7 +255,8 @@ private fun TabDots(count: Int, current: Int) {
 
 /**
  * The category slider: the glass segmented bar, fading (and growing slightly) in while [state] is
- * open, out when it closes. Held open, the filter pill drives it; open after a tap, its own segments
+ * open, out when it closes. [barBackdrop] draws behind the bar itself (search frosts it with the
+ * blurred results, like its other bars). Held open, the filter pill drives it; open after a tap, its own segments
  * take taps and drags, and it closes a moment after the last pick. It's centred and narrows its
  * segments if the screen is too narrow for them.
  */
@@ -266,6 +267,7 @@ fun CategorySlider(
     selected: SearchCategory?,
     onSelected: (SearchCategory?) -> Unit,
     modifier: Modifier = Modifier,
+    barBackdrop: Modifier = Modifier,
 ) {
     LaunchedEffect(state.stickyPicks) {
         if (state.stickyPicks == 0) return@LaunchedEffect
@@ -289,7 +291,7 @@ fun CategorySlider(
                     if (state.sticky) state.pickedWhileSticky()
                 },
                 segmentWidth = minOf(CategoryFilterConfig.SegmentWidth, maxWidth / segments),
-                modifier = Modifier.onGloballyPositioned { state.bounds = it.boundsInRoot() },
+                modifier = barBackdrop.onGloballyPositioned { state.bounds = it.boundsInRoot() },
             )
         }
     }

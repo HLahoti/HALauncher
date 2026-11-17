@@ -1,5 +1,13 @@
 package com.example.halauncher.ui.home
 
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.draw.drawBehind
@@ -576,10 +584,38 @@ fun SearchOverlay(
             // Read while the blurred band draws, so it redraws when the results area changes height
             // (the keyboard coming or going) and lines its copy up with them again.
             var resultsHeight by remember { mutableIntStateOf(0) }
+            // Where the results start on screen, for lining their blurred copy up behind the slider.
+            val resultsOrigin = remember { RootPosition() }
+            val sliderBackdrop = Modifier.drawBehind {
+                // The slider floats over sharp results; it's frosted with the same blurred copy the
+                // bars sit on (recorded into blurLayer as they draw, just before it), clipped to its
+                // pill shape. Without blur (before Android 12), just the dark base.
+                val pill = Path().apply {
+                    addRoundRect(RoundRect(Rect(Offset.Zero, size), CornerRadius(size.height / 2)))
+                }
+                clipPath(pill) {
+                    // The sharp results are still drawn underneath (unlike under the bars, where they
+                    // fade out), so a dark base covers them first; the blurred copy goes over it.
+                    drawRect(Color.Black.copy(alpha = SearchConfig.SLIDER_BASE_ALPHA))
+                    val bounds = sliderState.bounds
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && bounds != null && blurLayer.size != IntSize.Zero) {
+                        translate(left = resultsOrigin.x - bounds.left, top = resultsOrigin.y - bounds.top) {
+                            drawLayer(blurLayer)
+                        }
+                        drawRect(Color.Black.copy(alpha = SearchConfig.CONTROLS_BACKDROP_DIM))
+                    }
+                }
+            }
             val density = LocalDensity.current
             val fadePx = with(density) { SearchConfig.ControlsFadeHeight.toPx() }
             val endPadding = with(density) { controlsHeight.toDp() } + SearchConfig.ResultsSpacing
-            Box(modifier = Modifier.weight(1f).fillMaxWidth().onSizeChanged { resultsHeight = it.height }) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .onSizeChanged { resultsHeight = it.height }
+                    .onGloballyPositioned { resultsOrigin.set(it.positionInRoot()) },
+            ) {
                 val listModifier = Modifier
                     .fillMaxSize()
                     .resultsBackdrop(resultsLayer, sharpUntil = { it - controlsHeight - fadePx }, fadePx = fadePx)
@@ -734,10 +770,24 @@ fun SearchOverlay(
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
                             .padding(bottom = with(density) { controlsHeight.toDp() } + SearchConfig.SliderGap),
+                        barBackdrop = sliderBackdrop,
                     )
                 }
             }
         }
+    }
+}
+
+/** A position in root coordinates, kept outside composition state: read only while drawing. */
+private class RootPosition {
+    var x = 0f
+        private set
+    var y = 0f
+        private set
+
+    fun set(position: Offset) {
+        x = position.x
+        y = position.y
     }
 }
 
