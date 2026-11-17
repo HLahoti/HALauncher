@@ -187,6 +187,33 @@ object SearchConfig {
     /** Size of the round search button the field folds into. */
     val CollapsedSearchSize = 48.dp
 
+    /** Height of the filter pill beside the search field (the field's own height). */
+    val FilterPillHeight = 56.dp
+
+    /** Side padding inside the filter pill, and the gap between its icon and its tab name. */
+    val FilterPillPadding = 14.dp
+    val FilterPillGap = 8.dp
+
+    /** Size of the filter icon in the pill. */
+    val FilterPillIconSize = 20.dp
+
+    /** Gap between the pill's tab name and the dots under it; the dots' size and spacing. */
+    val FilterPillDotsGap = 3.dp
+    val FilterDotSize = 4.dp
+    val FilterDotGap = 4.dp
+
+    /** Opacity of the dots for the tabs that aren't showing. */
+    const val FILTER_DOT_DIM_ALPHA = 0.35f
+
+    /** How long the category slider takes to fade in or out. */
+    const val SLIDER_FADE_MS = 180
+
+    /** After a tap leaves the slider open, how long it stays after a category is picked in it. */
+    const val SLIDER_CLOSE_AFTER_PICK_MS = 350L
+
+    /** Gap between the category slider and the field's row under it. */
+    val SliderGap = 10.dp
+
     /** How long search's field and filter bar take to fold into a row, or unfold, when animated. */
     const val CONTROLS_TRANSITION_MS = 250
 
@@ -949,7 +976,7 @@ object TourConfig {
      * Height of search's field and filter bar with the gap under them, at the bottom on the keyboard;
      * its gestures play out above this.
      */
-    val SearchControlsHeight = 130.dp
+    val SearchControlsHeight = 90.dp
 
     /** The same in landscape, where the field and the filter bar share one line. */
     val SearchControlsHeightLandscape = 80.dp

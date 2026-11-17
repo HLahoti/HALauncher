@@ -38,6 +38,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -298,6 +299,10 @@ fun SearchOverlay(
     // row, the field just a search button, to leave the results more room. Scrolling back up a way
     // (or to the top) unfolds them, without the keyboard; tapping the search button unfolds them and
     // brings the keyboard back up. Picking an app has no filter bar, so nothing to fold.
+    // The category slider the filter pill opens (see FilterPill). It closes with search, while
+    // picking an app (no filter then), and once the query changes.
+    val sliderState = remember { CategorySliderState() }
+    LaunchedEffect(isHidden, isPicking, query) { sliderState.close() }
     var collapsed by remember { mutableStateOf(false) }
     var focusOnExpand by remember { mutableStateOf(false) }
     val canCollapse = showsCategoryBar
@@ -497,12 +502,40 @@ fun SearchOverlay(
                         .fillMaxWidth()
                         .padding(bottom = if (imeVisible) SearchConfig.KeyboardGap else SearchConfig.BottomSpacing),
                 ) {
+                // One row: the field (or, folded, the search button), then the filter pill and the
+                // grid/list toggle, or the mirror image in left-handed mode. Folding swaps only the
+                // field for the button; the pill and toggle stay where they are.
+                val filterPill = @Composable {
+                    FilterPill(
+                        state = sliderState,
+                        categories = categories,
+                        selected = categoryFilter,
+                        onSelected = onCategoryFilterChange,
+                    )
+                }
+                val controlsRow = @Composable { searchPart: @Composable RowScope.() -> Unit ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = CategoryFilterConfig.VerticalSpacing),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(SearchConfig.LandscapeHeaderGap),
+                    ) {
+                        if (leftHanded) {
+                            layoutToggle(Modifier)
+                            filterPill()
+                            searchPart()
+                        } else {
+                            searchPart()
+                            filterPill()
+                            layoutToggle(Modifier)
+                        }
+                    }
+                }
                 ActiveSearchControlsTransition.Content(
                     collapsed = collapsed,
                     modifier = Modifier.fillMaxWidth(),
                     folded = {
-                        // Folded: one row, the search button first (last in left-handed mode), then the
-                        // filter bar, narrowed if it must be to fit, then the grid/list toggle.
                         val searchButton = @Composable {
                             CollapsedSearchButton(
                                 query = query,
@@ -512,74 +545,18 @@ fun SearchOverlay(
                                 },
                             )
                         }
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = CategoryFilterConfig.VerticalSpacing),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(SearchConfig.LandscapeHeaderGap),
-                        ) {
-                            if (leftHanded) layoutToggle(Modifier) else searchButton()
-                            BoxWithConstraints(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                                val segments = categories.size + 1
-                                CategoryFilterBar(
-                                    categories = categories,
-                                    selected = categoryFilter,
-                                    onSelected = onCategoryFilterChange,
-                                    segmentWidth = minOf(CategoryFilterConfig.SegmentWidth, maxWidth / segments),
-                                )
-                            }
-                            if (leftHanded) searchButton() else layoutToggle(Modifier)
+                        // The button at the outer edge, the space the field had left empty.
+                        controlsRow {
+                            if (!leftHanded) searchButton()
+                            Spacer(Modifier.weight(1f))
+                            if (leftHanded) searchButton()
                         }
                     },
                     expanded = {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            if (showsCategoryBar && isLandscape) {
-                                // Landscape is short, so the bar and the grid/list toggle share the field's line,
-                                // the field taking what's left: field, bar, toggle from the left, or the mirror
-                                // image (toggle, bar, field) in left-handed mode.
-                                val categoryBar = @Composable {
-                                    CategoryFilterBar(
-                                        categories = categories,
-                                        selected = categoryFilter,
-                                        onSelected = onCategoryFilterChange,
-                                    )
-                                }
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(top = CategoryFilterConfig.VerticalSpacing),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(SearchConfig.LandscapeHeaderGap),
-                                ) {
-                                    if (leftHanded) {
-                                        layoutToggle(Modifier)
-                                        categoryBar()
-                                        searchField(Modifier.weight(1f))
-                                    } else {
-                                        searchField(Modifier.weight(1f))
-                                        categoryBar()
-                                        layoutToggle(Modifier)
-                                    }
-                                }
-                            } else if (showsCategoryBar) {
-                                // The bar sits just above the field, both on top of the keyboard. It stays centred;
-                                // the grid/list toggle sits at the right end of its line, or the left in left-handed mode.
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = CategoryFilterConfig.VerticalSpacing),
-                                ) {
-                                    CategoryFilterBar(
-                                        categories = categories,
-                                        selected = categoryFilter,
-                                        onSelected = onCategoryFilterChange,
-                                        modifier = Modifier.align(Alignment.Center),
-                                    )
-                                    layoutToggle(Modifier.align(if (leftHanded) Alignment.CenterStart else Alignment.CenterEnd))
-                                }
-                                searchField(Modifier.fillMaxWidth())
-                            } else {
+                        if (showsCategoryBar) {
+                            controlsRow { searchField(Modifier.weight(1f)) }
+                        } else {
+                            Column(modifier = Modifier.fillMaxWidth()) {
                                 Spacer(Modifier.height(SearchConfig.ResultsSpacing))
                                 searchField(Modifier.fillMaxWidth())
                             }
@@ -821,6 +798,25 @@ fun SearchOverlay(
                         .align(Alignment.BottomCenter)
                         .onSizeChanged { controlsHeight = it.height },
                 )
+                if (showsCategoryBar) {
+                    // Left open by a tap, the slider closes on a tap anywhere else.
+                    if (sliderState.sticky) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .pointerInput(sliderState) { detectTapGestures { sliderState.close() } },
+                        )
+                    }
+                    CategorySlider(
+                        state = sliderState,
+                        categories = categories,
+                        selected = categoryFilter,
+                        onSelected = onCategoryFilterChange,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = with(density) { controlsHeight.toDp() } + SearchConfig.SliderGap),
+                    )
+                }
             }
         }
     }

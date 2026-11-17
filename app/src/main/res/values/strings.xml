@@ -57,6 +57,16 @@
     <string name="category_app">App</string>
     <string name="category_contact">Contact</string>
     <string name="category_event">Event</string>
+    <!-- Search tabs, as the filter pill names the one showing. ("All" is category_all.) -->
+    <string name="tab_apps">Apps</string>
+    <string name="tab_contacts">Contacts</string>
+    <string name="tab_events">Events</string>
+    <string name="tab_files">Files</string>
+    <!-- The filter pill, for screen readers. %1$s is the tab showing. -->
+    <string name="filter_pill_description">Filter: %1$s</string>
+    <string name="filter_pill_open">Choose a filter</string>
+    <!-- A screen-reader action on the filter pill. %1$s is a tab's name. -->
+    <string name="filter_show">Show %1$s</string>
     <string name="category_file">File</string>
     <string name="category_shortcut">Shortcut</string>
     <string name="category_folder">Folder</string>
@@ -209,7 +219,7 @@
     <string name="tour_search_title">Swipe up to search</string>
     <string name="tour_search_hint">Your apps, contacts, events and files, all in one place.</string>
     <string name="tour_filter_title">Swipe sideways to filter</string>
-    <string name="tour_filter_hint">Or tap a category above the search field.</string>
+    <string name="tour_filter_hint">Or hold the filter button and slide to a category.</string>
     <string name="tour_quick_action_title">Type “timer 1m”</string>
     <string name="tour_quick_action_hint">Search does things, too: set alarms, call a number, get directions. Search tips in settings lists them all.</string>
     <string name="tour_close_title">Swipe down to close</string>
@@ -265,7 +275,7 @@
     <string name="tips_maths_title">Quick maths</string>
     <string name="tips_maths_body">Type a sum and see the answer as you type. Tap it to copy.</string>
     <string name="tips_move_title">Getting around</string>
-    <string name="tips_move_body">Swipe sideways to switch categories. Go opens the top result. Hold a result for more, like calling a contact or joining a meeting.</string>
+    <string name="tips_move_body">Swipe sideways to switch categories, or hold the filter button and slide along to pick one. Go opens the top result. Hold a result for more, like calling a contact or joining a meeting.</string>
     <!-- Spoken action for an example on the Search tips page. %1$s is the example. -->
     <string name="tips_try">Try %1$s in search</string>
 </resources>
