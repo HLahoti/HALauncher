@@ -34,12 +34,11 @@ data class TargetedFiles(
 )
 
 /**
- * @param denylistEnabled whether [FilePathDenylist] folders are left out of the index right now
- *   (the "Reduce index size" setting). Read on each load, so flipping it and re-syncing takes effect.
+ * Folders that are never worth a result ([FilePathDenylist]: the trash bin, WhatsApp's backups and
+ * internals) are always left out of the index.
  */
 class FileSearchProvider(
     private val context: Context,
-    private val denylistEnabled: () -> Boolean = { false },
 ) : SearchEntryProvider {
 
     override val category = SearchCategory.FILE
@@ -59,8 +58,8 @@ class FileSearchProvider(
     override fun loadEntries(): List<SearchEntry> {
         if (!hasAccess()) return emptyList()
         return try {
-            // A full sync leaves denylisted folders out from the start, when the setting is on.
-            queryFiles(excludeDenylisted = denylistEnabled())
+            // A full sync leaves denylisted folders out from the start.
+            queryFiles(excludeDenylisted = true)
         } catch (e: SecurityException) {
             // Access revoked between the check and the query.
             emptyList()
@@ -88,7 +87,7 @@ class FileSearchProvider(
                 )
             }
             TargetedFiles(
-                entries = if (denylistEnabled()) found.filterNot { FilePathDenylist.matches(it.folder) } else found,
+                entries = found.filterNot { FilePathDenylist.matches(it.folder) },
                 existingIds = found.mapTo(HashSet()) { it.mediaId },
             )
         } catch (e: SecurityException) {
@@ -98,7 +97,7 @@ class FileSearchProvider(
 
     /**
      * The [limit] most recently added or modified files, newest first, leaving out the same files
-     * a full sync would (hidden ones, and denylisted folders while that setting is on). A file
+     * a full sync would (hidden ones, and denylisted folders). A file
      * copied or restored onto the device can keep an old modified time, so the time MediaStore
      * first saw it counts too.
      */
@@ -107,7 +106,7 @@ class FileSearchProvider(
         if (!hasAccess()) return emptyList()
         return try {
             queryFiles(
-                excludeDenylisted = denylistEnabled(),
+                excludeDenylisted = true,
                 sortOrder = "MAX(${MediaStore.MediaColumns.DATE_ADDED}, ${MediaStore.MediaColumns.DATE_MODIFIED}) DESC",
                 limit = limit,
             )
@@ -118,7 +117,7 @@ class FileSearchProvider(
 
     /**
      * Every folder of internal storage that search lists (see [FolderRules]): hidden ones never, and
-     * those [FolderRules.leftOutWhenReduced] while "Reduce index size" is on. Android 10+ only, as
+     * those [FolderRules.isLeftOut]. Android 10+ only, as
      * older versions don't report where files are.
      *
      * MediaStore has a row for most folders, empty ones included, but not every one: a folder can
@@ -158,7 +157,7 @@ class FileSearchProvider(
             .filter(::isListed)
 
     private fun isListed(folder: FolderEntry): Boolean =
-        !FolderRules.isHidden(folder.path) && !(denylistEnabled() && FolderRules.leftOutWhenReduced(folder.path))
+        !FolderRules.isHidden(folder.path) && !FolderRules.isLeftOut(folder.path)
 
     /**
      * MediaStore's folder rows on internal storage. Their paths come from the full path in DATA,

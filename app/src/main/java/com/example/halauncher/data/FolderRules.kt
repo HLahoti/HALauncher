@@ -16,12 +16,12 @@ object FolderRules {
     fun isHidden(path: String): Boolean = path.split('/').any { it.startsWith('.') }
 
     /**
-     * Folders left out while "Reduce index size" is on: the storage root, the [FilePathDenylist]
+     * Folders never listed although they aren't hidden: the storage root, the [FilePathDenylist]
      * folders (and everything in them), and WhatsApp's weekly folders. WhatsApp keeps voice and
      * video notes in one folder per week ("202336"), dozens of them with nothing to tell them apart,
      * and their files are hidden from MediaStore, so they'd only ever look empty.
      */
-    fun leftOutWhenReduced(path: String): Boolean =
+    fun isLeftOut(path: String): Boolean =
         path.isEmpty() || FilePathDenylist.matches(path) || isWhatsAppWeekFolder(path)
 
     private fun isWhatsAppWeekFolder(path: String): Boolean {

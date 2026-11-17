@@ -78,7 +78,6 @@ import kotlin.math.roundToInt
  * @param settingsLocked whether the other settings are frozen; the lock toggle itself stays live.
  * @param onSettingsLockedChange saves the lock preference.
  * @param onDoubleTapToLockChange saves the preference; the caller also gates the double-tap gesture on it.
- * @param onReduceIndexSizeChange saves the preference and re-indexes files so the change takes effect.
  * @param onHapticIntensityChange saves the tick strength (0f–1f); every haptic reads it on its next buzz.
  * @param onDefaultSearchCategoryChange saves the category search opens on (null for "All").
  * @param onHomeTextColorChange saves the home screen's content colour (auto, light or dark).
@@ -97,14 +96,12 @@ import kotlin.math.roundToInt
 fun SettingsPanel(
     settingsLocked: Boolean,
     doubleTapToLock: Boolean,
-    reduceIndexSize: Boolean,
     hapticIntensity: Float,
     defaultSearchCategory: SearchCategory?,
     homeTextColor: HomeTextColor,
     leftHanded: Boolean,
     onSettingsLockedChange: (Boolean) -> Unit,
     onDoubleTapToLockChange: (Boolean) -> Unit,
-    onReduceIndexSizeChange: (Boolean) -> Unit,
     onHapticIntensityChange: (Float) -> Unit,
     onDefaultSearchCategoryChange: (SearchCategory?) -> Unit,
     onHomeTextColorChange: (HomeTextColor) -> Unit,
@@ -244,16 +241,6 @@ fun SettingsPanel(
                         checked = leftHanded,
                         enabled = enabled,
                         onCheckedChange = onLeftHandedChange,
-                        modifier = modifier.then(lockable),
-                    )
-                },
-                { modifier ->
-                    SettingToggle(
-                        title = stringResource(R.string.setting_reduce_index_title),
-                        description = stringResource(R.string.setting_reduce_index_description),
-                        checked = reduceIndexSize,
-                        enabled = enabled,
-                        onCheckedChange = onReduceIndexSizeChange,
                         modifier = modifier.then(lockable),
                     )
                 },

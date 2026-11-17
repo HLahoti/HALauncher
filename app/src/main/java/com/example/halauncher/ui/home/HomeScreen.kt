@@ -142,7 +142,6 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     val filesAccess by viewModel.filesAccess.collectAsStateWithLifecycle()
     val settingsLocked by viewModel.settingsLocked.collectAsStateWithLifecycle()
     val doubleTapToLock by viewModel.doubleTapToLock.collectAsStateWithLifecycle()
-    val reduceIndexSize by viewModel.reduceIndexSize.collectAsStateWithLifecycle()
     val hapticIntensity by viewModel.hapticIntensity.collectAsStateWithLifecycle()
     val defaultSearchCategory by viewModel.defaultSearchCategory.collectAsStateWithLifecycle()
     val homeTextColor by viewModel.homeTextColor.collectAsStateWithLifecycle()
@@ -430,14 +429,12 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
             SettingsPanel(
                 settingsLocked = settingsLocked,
                 doubleTapToLock = doubleTapToLock,
-                reduceIndexSize = reduceIndexSize,
                 hapticIntensity = hapticIntensity,
                 defaultSearchCategory = defaultSearchCategory,
                 homeTextColor = homeTextColor,
                 leftHanded = leftHanded,
                 onSettingsLockedChange = viewModel::setSettingsLocked,
                 onDoubleTapToLockChange = viewModel::setDoubleTapToLock,
-                onReduceIndexSizeChange = viewModel::setReduceIndexSize,
                 onHapticIntensityChange = viewModel::setHapticIntensity,
                 onDefaultSearchCategoryChange = viewModel::setDefaultSearchCategory,
                 onHomeTextColorChange = viewModel::setHomeTextColor,

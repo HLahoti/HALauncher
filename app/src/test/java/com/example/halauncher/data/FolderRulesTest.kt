@@ -27,17 +27,17 @@ class FolderRulesTest {
 
     @Test
     fun reducingLeavesOutTheRootDenylistAndWhatsAppWeeks() {
-        assertTrue(FolderRules.leftOutWhenReduced(""))
+        assertTrue(FolderRules.isLeftOut(""))
         // A denylisted folder itself, and anything in it.
-        assertTrue(FolderRules.leftOutWhenReduced("Android/media/com.whatsapp/WhatsApp/Databases/"))
-        assertTrue(FolderRules.leftOutWhenReduced("Android/media/com.whatsapp/WhatsApp/Backups/stickers/"))
+        assertTrue(FolderRules.isLeftOut("Android/media/com.whatsapp/WhatsApp/Databases/"))
+        assertTrue(FolderRules.isLeftOut("Android/media/com.whatsapp/WhatsApp/Backups/stickers/"))
         // WhatsApp's weekly folders, where it keeps them now and where older versions did.
-        assertTrue(FolderRules.leftOutWhenReduced("Android/media/com.whatsapp/WhatsApp/Media/WhatsApp Voice Notes/202336/"))
-        assertTrue(FolderRules.leftOutWhenReduced("WhatsApp/Media/WhatsApp Video Notes/202401/"))
+        assertTrue(FolderRules.isLeftOut("Android/media/com.whatsapp/WhatsApp/Media/WhatsApp Voice Notes/202336/"))
+        assertTrue(FolderRules.isLeftOut("WhatsApp/Media/WhatsApp Video Notes/202401/"))
 
-        assertFalse(FolderRules.leftOutWhenReduced("Android/media/com.whatsapp/WhatsApp/Media/WhatsApp Voice Notes/"))
-        assertFalse(FolderRules.leftOutWhenReduced("DCIM/202403/"))
-        assertFalse(FolderRules.leftOutWhenReduced("DCIM/Camera/"))
+        assertFalse(FolderRules.isLeftOut("Android/media/com.whatsapp/WhatsApp/Media/WhatsApp Voice Notes/"))
+        assertFalse(FolderRules.isLeftOut("DCIM/202403/"))
+        assertFalse(FolderRules.isLeftOut("DCIM/Camera/"))
     }
 
     @Test

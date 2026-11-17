@@ -245,8 +245,8 @@ class IndexUpdater(
                 changes += IndexChange.ReplaceAll(SearchCategory.SETTING, merged.settings)
                 changes += IndexChange.ReplaceAll(SearchCategory.SHORTCUT, merged.shortcuts)
             }
-            // Whatever re-reads every file (a new volume, the "Reduce index size" setting) re-reads
-            // every folder too.
+            // Whatever re-reads every file (a new volume, the launcher starting) re-reads every
+            // folder too.
             val allFolders = SearchCategory.FOLDER in batch.fullSync || SearchCategory.FILE in batch.fullSync
             var fileFolders: List<String?>? = null
             if (SearchCategory.FILE in batch.fullSync) {

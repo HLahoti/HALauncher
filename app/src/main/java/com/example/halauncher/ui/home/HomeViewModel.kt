@@ -181,7 +181,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val contactProvider = ContactProvider(application)
     private val calendarProvider = CalendarProvider(application)
     private val settingsStore = LauncherSettingsStore(application)
-    private val fileProvider = FileSearchProvider(application) { settingsStore.reduceIndexSize }
+    private val fileProvider = FileSearchProvider(application)
     private val shortcutProvider = ShortcutProvider(application, appRepository::shortcutApp)
     private val settingsProvider = SettingsProvider(application)
 
@@ -351,10 +351,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val _doubleTapToLock = MutableStateFlow(settingsStore.doubleTapToLock)
     /** Whether a double-tap on the empty home screen locks the phone. */
     val doubleTapToLock: StateFlow<Boolean> = _doubleTapToLock.asStateFlow()
-
-    private val _reduceIndexSize = MutableStateFlow(settingsStore.reduceIndexSize)
-    /** Whether the file index leaves out denylisted folders to stay small. */
-    val reduceIndexSize: StateFlow<Boolean> = _reduceIndexSize.asStateFlow()
 
     private val _hapticIntensity = MutableStateFlow(settingsStore.hapticIntensity)
     /** Strength of the haptic tick, 0f (off)–1f (strongest); set from the settings slider. */
@@ -1143,17 +1139,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         val clamped = intensity.coerceIn(0f, 1f)
         settingsStore.hapticIntensity = clamped
         _hapticIntensity.value = clamped
-    }
-
-    /**
-     * Turns the "reduce index size" setting on or off, then re-indexes files so it takes effect:
-     * turning it on drops denylisted files from the index, turning it off brings them back.
-     */
-    fun setReduceIndexSize(enabled: Boolean) {
-        if (_reduceIndexSize.value == enabled) return
-        settingsStore.reduceIndexSize = enabled
-        _reduceIndexSize.value = enabled
-        indexUpdater.requestSync(listOf(SearchCategory.FILE), urgent = true)
     }
 
     /**

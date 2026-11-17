@@ -8,12 +8,11 @@ import com.example.halauncher.model.SearchCategory
 
 /**
  * The launcher's preferences, set from the long-press settings panel and kept in shared
- * preferences so they survive restarts. Reads are cheap enough to do on demand (e.g. the file
- * indexer checks [reduceIndexSize] each time it queries, and [Haptics] reads [hapticIntensity] on
- * each tick), so this exposes plain properties rather than flows; the ViewModel mirrors them into
- * UI state.
+ * preferences so they survive restarts. Reads are cheap enough to do on demand (e.g. [Haptics]
+ * reads [hapticIntensity] on each tick), so this exposes plain properties rather than flows; the
+ * ViewModel mirrors them into UI state.
  *
- * The two toggles default off: they're opt-in features. [hapticIntensity] defaults to the
+ * The toggles default off: they're opt-in features. [hapticIntensity] defaults to the
  * launcher's standard tick strength ([HapticsConfig.DEFAULT_TICK_INTENSITY]).
  */
 class LauncherSettingsStore(context: Context) {
@@ -48,11 +47,6 @@ class LauncherSettingsStore(context: Context) {
     var doubleTapToLock: Boolean
         get() = prefs.getBoolean(KEY_DOUBLE_TAP_LOCK, false)
         set(value) = prefs.edit { putBoolean(KEY_DOUBLE_TAP_LOCK, value) }
-
-    /** Whether the file index leaves out denylisted folders ([FilePathDenylist]) to stay small. */
-    var reduceIndexSize: Boolean
-        get() = prefs.getBoolean(KEY_REDUCE_INDEX_SIZE, false)
-        set(value) = prefs.edit { putBoolean(KEY_REDUCE_INDEX_SIZE, value) }
 
     /** Strength of the haptic tick, from 0f (off) to 1f (strongest). Stored clamped to that range. */
     var hapticIntensity: Float
@@ -110,7 +104,6 @@ class LauncherSettingsStore(context: Context) {
         const val KEY_ONBOARDING_SEEN = "onboarding_seen"
         const val KEY_SETTINGS_LOCKED = "settings_locked"
         const val KEY_DOUBLE_TAP_LOCK = "double_tap_to_lock"
-        const val KEY_REDUCE_INDEX_SIZE = "reduce_index_size"
         const val KEY_HAPTIC_INTENSITY = "haptic_intensity"
         const val KEY_DEFAULT_SEARCH_CATEGORY = "default_search_category"
         const val KEY_HOME_TEXT_COLOR = "home_text_color"
