@@ -500,13 +500,6 @@ fun SearchOverlay(
                 }
                 }
             }
-            if (!isPicking) {
-                SearchPermissionNotice(
-                    permissions = permissions,
-                    categoryFilter = categoryFilter,
-                    modifier = Modifier.padding(bottom = SearchConfig.ResultsSpacing),
-                )
-            }
             // In landscape the keyboard leaves room for about a row of results; the status line would take it.
             if (statusCount != null && !(isLandscape && imeVisible)) {
                 IndexStatus(statusCount, if (isQueryBlank) R.plurals.items_indexed else R.plurals.results_found)
@@ -535,6 +528,18 @@ fun SearchOverlay(
                 } else {
                     EntryRowContent(entry, contactPhotos, fileThumbnails, shortcutIcons)
                 }
+            }
+            // A source that can't be read (permission not granted) leads its tab's results with a
+            // button to grant it, scrolling with them, rather than asking on its own.
+            val showsPermissionNotice = !isPicking && hasPermissionNotice(permissions, categoryFilter)
+            val permissionNotice = @Composable {
+                SearchPermissionNotice(
+                    permissions = permissions,
+                    categoryFilter = categoryFilter,
+                    modifier = Modifier
+                        .padding(bottom = SearchConfig.ResultsSpacing)
+                        .alpha(dimAlpha),
+                )
             }
             val resultItem: @Composable (SearchEntry) -> Unit = { entry ->
                 EntryItem(
@@ -584,6 +589,9 @@ fun SearchOverlay(
                             // results, so scrolling them puts it away to show the rest.
                             .then(if (isLandscape) Modifier.nestedScroll(hideKeyboardOnScroll) else Modifier),
                     ) {
+                        if (showsPermissionNotice) {
+                            item(key = PERMISSION_NOTICE_KEY, span = { GridItemSpan(maxLineSpan) }) { permissionNotice() }
+                        }
                         if (activeCalcResult != null) {
                             item(key = CALC_RESULT_KEY, span = { GridItemSpan(maxLineSpan) }) {
                                 CalcResultRow(
@@ -647,6 +655,9 @@ fun SearchOverlay(
                         contentPadding = PaddingValues(bottom = endPadding),
                         userScrollEnabled = menuEntryId == null,
                     ) {
+                        if (showsPermissionNotice) {
+                            item(key = PERMISSION_NOTICE_KEY) { permissionNotice() }
+                        }
                         if (activeCalcResult != null) {
                             item(key = CALC_RESULT_KEY) {
                                 CalcResultRow(
@@ -825,6 +836,7 @@ private class SearchDismissScroll(private val reveal: SearchRevealState) : Neste
 private const val MORE_RESULTS_KEY = "section-more"
 private const val NO_RESULTS_KEY = "section-none"
 private const val CALC_RESULT_KEY = "section-calc"
+private const val PERMISSION_NOTICE_KEY = "section-permission"
 
 private fun quickActionKey(index: Int) = "section-quick-$index"
 
@@ -919,6 +931,17 @@ data class SearchPermissions(
     val onReview: () -> Unit = {},
     val onDismissSummary: () -> Unit = {},
 )
+
+/** Whether [SearchPermissionNotice] has anything to show on the [categoryFilter] tab. */
+private fun hasPermissionNotice(permissions: SearchPermissions, categoryFilter: SearchCategory?): Boolean =
+    when (categoryFilter) {
+        SearchCategory.CONTACT -> !permissions.contacts.isGranted
+        SearchCategory.EVENT -> !permissions.calendar.isGranted
+        SearchCategory.FILE -> !permissions.files.isGranted
+        SearchCategory.APP, SearchCategory.SHORTCUT, SearchCategory.FOLDER, SearchCategory.SETTING -> false
+        null -> permissions.showSummary &&
+            !(permissions.contacts.isGranted && permissions.calendar.isGranted && permissions.files.isGranted)
+    }
 
 /** The permission notice for the [categoryFilter] tab, if its source (or, on "All", any) is missing. */
 @Composable

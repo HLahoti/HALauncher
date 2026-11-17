@@ -711,14 +711,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         pinnedAppsStore.unwatch(pinsWatcher)
     }
 
-    /**
-     * Whether to show the contacts permission dialog: only if it isn't granted and hasn't
-     * been asked before, so declining doesn't bring it back on every search. After that
-     * the user can still grant it in system Settings.
-     */
-    fun shouldRequestContactsPermission(): Boolean =
-        !contactProvider.hasPermission() && !prefs.getBoolean(KEY_ASKED_CONTACTS, false)
-
     /** Whether the contacts dialog has been shown before, so a "no" can be told from "never asked". */
     fun hasRequestedContacts(): Boolean = prefs.getBoolean(KEY_ASKED_CONTACTS, false)
 
@@ -726,13 +718,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         prefs.edit { putBoolean(KEY_ASKED_CONTACTS, true) }
         onResume()
     }
-
-    /**
-     * Whether to show the calendar permission dialog: the first time the Events tab is opened, when
-     * it's clear why it's wanted, and never again after that, so declining doesn't bring it back.
-     */
-    fun shouldRequestCalendarPermission(): Boolean =
-        !calendarProvider.hasPermission() && !prefs.getBoolean(KEY_ASKED_CALENDAR, false)
 
     /** Whether the calendar dialog has been shown before, so a "no" can be told from "never asked". */
     fun hasRequestedCalendar(): Boolean = prefs.getBoolean(KEY_ASKED_CALENDAR, false)

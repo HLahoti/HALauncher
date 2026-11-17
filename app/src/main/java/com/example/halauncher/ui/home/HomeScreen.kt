@@ -90,7 +90,6 @@ import com.example.halauncher.config.PinPickerConfig
 import com.example.halauncher.model.AppInfo
 import com.example.halauncher.model.HomeTextColor
 import com.example.halauncher.model.LaunchableElement
-import com.example.halauncher.model.SearchCategory
 import com.example.halauncher.ui.components.ClickToLaunch
 import com.example.halauncher.ui.components.GlassDropdownMenu
 import com.example.halauncher.ui.components.GlassMenuItem
@@ -181,20 +180,12 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     val searchFullyIn by remember { derivedStateOf { searchReveal.value >= 1f } }
     LaunchedEffect(isSearchOpen) { searchReveal.animateTo(isSearchOpen) }
 
-    // Ask for contacts the first time search opens, when it's clear why they're wanted. Search
-    // being fully in (not just starting to come in) also finishes the tour's swipe-up step.
+    // Search being fully in (not just starting to come in) finishes the tour's swipe-up step.
+    // Permissions are never asked for on their own here: a tab whose source can't be read lists a
+    // button to grant it among its results, and the dialog only comes up when that's tapped.
     val searchSettledOpen = isSearchOpen && searchFullyIn
     LaunchedEffect(searchSettledOpen) {
         if (searchSettledOpen) viewModel.onSearchSettledOpen()
-        if (searchSettledOpen && viewModel.shouldRequestContactsPermission()) {
-            requestContactsAccess()
-        }
-    }
-    // Ask for the calendar the first time the Events tab is opened, for the same reason. (Not with
-    // contacts as search opens: two dialogs in a row would be one too many.)
-    val eventsTabOpen = searchSettledOpen && categoryFilter == SearchCategory.EVENT
-    LaunchedEffect(eventsTabOpen) {
-        if (eventsTabOpen && viewModel.shouldRequestCalendarPermission()) requestCalendarAccess()
     }
 
     // Coming back from Settings (e.g. after allowing file access) re-checks permissions.
