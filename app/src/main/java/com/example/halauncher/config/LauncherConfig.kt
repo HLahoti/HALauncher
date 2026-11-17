@@ -181,6 +181,18 @@ object SearchConfig {
     /** App icon size in a result row. */
     val ResultIconSize = 40.dp
 
+    /** Size of the pin a grid cell shows after an event's time when it has a location. */
+    val EventPinSize = 12.dp
+
+    /** Gap between an event's time and that pin. */
+    val EventPinGap = 2.dp
+
+    /** Opacity of a command hint ("timer 10m · Start a timer"), so it reads as a suggestion, not a result. */
+    const val COMMAND_HINT_ALPHA = 0.6f
+
+    /** Size of a quick action's glyph ("timer 5m"), centred in a [ResultIconSize] box like the calculator's "=". */
+    val QuickActionIconSize = 24.dp
+
     /** Gap between a result's icon and its name. */
     val ResultIconTextGap = 16.dp
 
@@ -317,6 +329,18 @@ object SearchLayersConfig {
      */
     const val RECENTLY_ADDED_FILES = 10
 
+    /** How many upcoming events the Events tab lists under "Upcoming" while nothing is typed. */
+    const val UPCOMING_EVENTS = 30
+
+    /** How far ahead the Events tab's "Upcoming" list looks, in days. */
+    const val UPCOMING_EVENTS_DAYS = 14
+
+    /** How far back calendar events are searched, in days: recent ones are still worth finding. */
+    const val EVENTS_PAST_DAYS = 90
+
+    /** How far ahead calendar events are searched, in days. */
+    const val EVENTS_FUTURE_DAYS = 365
+
     /** How many starred contacts the Contacts tab lists under "Favourites" while nothing is typed. */
     const val FAVOURITE_CONTACTS = 20
 
@@ -355,6 +379,16 @@ object IndexUpdaterConfig {
 
     /** Re-index contacts when the contacts database changes (needs the contacts permission). */
     const val WATCH_CONTACTS = true
+
+    /** Re-index calendar events when the calendar database changes (needs the calendar permission). */
+    const val WATCH_CALENDAR = true
+
+    /**
+     * Each event is listed by its next occurrence, which moves on as time passes without the
+     * calendar changing. So events are also re-read when the launcher comes to the front, at most
+     * this often.
+     */
+    const val EVENT_REFRESH_INTERVAL_MS = 30 * 60 * 1000L
 
     /** Re-index files when MediaStore reports changes (needs All files access). */
     const val WATCH_FILES = true
@@ -496,6 +530,7 @@ object RankingConfig {
     val CATEGORY_PRIORS: Map<SearchCategory, Double> = mapOf(
         SearchCategory.APP to 0.1,
         SearchCategory.CONTACT to 0.05,
+        SearchCategory.EVENT to 0.02,
         SearchCategory.FILE to 0.0,
         SearchCategory.SHORTCUT to 0.02,
         SearchCategory.FOLDER to 0.0,

@@ -85,8 +85,10 @@ import kotlin.math.roundToInt
  * @param onLeftHandedChange saves left-handed mode (home screen and pin picker mirrored, sphere on the left).
  * @param onHowToUse replays the hands-on tour; stays available even while settings are locked.
  * @param onOpenSetup opens the "Set-up & permissions" screen; stays available even while settings are locked.
+ * @param onOpenSearchTips opens the Search tips page (everything search finds and does); always available.
  * @param onOpenAbout opens the About screen (version, author, what's new); always available too.
  * @param contactsAccess where the contacts permission stands; the set-up row warns while it's off.
+ * @param calendarAccess where the calendar permission stands; likewise.
  * @param filesAccess where file access stands; the set-up row warns while it's off.
  * @param scrollState where the cards are scrolled to, held by the caller so it's kept while About is
  *   open over settings.
@@ -109,8 +111,10 @@ fun SettingsPanel(
     onLeftHandedChange: (Boolean) -> Unit,
     onHowToUse: () -> Unit,
     onOpenSetup: () -> Unit,
+    onOpenSearchTips: () -> Unit,
     onOpenAbout: () -> Unit,
     contactsAccess: AccessState,
+    calendarAccess: AccessState,
     filesAccess: AccessState,
     onDone: () -> Unit,
     scrollState: ScrollState = rememberScrollState(),
@@ -282,12 +286,19 @@ fun SettingsPanel(
                         title = stringResource(R.string.setting_setup_title),
                         description = stringResource(R.string.setting_setup_description),
                         onClick = onOpenSetup,
-                        warning = when {
-                            !contactsAccess.isGranted && !filesAccess.isGranted -> stringResource(R.string.setup_warning_both)
-                            !contactsAccess.isGranted -> stringResource(R.string.setup_warning_contacts)
-                            !filesAccess.isGranted -> stringResource(R.string.setup_warning_files)
-                            else -> null
-                        },
+                        warning = listOfNotNull(
+                            R.string.setup_warning_contacts.takeIf { !contactsAccess.isGranted },
+                            R.string.setup_warning_calendar.takeIf { !calendarAccess.isGranted },
+                            R.string.setup_warning_files.takeIf { !filesAccess.isGranted },
+                        ).let { off -> if (off.isEmpty()) null else stringResource(off.singleOrNull() ?: R.string.setup_warning_several) },
+                        modifier = modifier,
+                    )
+                },
+                { modifier ->
+                    SettingAction(
+                        title = stringResource(R.string.setting_search_tips_title),
+                        description = stringResource(R.string.setting_search_tips_description),
+                        onClick = onOpenSearchTips,
                         modifier = modifier,
                     )
                 },

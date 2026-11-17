@@ -16,9 +16,11 @@ import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.halauncher.config.ClockConfig
+import com.example.halauncher.config.IndexUpdaterConfig
 import com.example.halauncher.config.PinPickerConfig
 import com.example.halauncher.config.SearchLayersConfig
 import com.example.halauncher.data.AppRepository
+import com.example.halauncher.data.CalendarProvider
 import com.example.halauncher.data.ContactPhotoCache
 import com.example.halauncher.data.ContactProvider
 import com.example.halauncher.data.FileSearchProvider
@@ -39,6 +41,7 @@ import com.example.halauncher.search.SearchEngine
 import com.example.halauncher.search.Trie
 import com.example.halauncher.search.index.AppEntryCodec
 import com.example.halauncher.search.index.ContactEntryCodec
+import com.example.halauncher.search.index.EventEntryCodec
 import com.example.halauncher.search.index.FileEntryCodec
 import com.example.halauncher.search.index.FolderEntryCodec
 import com.example.halauncher.search.index.InteractionLog
@@ -52,6 +55,10 @@ import com.example.halauncher.search.sync.IndexUpdater
 import com.example.halauncher.search.sync.Throttle
 import com.example.halauncher.service.DefaultHome
 import com.example.halauncher.util.Calculator
+import com.example.halauncher.util.QuickActionTarget
+import com.example.halauncher.util.QuickCommand
+import com.example.halauncher.util.QuickActions
+import com.example.halauncher.util.resolveQuickActions
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -72,6 +79,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.transformLatest
@@ -109,8 +117,8 @@ data class SearchResults(
     /** The disk layer hasn't answered the current query yet. */
     val isSearchingDisk: Boolean = false,
     /**
-     * With nothing typed, what's listed after the recents on the Contacts and Files tabs, so they
-     * show real entries before the user has opened any. Each group is non-empty.
+     * With nothing typed, what's listed after the recents on the Contacts, Events and Files tabs, so
+     * they show real entries before the user has opened any. Each group is non-empty.
      */
     val suggestions: List<Suggestions> = emptyList(),
 ) {
@@ -159,12 +167,16 @@ enum class SuggestionKind {
 
     /** The newest files on the device. */
     RECENTLY_ADDED,
+
+    /** Calendar events coming up soonest. */
+    UPCOMING,
 }
 
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private val appRepository = AppRepository(application)
     private val contactProvider = ContactProvider(application)
+    private val calendarProvider = CalendarProvider(application)
     private val settingsStore = LauncherSettingsStore(application)
     private val fileProvider = FileSearchProvider(application) { settingsStore.reduceIndexSize }
     private val shortcutProvider = ShortcutProvider(application, appRepository::shortcutApp)
@@ -176,6 +188,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             listOf(
                 AppEntryCodec(appRepository::cachedApp),
                 ContactEntryCodec,
+                EventEntryCodec,
                 FileEntryCodec,
                 FolderEntryCodec,
                 ShortcutEntryCodec(appRepository::shortcutApp),
@@ -198,11 +211,14 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
      * and frequent-layer rebuilds run on its [IndexUpdater.dispatcher], so they never overlap.
      */
     private val indexUpdater =
-        IndexUpdater(application, searchEngine, appRepository, contactProvider, fileProvider, shortcutProvider, settingsProvider)
+        IndexUpdater(
+            application, searchEngine, appRepository, contactProvider, calendarProvider, fileProvider, shortcutProvider,
+            settingsProvider,
+        )
 
     private val prefs = application.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    /** Whether contacts / files were readable when last checked; a change means re-sync. */
+    /** Whether contacts / calendar / files were readable when last checked; a change means re-sync. */
     private val accessSeen = mutableMapOf<SearchCategory, Boolean>()
 
     private val _installedApps = MutableStateFlow<List<AppInfo>>(emptyList())
@@ -270,6 +286,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
      */
     val isAboutOpen: StateFlow<Boolean> = _isAboutOpen.asStateFlow()
 
+    private val _isSearchTipsOpen = MutableStateFlow(false)
+    /**
+     * Whether the Search tips page is showing, over the settings panel it was opened from. Like About,
+     * it only shows while settings is open, and closing settings closes it too.
+     */
+    val isSearchTipsOpen: StateFlow<Boolean> = _isSearchTipsOpen.asStateFlow()
+
     private val _tourStep = MutableStateFlow<TourStep?>(null)
     /**
      * The step of the hands-on tour under way (on first launch, or replayed from settings), or null
@@ -303,6 +326,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val _contactsAccess = MutableStateFlow(contactsAccessState())
     /** Whether contacts can be read, or were never asked for, or were turned down; re-read on resume. */
     val contactsAccess: StateFlow<AccessState> = _contactsAccess.asStateFlow()
+
+    private val _calendarAccess = MutableStateFlow(calendarAccessState())
+    /** Whether calendar events can be read, or were never asked for, or were turned down; re-read on resume. */
+    val calendarAccess: StateFlow<AccessState> = _calendarAccess.asStateFlow()
+
+    /** When events were last re-read for coming to the front (see [IndexUpdaterConfig.EVENT_REFRESH_INTERVAL_MS]). */
+    private var eventsRefreshedAt = SystemClock.elapsedRealtime()
 
     private val _filesAccess = MutableStateFlow(filesAccessState())
     /** Whether files can be read, or access was never asked for, or was turned down; re-read on resume. */
@@ -413,9 +443,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _showPermissionsPrompt = MutableStateFlow(false)
     /**
-     * Whether search's "All" view should point out that contacts or files aren't being searched
-     * (either permission missing, and the notice not dismissed). The Contacts and Files tabs always
-     * say so while their own permission is missing, dismissed or not.
+     * Whether search's "All" view should point out that contacts, events or files aren't being
+     * searched (any of those permissions missing, and the notice not dismissed). The Contacts, Events
+     * and Files tabs always say so while their own permission is missing, dismissed or not.
      */
     val showPermissionsPrompt: StateFlow<Boolean> = _showPermissionsPrompt.asStateFlow()
 
@@ -448,10 +478,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             // with the Apps category selected, list every app after the recents, so someone who
             // just wants to browse all their apps can.
             val listAll = blank && input.category == SearchCategory.APP
-            // And the Contacts and Files tabs list suggestions after the recents (favourite and
-            // recently updated contacts, the newest files), so they show real entries even before
-            // the user has opened any.
-            if (blank && (input.category == SearchCategory.CONTACT || input.category == SearchCategory.FILE)) {
+            // And the Contacts, Events and Files tabs list suggestions after the recents (favourite
+            // and recently updated contacts, what's coming up, the newest files), so they show real
+            // entries even before the user has opened any.
+            if (blank && input.category != null && input.category in SUGGESTING_CATEGORIES) {
                 emit(SearchResults(frequent = frequent, isSearchingDisk = true))
                 val shownIds = frequent.mapTo(mutableSetOf()) { it.id }
                 val suggestions = withContext(Dispatchers.IO) { loadSuggestions(input.category, shownIds) }
@@ -503,7 +533,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }.map(SearchResults::exclusive).stateIn(viewModelScope, SharingStarted.Eagerly, SearchResults())
 
     /**
-     * The blank-query suggestions for the Contacts or Files tab, leaving out [shownIds] (the
+     * The blank-query suggestions for the Contacts, Events or Files tab, leaving out [shownIds] (the
      * recents) and anything an earlier group already has.
      */
     @WorkerThread
@@ -522,6 +552,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 },
                 group(SuggestionKind.RECENTLY_UPDATED, SearchLayersConfig.RECENTLY_UPDATED_CONTACTS) {
                     searchEngine.entriesByIds(contactProvider.loadRecentlyUpdatedIds(it))
+                },
+            )
+            SearchCategory.EVENT -> listOf(
+                group(SuggestionKind.UPCOMING, SearchLayersConfig.UPCOMING_EVENTS) {
+                    searchEngine.entriesByIds(calendarProvider.loadUpcomingIds(it, SearchLayersConfig.UPCOMING_EVENTS_DAYS))
                 },
             )
             SearchCategory.FILE -> listOf(
@@ -549,6 +584,48 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     val calcResult: StateFlow<String?> =
         _searchQuery.map(Calculator::evaluate).distinctUntilChanged()
             .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    /**
+     * What the query asks to be done ("timer 5m", "call 98765 43210"), each with the app that will
+     * do it; empty for an ordinary search. Only actions some installed app handles are offered.
+     * Shown above the results while picking is off.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val quickActions: StateFlow<List<QuickActionTarget>> =
+        _searchQuery.map(QuickActions::parse).distinctUntilChanged()
+            .mapLatest { actions -> withContext(Dispatchers.IO) { resolveQuickActions(getApplication(), actions) } }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /**
+     * The commands the query looks like the start of ("tim" → timer), for search to show how they're
+     * used; only those some installed app can carry out. See [QuickActions.hints].
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val commandHints: StateFlow<List<QuickCommand>> =
+        _searchQuery.map(QuickActions::hints).distinctUntilChanged()
+            .mapLatest { hints ->
+                withContext(Dispatchers.IO) {
+                    hints.filter { resolveQuickActions(getApplication(), QuickActions.parse(it.example)).isNotEmpty() }
+                }
+            }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /**
+     * Every command some installed app can carry out, for the Search tips page. Checked once, in the
+     * background, when first needed; the apps that handle these rarely come and go.
+     */
+    val supportedCommands: StateFlow<List<QuickCommand>> = flow {
+        emit(
+            withContext(Dispatchers.IO) {
+                QuickCommand.entries.filter {
+                    resolveQuickActions(getApplication(), QuickActions.parse(it.example)).isNotEmpty()
+                }
+            },
+        )
+    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    /** A quick action was started: it's done, so search closes, as it does when a result is opened. */
+    fun onQuickActionRun() = closeSearch()
 
     /**
      * The time, read when the screen starts showing it and then only on the system's minute
@@ -603,6 +680,12 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
+        // Typing something search can do (the tour asks for "timer 1m") finishes the tour's step for it.
+        viewModelScope.launch {
+            quickActions.collect { actions ->
+                if (actions.isNotEmpty() && _searchPurpose.value == SearchPurpose.FIND) advanceTour(TourStep.QUICK_ACTION)
+            }
+        }
         // Pinned shortcuts are looked up again when the pins change, and when the apps do (one
         // uninstalled takes its shortcuts with it).
         viewModelScope.launch {
@@ -644,6 +727,21 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         onResume()
     }
 
+    /**
+     * Whether to show the calendar permission dialog: the first time the Events tab is opened, when
+     * it's clear why it's wanted, and never again after that, so declining doesn't bring it back.
+     */
+    fun shouldRequestCalendarPermission(): Boolean =
+        !calendarProvider.hasPermission() && !prefs.getBoolean(KEY_ASKED_CALENDAR, false)
+
+    /** Whether the calendar dialog has been shown before, so a "no" can be told from "never asked". */
+    fun hasRequestedCalendar(): Boolean = prefs.getBoolean(KEY_ASKED_CALENDAR, false)
+
+    fun onCalendarPermissionResult() {
+        prefs.edit { putBoolean(KEY_ASKED_CALENDAR, true) }
+        onResume()
+    }
+
     /** Whether file access has been asked for before, so a "no" can be told from "never asked". */
     fun hasRequestedFiles(): Boolean = prefs.getBoolean(KEY_ASKED_FILES, false)
 
@@ -663,6 +761,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         // turned on, a SIM put in), and nothing announces it. Re-checking them (and the app
         // shortcuts they're merged with) is cheap.
         if (started) indexUpdater.requestSync(listOf(SearchCategory.SETTING), urgent = false)
+        // Events are listed by their next occurrence and labelled "Today" or "Tomorrow", which go
+        // stale as time passes with nothing in the calendar changing; re-read them now and then.
+        val now = SystemClock.elapsedRealtime()
+        if (started && calendarProvider.hasPermission() && now - eventsRefreshedAt >= IndexUpdaterConfig.EVENT_REFRESH_INTERVAL_MS) {
+            eventsRefreshedAt = now
+            indexUpdater.requestSync(listOf(SearchCategory.EVENT), urgent = false)
+        }
         // An app may have removed, renamed or re-iconed a pinned shortcut while the launcher was away.
         if (started) viewModelScope.launch { refreshPinnedShortcuts(_pinKeys.value) }
     }
@@ -686,17 +791,20 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Re-reads whether HALauncher is the default home and where contacts/files access stands, so
+     * Re-reads whether HALauncher is the default home and where contacts/calendar/files access stands, so
      * setup, settings and search reflect choices made in system screens (or access revoked from
      * elsewhere) the moment the launcher comes back.
      */
     private fun refreshPermissionStatus() {
         _isDefaultHome.value = DefaultHome.isDefault(getApplication())
         _contactsAccess.value = contactsAccessState()
+        _calendarAccess.value = calendarAccessState()
         _filesAccess.value = filesAccessState()
     }
 
     private fun contactsAccessState() = AccessState.of(contactProvider.hasPermission(), hasRequestedContacts())
+
+    private fun calendarAccessState() = AccessState.of(calendarProvider.hasPermission(), hasRequestedCalendar())
 
     private fun filesAccessState() = AccessState.of(fileProvider.hasAccess(), hasRequestedFiles())
 
@@ -706,13 +814,14 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun refreshPermissionsPrompt() {
-        val missing = !contactProvider.hasPermission() || !fileProvider.hasAccess()
+        val missing = !contactProvider.hasPermission() || !calendarProvider.hasPermission() || !fileProvider.hasAccess()
         _showPermissionsPrompt.value = missing && !prefs.getBoolean(KEY_DISMISSED_PERMISSIONS_PROMPT, false)
     }
 
     private fun hasAccess(category: SearchCategory): Boolean = when (category) {
         SearchCategory.APP, SearchCategory.SETTING -> true
         SearchCategory.CONTACT -> contactProvider.hasPermission()
+        SearchCategory.EVENT -> calendarProvider.hasPermission()
         SearchCategory.FILE, SearchCategory.FOLDER -> fileProvider.hasAccess()
         SearchCategory.SHORTCUT -> shortcutProvider.hasAccess()
     }
@@ -776,11 +885,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun publishCategories() {
         val indexed = _indexedCounts.value.keys
+        val filter = _categoryFilter.value
         // A tab whose permission is missing stays, to ask for it. Shortcuts are listed with the apps.
-        val categories = SearchCategory.entries.filter { it.hasOwnTab && (it in indexed || !hasAccess(it)) }
+        // The open tab stays too: one whose permission was just granted from it has nothing indexed
+        // until its first sync finishes, and mustn't vanish from under the user meanwhile.
+        val categories = SearchCategory.entries.filter { it.hasOwnTab && (it in indexed || !hasAccess(it) || it == filter) }
         _availableCategories.value = categories
         // The default stays even before its category is indexed, so it isn't lost at startup.
-        val filter = _categoryFilter.value
         if (filter !in categories && filter != _defaultSearchCategory.value) _categoryFilter.value = null
     }
 
@@ -894,6 +1005,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         closeSearch()
         _isPinPickerOpen.value = false
         _isAboutOpen.value = false
+        _isSearchTipsOpen.value = false
         _isSettingsOpen.value = true
         advanceTour(TourStep.SETTINGS)
     }
@@ -901,6 +1013,28 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     fun closeSettings() {
         _isSettingsOpen.value = false
         _isAboutOpen.value = false
+        _isSearchTipsOpen.value = false
+    }
+
+    /** Opens the Search tips page over settings. */
+    fun openSearchTips() {
+        _isSearchTipsOpen.value = true
+    }
+
+    /** Closes Search tips, back to settings. */
+    fun closeSearchTips() {
+        _isSearchTipsOpen.value = false
+    }
+
+    /**
+     * Tries [example] from the Search tips page: closes settings and opens search on "All" with it
+     * typed, so its result is right there to see (nothing is run until the user taps it).
+     */
+    fun trySearchExample(example: String) {
+        closeSettings()
+        openSearch()
+        _categoryFilter.value = null
+        _searchQuery.value = example
     }
 
     /** Opens the About screen over settings. */
@@ -957,7 +1091,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private fun tourStepApplies(step: TourStep): Boolean = when (step) {
         TourStep.FILTER -> _availableCategories.value.size > 1
         TourStep.SPHERE -> pinnedItems.value.size >= 2 || !_settingsLocked.value
-        TourStep.SEARCH, TourStep.CLOSE_SEARCH, TourStep.SETTINGS -> true
+        TourStep.SEARCH, TourStep.QUICK_ACTION, TourStep.CLOSE_SEARCH, TourStep.SETTINGS -> true
     }
 
     /**
@@ -1139,7 +1273,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private companion object {
         const val PREFS_NAME = "home"
         const val PERF_TAG = "Perf"
+
+        /** The tabs that list suggestions under the recents while nothing is typed. */
+        val SUGGESTING_CATEGORIES = setOf(SearchCategory.CONTACT, SearchCategory.EVENT, SearchCategory.FILE)
         const val KEY_ASKED_CONTACTS = "asked_contacts_permission"
+        const val KEY_ASKED_CALENDAR = "asked_calendar_permission"
         const val KEY_ASKED_FILES = "asked_files_access"
         const val KEY_DISMISSED_PERMISSIONS_PROMPT = "dismissed_permissions_prompt"
     }

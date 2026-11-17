@@ -1,5 +1,6 @@
 package com.example.halauncher.ui.home
 
+import android.Manifest
 import android.content.Intent
 import android.os.Build
 import android.widget.Toast
@@ -89,6 +90,7 @@ import com.example.halauncher.config.PinPickerConfig
 import com.example.halauncher.model.AppInfo
 import com.example.halauncher.model.HomeTextColor
 import com.example.halauncher.model.LaunchableElement
+import com.example.halauncher.model.SearchCategory
 import com.example.halauncher.ui.components.ClickToLaunch
 import com.example.halauncher.ui.components.GlassDropdownMenu
 import com.example.halauncher.ui.components.GlassMenuItem
@@ -125,6 +127,10 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     val isAboutOpen by viewModel.isAboutOpen.collectAsStateWithLifecycle()
     // About is a page of settings: it shows in settings' place, and only while settings is open.
     val aboutShowing = isSettingsOpen && isAboutOpen
+    // Search tips is another page of settings, like About.
+    val isSearchTipsOpen by viewModel.isSearchTipsOpen.collectAsStateWithLifecycle()
+    val searchTipsShowing = isSettingsOpen && isSearchTipsOpen && !aboutShowing
+    val pageShowing = aboutShowing || searchTipsShowing
     // Held here so settings is back where it was after About; it opens at the top each time.
     val settingsScroll = rememberScrollState()
     LaunchedEffect(isSettingsOpen) { if (isSettingsOpen) settingsScroll.scrollTo(0) }
@@ -134,6 +140,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     val isDefaultHome by viewModel.isDefaultHome.collectAsStateWithLifecycle()
     val isOnboarding by viewModel.isOnboarding.collectAsStateWithLifecycle()
     val contactsAccess by viewModel.contactsAccess.collectAsStateWithLifecycle()
+    val calendarAccess by viewModel.calendarAccess.collectAsStateWithLifecycle()
     val filesAccess by viewModel.filesAccess.collectAsStateWithLifecycle()
     val settingsLocked by viewModel.settingsLocked.collectAsStateWithLifecycle()
     val doubleTapToLock by viewModel.doubleTapToLock.collectAsStateWithLifecycle()
@@ -149,11 +156,20 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     val calendarApp by viewModel.calendarApp.collectAsStateWithLifecycle()
     val searchPurpose by viewModel.searchPurpose.collectAsStateWithLifecycle()
     val calcResult by viewModel.calcResult.collectAsStateWithLifecycle()
+    val quickActions by viewModel.quickActions.collectAsStateWithLifecycle()
+    val commandHints by viewModel.commandHints.collectAsStateWithLifecycle()
+    val tipCommands by viewModel.supportedCommands.collectAsStateWithLifecycle()
     val moneySymbol = remember { localCurrencySymbol() }
 
-    val requestContactsAccess = rememberContactsAccessRequest(
+    val requestContactsAccess = rememberPermissionRequest(
+        permission = Manifest.permission.READ_CONTACTS,
         requestedBefore = viewModel::hasRequestedContacts,
         onResult = viewModel::onContactsPermissionResult,
+    )
+    val requestCalendarAccess = rememberPermissionRequest(
+        permission = Manifest.permission.READ_CALENDAR,
+        requestedBefore = viewModel::hasRequestedCalendar,
+        onResult = viewModel::onCalendarPermissionResult,
     )
     val context = LocalContext.current
     val searchReveal = rememberSearchRevealState(
@@ -174,6 +190,12 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
             requestContactsAccess()
         }
     }
+    // Ask for the calendar the first time the Events tab is opened, for the same reason. (Not with
+    // contacts as search opens: two dialogs in a row would be one too many.)
+    val eventsTabOpen = searchSettledOpen && categoryFilter == SearchCategory.EVENT
+    LaunchedEffect(eventsTabOpen) {
+        if (eventsTabOpen && viewModel.shouldRequestCalendarPermission()) requestCalendarAccess()
+    }
 
     // Coming back from Settings (e.g. after allowing file access) re-checks permissions.
     LifecycleResumeEffect(viewModel) {
@@ -189,8 +211,9 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
 
     BackHandler(enabled = isSearchOpen) { viewModel.closeSearch() }
     BackHandler(enabled = isPinPickerOpen) { viewModel.closePinPicker() }
-    BackHandler(enabled = isSettingsOpen && !aboutShowing) { viewModel.closeSettings() }
+    BackHandler(enabled = isSettingsOpen && !pageShowing) { viewModel.closeSettings() }
     BackHandler(enabled = aboutShowing) { viewModel.closeAbout() }
+    BackHandler(enabled = searchTipsShowing) { viewModel.closeSearchTips() }
     BackHandler(enabled = isSetupOpen) { viewModel.finishSetup() }
 
     // Frosts the home content behind an overlay (Android 12+; a no-op before that), deepening
@@ -413,7 +436,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
             )
         }
 
-        AnimatedVisibility(visible = isSettingsOpen && !aboutShowing, enter = fadeIn(), exit = fadeOut()) {
+        AnimatedVisibility(visible = isSettingsOpen && !pageShowing, enter = fadeIn(), exit = fadeOut()) {
             SettingsPanel(
                 settingsLocked = settingsLocked,
                 doubleTapToLock = doubleTapToLock,
@@ -431,8 +454,10 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 onLeftHandedChange = viewModel::setLeftHanded,
                 onHowToUse = viewModel::startTour,
                 onOpenSetup = viewModel::openSetup,
+                onOpenSearchTips = viewModel::openSearchTips,
                 onOpenAbout = viewModel::openAbout,
                 contactsAccess = contactsAccess,
+                calendarAccess = calendarAccess,
                 filesAccess = filesAccess,
                 onDone = viewModel::closeSettings,
                 scrollState = settingsScroll,
@@ -443,14 +468,24 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
             AboutScreen(onDone = viewModel::closeAbout)
         }
 
+        AnimatedVisibility(visible = searchTipsShowing, enter = fadeIn(), exit = fadeOut()) {
+            SearchTipsScreen(
+                commands = tipCommands,
+                onTry = viewModel::trySearchExample,
+                onDone = viewModel::closeSearchTips,
+            )
+        }
+
         AnimatedVisibility(visible = isSetupOpen, enter = fadeIn(), exit = fadeOut()) {
             SetupScreen(
                 isDefaultHome = isDefaultHome,
                 contactsAccess = contactsAccess,
+                calendarAccess = calendarAccess,
                 filesAccess = filesAccess,
                 isOnboarding = isOnboarding,
                 onSetDefaultHome = requestDefaultHome,
                 onGrantContacts = requestContactsAccess,
+                onGrantCalendar = requestCalendarAccess,
                 onGrantFiles = requestFilesAccess,
                 onDone = viewModel::finishSetup,
             )
@@ -509,11 +544,16 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                     ).show()
                 }
             },
+            quickActions = quickActions,
+            onQuickActionRun = viewModel::onQuickActionRun,
+            commandHints = commandHints,
             permissions = SearchPermissions(
                 contacts = contactsAccess,
+                calendar = calendarAccess,
                 files = filesAccess,
                 showSummary = showPermissionsPrompt,
                 onRequestContacts = requestContactsAccess,
+                onRequestCalendar = requestCalendarAccess,
                 onRequestFiles = requestFilesAccess,
                 onReview = viewModel::openSetup,
                 onDismissSummary = viewModel::dismissPermissionsPrompt,

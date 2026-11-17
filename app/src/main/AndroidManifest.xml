@@ -8,6 +8,8 @@
     <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
     <!-- Contacts appear in search. Requested the first time search opens. -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <!-- Calendar events appear in search. Requested the first time the Events tab opens. -->
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
     <!-- File names appear in search. Android 11+: "All files access", granted by the user in
          Settings from the prompt in search. Older versions: the storage permission. -->
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
@@ -57,6 +59,32 @@
         <intent>
             <action android:name="android.intent.action.SENDTO" />
             <data android:scheme="smsto" />
+        </intent>
+        <!-- Search's quick actions and event menus: email an address, get directions to a place,
+             open a web address or meeting link, and add a calendar event. -->
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="mailto" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="geo" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="http" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="vnd.android.cursor.item/event" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.INSERT" />
+            <data android:mimeType="vnd.android.cursor.dir/event" />
         </intent>
         <intent>
             <action android:name="android.settings.APPLICATION_DETAILS_SETTINGS" />

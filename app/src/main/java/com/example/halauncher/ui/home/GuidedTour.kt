@@ -93,6 +93,9 @@ enum class TourStep(val inSearch: Boolean) {
     /** Swipe sideways to change the category filter. */
     FILTER(inSearch = true),
 
+    /** Type a command ("timer 1m") to see search do something, not just find it. */
+    QUICK_ACTION(inSearch = true),
+
     /** Swipe down (or go back) to close search. */
     CLOSE_SEARCH(inSearch = true),
 
@@ -315,6 +318,8 @@ private fun tourGesture(
             val y = (searchTop + searchBottom) / 2
             TourGesture.Swipe(Offset(size.width * 0.72f, y), Offset(size.width * 0.28f, y))
         }
+        // Typed, not a gesture: the caption says what to type, above the keyboard.
+        TourStep.QUICK_ACTION -> null
         TourStep.CLOSE_SEARCH -> {
             val height = searchBottom - searchTop
             TourGesture.Swipe(
@@ -487,6 +492,7 @@ private fun TourCaption(
 private fun captionFor(step: TourStep, sphereCanTurn: Boolean): Pair<Int, Int> = when (step) {
     TourStep.SEARCH -> R.string.tour_search_title to R.string.tour_search_hint
     TourStep.FILTER -> R.string.tour_filter_title to R.string.tour_filter_hint
+    TourStep.QUICK_ACTION -> R.string.tour_quick_action_title to R.string.tour_quick_action_hint
     TourStep.CLOSE_SEARCH -> R.string.tour_close_title to R.string.tour_close_hint
     TourStep.SPHERE -> if (sphereCanTurn) {
         R.string.tour_spin_title to R.string.tour_spin_hint

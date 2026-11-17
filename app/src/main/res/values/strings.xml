@@ -42,6 +42,9 @@
         <item>Type an app\'s name, or any word in it</item>
         <item>Try “clock” to jump to its new alarm</item>
         <item>Type a name to find a contact</item>
+        <item>Find a meeting or event by its name or place</item>
+        <item>Try “timer 10m” or “alarm 7:30”</item>
+        <item>Type a number to call or text it</item>
         <item>Find files and folders by name</item>
         <item>Do quick maths, like 24*7 or sqrt(2)</item>
         <item>Open a setting, like Wi‑Fi or Bluetooth</item>
@@ -53,6 +56,7 @@
     <string name="category_all">All</string>
     <string name="category_app">App</string>
     <string name="category_contact">Contact</string>
+    <string name="category_event">Event</string>
     <string name="category_file">File</string>
     <string name="category_shortcut">Shortcut</string>
     <string name="category_folder">Folder</string>
@@ -64,14 +68,47 @@
     <string name="show_all_as_grid">Show all results as a grid</string>
     <string name="show_apps_as_grid">Show apps as a grid</string>
     <string name="show_contacts_as_grid">Show contacts as a grid</string>
+    <string name="show_events_as_grid">Show events as a grid</string>
     <string name="show_files_as_grid">Show files as a grid</string>
     <string name="more_results">More results</string>
     <string name="no_results">No results</string>
     <string name="recently_added">Recently added</string>
     <string name="favourites">Favourites</string>
     <string name="recently_updated">Recently updated</string>
+    <string name="upcoming">Upcoming</string>
+    <!-- When a calendar event takes place, on a search result. -->
+    <string name="event_today">Today</string>
+    <string name="event_tomorrow">Tomorrow</string>
+    <!-- %1$s is "Today" or "Tomorrow", %2$s the times, e.g. "Today, 14:00 – 15:00". -->
+    <string name="event_day_and_time">%1$s, %2$s</string>
+    <!-- Spoken for the pin after an event's time in a grid cell. %1$s is the place. -->
+    <string name="event_has_location">At %1$s</string>
     <string name="copy_calc_result">Copy %1$s to clipboard</string>
     <string name="calc_result_copied">Copied %1$s</string>
+    <!-- Quick actions: rows above search results that do what was typed, e.g. "timer 5m". -->
+    <string name="quick_timer">Start a %1$s timer</string>
+    <string name="quick_alarm">Set an alarm for %1$s</string>
+    <string name="quick_call">Call %1$s</string>
+    <string name="quick_message">Message %1$s</string>
+    <string name="quick_email">Email %1$s</string>
+    <string name="quick_navigate">Directions to %1$s</string>
+    <string name="quick_open_link">Open %1$s</string>
+    <string name="quick_new_event">Add “%1$s” to your calendar</string>
+    <!-- Under a quick action when no default app is set for it, so Android will ask which to use. -->
+    <string name="quick_action_choose_app">Choose an app</string>
+    <!-- Under a dimmed example of a command (e.g. "timer 10m") shown while its word is being typed. -->
+    <string name="hint_timer">Start a timer</string>
+    <string name="hint_alarm">Set an alarm</string>
+    <string name="hint_call">Call a number</string>
+    <string name="hint_text">Text a number</string>
+    <string name="hint_email">Write an email</string>
+    <string name="hint_maps">Get directions</string>
+    <string name="hint_event">Add a calendar event</string>
+    <!-- Spoken action for tapping a command hint, which types the command's word. %1$s is the word. -->
+    <string name="hint_type_command">Type %1$s</string>
+    <string name="duration_hours">%1$d h</string>
+    <string name="duration_minutes">%1$d min</string>
+    <string name="duration_seconds">%1$d s</string>
     <!-- Long-pressing a search result opens a menu of these. -->
     <string name="entry_options">Options for %1$s</string>
     <string name="action_app_info">App info</string>
@@ -83,17 +120,22 @@
     <string name="action_open_with">Open with…</string>
     <string name="action_share">Share</string>
     <string name="action_copy_path">Copy path</string>
+    <string name="action_join_meeting">Join meeting</string>
+    <string name="action_directions">Directions</string>
     <string name="action_remove_from_recents">Remove from recents</string>
     <string name="number_copied">Copied %1$s</string>
     <string name="path_copied">Copied the path of %1$s</string>
     <string name="permission_contacts_not_requested">Allow contacts access to find people here.</string>
     <string name="permission_contacts_denied">Contacts permission is denied, so people can\'t be found here.</string>
+    <string name="permission_calendar_not_requested">Allow calendar access to find your events and meetings here.</string>
+    <string name="permission_calendar_denied">Calendar permission is denied, so events can\'t be found here.</string>
     <string name="permission_files_not_requested">Allow file access to find your documents, photos and downloads here.</string>
     <string name="permission_files_denied">File access is denied, so your files can\'t be found here.</string>
     <string name="permission_action_allow">Allow access</string>
     <string name="permission_action_turn_on">Turn it on</string>
-    <string name="permissions_off_both">Contacts and file access are off, so search can\'t find people or files.</string>
+    <string name="permissions_off_several">Some permissions are off, so search can\'t find everything.</string>
     <string name="permissions_off_contacts">Contacts access is off, so people won\'t show up in search.</string>
+    <string name="permissions_off_calendar">Calendar access is off, so events won\'t show up in search.</string>
     <string name="permissions_off_files">File access is off, so your files won\'t show up in search.</string>
     <string name="permissions_review">Review permissions</string>
     <string name="dismiss">Dismiss</string>
@@ -127,7 +169,9 @@
     <string name="setting_haptic_intensity_off">Off</string>
     <string name="setting_percent">%1$d%%</string>
     <string name="setting_setup_title">Set-up &amp; permissions</string>
-    <string name="setting_setup_description">Set HALauncher as your home screen and manage the contacts and files permissions. Grant anything you skipped, or that was turned off elsewhere.</string>
+    <string name="setting_setup_description">Set HALauncher as your home screen and manage the contacts, calendar and files permissions. Grant anything you skipped, or that was turned off elsewhere.</string>
+    <string name="setting_search_tips_title">Search tips</string>
+    <string name="setting_search_tips_description">Everything search can find and do, with examples to try.</string>
     <string name="setting_how_to_title">How to use this app</string>
     <string name="setting_how_to_description">A short hands-on tour of the swipes and presses that get around the launcher.</string>
     <string name="setting_about_title">About</string>
@@ -144,6 +188,8 @@
     <string name="setup_default_home_desc">Set HALauncher as your default home app so it opens whenever you press the Home button.</string>
     <string name="setup_contacts_title">Find your contacts</string>
     <string name="setup_contacts_desc">Let HALauncher read your contacts so you can search for people, then call or message them. It only reads them to search — nothing leaves your phone.</string>
+    <string name="setup_calendar_title">Find your events</string>
+    <string name="setup_calendar_desc">Let HALauncher read your calendar so your meetings and events turn up in search, ready to open, join or get directions to. It only reads them to search — nothing leaves your phone.</string>
     <string name="setup_files_title">Search your files</string>
     <string name="setup_files_desc">Give HALauncher file access so your documents, photos and downloads turn up in search.</string>
     <string name="setup_action_set_default">Set as home</string>
@@ -151,18 +197,22 @@
     <string name="setup_action_turn_on">Turn on</string>
     <string name="setup_denied">Denied</string>
     <string name="setup_contacts_denied">Permission denied. People won\'t show up in search until you turn it on.</string>
+    <string name="setup_calendar_denied">Permission denied. Events won\'t show up in search until you turn it on.</string>
     <string name="setup_files_denied">Access denied. Your files won\'t show up in search until you turn it on.</string>
     <string name="setup_warning_contacts">Contacts access is off</string>
+    <string name="setup_warning_calendar">Calendar access is off</string>
     <string name="setup_warning_files">File access is off</string>
-    <string name="setup_warning_both">Contacts and file access are off</string>
+    <string name="setup_warning_several">Some permissions are off</string>
     <string name="onboarding_step">Step %1$d of %2$d</string>
     <string name="app_settings">App settings</string>
     <string name="setup_enabled">Enabled</string>
     <string name="setup_home_settings_unavailable">Home settings not found</string>
     <string name="tour_search_title">Swipe up to search</string>
-    <string name="tour_search_hint">Your apps, contacts and files, all in one place.</string>
+    <string name="tour_search_hint">Your apps, contacts, events and files, all in one place.</string>
     <string name="tour_filter_title">Swipe sideways to filter</string>
     <string name="tour_filter_hint">Or tap a category at the top.</string>
+    <string name="tour_quick_action_title">Type “timer 1m”</string>
+    <string name="tour_quick_action_hint">Search does things, too: set alarms, call a number, get directions. Search tips in settings lists them all.</string>
     <string name="tour_close_title">Swipe down to close</string>
     <string name="tour_close_hint">Going back works too.</string>
     <string name="tour_spin_title">Drag the sphere to spin it</string>
@@ -205,4 +255,18 @@
         <item quantity="one">%1$s result found</item>
         <item quantity="other">%1$s results found</item>
     </plurals>
+    <!-- The Search tips page, opened from settings. -->
+    <string name="tips_title">Search tips</string>
+    <string name="tips_intro">Swipe up anywhere on the home screen to search. Tap an example to try it.</string>
+    <string name="tips_find_title">Find anything</string>
+    <string name="tips_find_body">Apps and their shortcuts, contacts, calendar events, files and folders, and Settings screens: type any word in a name. An event\'s place finds it too.</string>
+    <string name="tips_do_title">Do things</string>
+    <string name="tips_do_body">Type a command and press Go, or tap its row. It opens in the app you use for it.</string>
+    <string name="tips_bare_body">Or just type a phone number, email address or website to call, write to or open it.</string>
+    <string name="tips_maths_title">Quick maths</string>
+    <string name="tips_maths_body">Type a sum and see the answer as you type. Tap it to copy.</string>
+    <string name="tips_move_title">Getting around</string>
+    <string name="tips_move_body">Swipe sideways to switch categories. Go opens the top result. Hold a result for more, like calling a contact or joining a meeting.</string>
+    <!-- Spoken action for an example on the Search tips page. %1$s is the example. -->
+    <string name="tips_try">Try %1$s in search</string>
 </resources>

@@ -3,6 +3,7 @@ package com.example.halauncher.search.index
 import android.net.Uri
 import com.example.halauncher.model.AppInfo
 import com.example.halauncher.model.ContactEntry
+import com.example.halauncher.model.EventEntry
 import com.example.halauncher.model.FileEntry
 import com.example.halauncher.model.FolderEntry
 import com.example.halauncher.model.SearchCategory
@@ -78,6 +79,54 @@ object ContactEntryCodec : SearchEntryCodec {
             // Absent in entries indexed before photos were stored; the next sync adds them.
             photoUri = if (json.has(PHOTO)) json.optStringOrNull(PHOTO)?.let(Uri::parse) else null,
             photoVersion = json.optLong(PHOTO_VERSION),
+        )
+    }
+}
+
+/**
+ * Events are stored with the occurrence they're listed by and when it is, formatted, which
+ * the next calendar sync rewrites as time moves on. The location lives in the index's keywords
+ * column too, so it can be searched.
+ */
+object EventEntryCodec : SearchEntryCodec {
+    private const val EVENT_ID = "id"
+    private const val BEGIN = "begin"
+    private const val END = "end"
+    private const val ALL_DAY = "allDay"
+    private const val LOCATION = "location"
+    private const val MEETING_URL = "meeting"
+    private const val TIME = "time"
+    private const val START_TIME = "start"
+
+    override val category = SearchCategory.EVENT
+
+    override fun encode(entry: SearchEntry): String {
+        val event = entry as EventEntry
+        return JSONObject()
+            .put(EVENT_ID, event.eventId)
+            .put(BEGIN, event.begin)
+            .put(END, event.end)
+            .put(ALL_DAY, event.allDay)
+            .put(LOCATION, event.location ?: JSONObject.NULL)
+            .put(MEETING_URL, event.meetingUrl ?: JSONObject.NULL)
+            .put(TIME, event.time)
+            .put(START_TIME, event.startTime)
+            .toString()
+    }
+
+    override fun decode(name: String, payload: String): SearchEntry {
+        val json = JSONObject(payload)
+        return EventEntry(
+            eventId = json.getLong(EVENT_ID),
+            name = name,
+            begin = json.getLong(BEGIN),
+            end = json.getLong(END),
+            allDay = json.getBoolean(ALL_DAY),
+            location = json.optStringOrNull(LOCATION),
+            meetingUrl = json.optStringOrNull(MEETING_URL),
+            // Missing only from a row written by a pre-release build; the next calendar sync rewrites it.
+            time = json.optStringOrNull(TIME).orEmpty(),
+            startTime = json.optString(START_TIME),
         )
     }
 }

@@ -11,6 +11,7 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Process
 import android.os.UserHandle
+import android.provider.CalendarContract
 import android.provider.ContactsContract
 import android.provider.MediaStore
 import androidx.core.content.ContextCompat
@@ -25,11 +26,12 @@ import com.example.halauncher.model.SearchCategory
  * - Apps: the launcher callback for installs, updates, removals and apps becoming (un)available.
  * - Contacts: an observer on the contacts provider (it doesn't say what changed, so it's a full
  *   re-sync, which only writes differences).
+ * - Calendar events: the same, on the calendar provider.
  * - Files: an observer on MediaStore, which reports each changed file's id.
  * - App shortcuts: the same launcher callback, when an app changes its shortcuts (a full re-sync,
  *   since it reports the app's whole list). A change to an app re-syncs them too.
  *
- * Contacts and files are only observed while the launcher can read them; call [refresh] after a
+ * Contacts, calendar and files are only observed while the launcher can read them; call [refresh] after a
  * permission changes. Callbacks arrive on [handler]'s thread.
  */
 class IndexChangeWatcher(
@@ -37,6 +39,7 @@ class IndexChangeWatcher(
     private val handler: Handler,
     private val pending: PendingChanges,
     private val canReadContacts: () -> Boolean,
+    private val canReadCalendar: () -> Boolean,
     private val canReadFiles: () -> Boolean,
     private val canReadShortcuts: () -> Boolean,
     private val onChange: () -> Unit,
@@ -46,6 +49,7 @@ class IndexChangeWatcher(
 
     private var watchingApps = false
     private var contactsObserver: ContentObserver? = null
+    private var calendarObserver: ContentObserver? = null
     private var filesObserver: ContentObserver? = null
 
     private val appsCallback = object : LauncherApps.Callback() {
@@ -82,13 +86,19 @@ class IndexChangeWatcher(
         refresh()
     }
 
-    /** Starts or stops the contacts and files observers to match current permissions. */
+    /** Starts or stops the contacts, calendar and files observers to match current permissions. */
     fun refresh() {
         contactsObserver = updateObserver(
             current = contactsObserver,
             wanted = IndexUpdaterConfig.WATCH_CONTACTS && canReadContacts(),
             uri = ContactsContract.Contacts.CONTENT_URI,
         ) { _ -> pending.requestFullSync(SearchCategory.CONTACT) }
+
+        calendarObserver = updateObserver(
+            current = calendarObserver,
+            wanted = IndexUpdaterConfig.WATCH_CALENDAR && canReadCalendar(),
+            uri = CalendarContract.CONTENT_URI,
+        ) { _ -> pending.requestFullSync(SearchCategory.EVENT) }
 
         filesObserver = updateObserver(
             current = filesObserver,
@@ -112,8 +122,10 @@ class IndexChangeWatcher(
             watchingProfiles = false
         }
         contactsObserver?.let(appContext.contentResolver::unregisterContentObserver)
+        calendarObserver?.let(appContext.contentResolver::unregisterContentObserver)
         filesObserver?.let(appContext.contentResolver::unregisterContentObserver)
         contactsObserver = null
+        calendarObserver = null
         filesObserver = null
     }
 

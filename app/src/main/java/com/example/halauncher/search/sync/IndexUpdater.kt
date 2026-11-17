@@ -7,6 +7,7 @@ import android.os.SystemClock
 import android.util.Log
 import com.example.halauncher.config.IndexUpdaterConfig
 import com.example.halauncher.data.AppRepository
+import com.example.halauncher.data.CalendarProvider
 import com.example.halauncher.data.ContactProvider
 import com.example.halauncher.data.FileSearchProvider
 import com.example.halauncher.data.SettingsDuplicates
@@ -75,6 +76,7 @@ class IndexUpdater(
     private val engine: SearchEngine,
     private val apps: AppRepository,
     private val contacts: ContactProvider,
+    private val calendar: CalendarProvider,
     private val files: FileSearchProvider,
     private val shortcuts: ShortcutProvider,
     private val settings: SettingsProvider,
@@ -93,6 +95,7 @@ class IndexUpdater(
         handler = handler,
         pending = pending,
         canReadContacts = contacts::hasPermission,
+        canReadCalendar = calendar::hasPermission,
         canReadFiles = files::hasAccess,
         canReadShortcuts = shortcuts::hasAccess,
         onChange = ::wake,
@@ -227,6 +230,9 @@ class IndexUpdater(
             }
             if (SearchCategory.CONTACT in batch.fullSync) add {
                 changes += IndexChange.ReplaceAll(SearchCategory.CONTACT, contacts.loadEntries())
+            }
+            if (SearchCategory.EVENT in batch.fullSync) add {
+                changes += IndexChange.ReplaceAll(SearchCategory.EVENT, calendar.loadEntries())
             }
             // Settings and shortcuts are read together, after apps (so shortcuts are matched against
             // the freshly loaded ones): a Settings screen the Settings app also offers as a shortcut

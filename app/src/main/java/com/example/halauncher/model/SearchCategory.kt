@@ -7,6 +7,9 @@ package com.example.halauncher.model
 enum class SearchCategory {
     APP,
     CONTACT,
+
+    /** Calendar events, from the device's shared calendar database. */
+    EVENT,
     FILE,
 
     /** App shortcuts. They're listed with the apps, under the Apps tab, rather than in a tab of their own. */

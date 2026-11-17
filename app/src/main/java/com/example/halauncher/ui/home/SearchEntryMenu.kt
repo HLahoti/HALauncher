@@ -14,9 +14,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.core.net.toUri
 import com.example.halauncher.R
 import com.example.halauncher.model.AppInfo
 import com.example.halauncher.model.ContactEntry
+import com.example.halauncher.model.EventEntry
 import com.example.halauncher.model.FileEntry
 import com.example.halauncher.model.FolderEntry
 import com.example.halauncher.model.SearchEntry
@@ -25,6 +27,8 @@ import com.example.halauncher.ui.components.GlassDropdownMenu
 import com.example.halauncher.ui.components.GlassMenuItem
 import com.example.halauncher.ui.components.GlassMenuTitle
 import com.example.halauncher.ui.components.launchSafely
+import com.example.halauncher.util.QuickAction
+import com.example.halauncher.util.intent
 import java.io.File
 
 /**
@@ -88,6 +92,7 @@ fun hasEntryMenu(entry: SearchEntry, actions: SearchEntryActions): Boolean =
     actions.enabled && when (entry) {
         is AppInfo, is FileEntry, is FolderEntry -> true
         is ContactEntry -> entry.phoneNumber != null || entry.id in actions.recentIds
+        is EventEntry -> entry.meetingUrl != null || entry.placeToNavigate != null || entry.id in actions.recentIds
         is ShortcutEntry -> entry.id in actions.pinKeys || entry.id in actions.recentIds
         else -> entry.id in actions.recentIds
     }
@@ -117,6 +122,14 @@ private fun entryMenuItems(
             add(EntryMenuItem(R.string.action_call) { context.openFor(entry, onOpened, Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", number, null))) })
             add(EntryMenuItem(R.string.action_message) { context.openFor(entry, onOpened, Intent(Intent.ACTION_SENDTO, Uri.fromParts("smsto", number, null))) })
             add(EntryMenuItem(R.string.action_copy_number) { context.copy(entry.name, number, R.string.number_copied, number) })
+        }
+        is EventEntry -> {
+            entry.meetingUrl?.let { url ->
+                add(EntryMenuItem(R.string.action_join_meeting) { context.openFor(entry, onOpened, Intent(Intent.ACTION_VIEW, url.toUri())) })
+            }
+            entry.placeToNavigate?.let { place ->
+                add(EntryMenuItem(R.string.action_directions) { context.openFor(entry, onOpened, mapsIntent(place)) })
+            }
         }
         is FileEntry -> {
             // An APK only installs from a file manager (see FileEntry.isApk), so it isn't offered
@@ -150,6 +163,16 @@ private fun entryMenuItems(
 private fun Context.openFor(entry: SearchEntry, onOpened: (SearchEntry) -> Unit, intent: Intent) {
     if (launchSafely(intent, entry.name)) onOpened(entry)
 }
+
+/**
+ * Where [EventEntry.location] is, when it's a place a maps app could find, rather than a link (an
+ * online meeting's location is often just its URL).
+ */
+private val EventEntry.placeToNavigate: String?
+    get() = location?.takeIf { !it.contains("://") }
+
+/** [place] in whichever maps app the user has. */
+private fun mapsIntent(place: String): Intent = QuickAction.Navigate(place).intent
 
 /** [app]'s App info page: the work profile's for a work app. */
 private fun Context.openAppInfo(app: AppInfo) {

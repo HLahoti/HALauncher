@@ -20,6 +20,7 @@ val SearchCategory.icon: ImageVector
     get() = when (this) {
         SearchCategory.APP -> AppsIcon
         SearchCategory.CONTACT -> Icons.Default.Person
+        SearchCategory.EVENT -> EventIcon
         SearchCategory.FILE -> FileIcon
         SearchCategory.SHORTCUT -> ShortcutIcon
         SearchCategory.FOLDER -> FolderIcon
@@ -32,20 +33,69 @@ val SearchCategory.labelRes: Int
     get() = when (this) {
         SearchCategory.APP -> R.string.category_app
         SearchCategory.CONTACT -> R.string.category_contact
+        SearchCategory.EVENT -> R.string.category_event
         SearchCategory.FILE -> R.string.category_file
         SearchCategory.SHORTCUT -> R.string.category_shortcut
         SearchCategory.FOLDER -> R.string.category_folder
         SearchCategory.SETTING -> R.string.category_setting
     }
 
-// material-icons-core has no app-grid, file, shortcut or folder glyph, so these reproduce the Material
-// "Apps", "Insert Drive File", "Shortcut" and "Folder" icons rather than pulling in the large extended icon set.
+// material-icons-core has no app-grid, event, file, shortcut, folder, timer, alarm, message or link
+// glyph, so these reproduce the Material ones rather than pulling in the large extended icon set.
 
 private val AppsIcon: ImageVector by lazy {
     materialIcon(
         name = "Apps",
         pathData = "M4,8h4V4H4v4zM10,20h4v-4h-4v4zM4,20h4v-4H4v4zM4,14h4v-4H4v4zM10,14h4v-4h-4v4z" +
             "M16,4v4h4V4h-4zM10,8h4V4h-4v4zM16,14h4v-4h-4v4zM16,20h4v-4h-4v4z",
+    )
+}
+
+/** Material "Event": calendar events, and the quick action that adds one. */
+val EventIcon: ImageVector by lazy {
+    materialIcon(
+        name = "Event",
+        pathData = "M17,12h-5v5h5v-5zM16,1v2L8,3L8,1L6,1v2L5,3c-1.11,0 -1.99,0.9 -1.99,2L3,19c0,1.1 0.89,2 2,2h14" +
+            "c1.1,0 2,-0.9 2,-2L21,5c0,-1.1 -0.9,-2 -2,-2h-1L18,1h-2zM19,19L5,19L5,8h14v11z",
+    )
+}
+
+/** Material "Timer": the quick action that starts one. */
+val TimerIcon: ImageVector by lazy {
+    materialIcon(
+        name = "Timer",
+        pathData = "M15,1H9v2h6V1zM11,14h2V8h-2v6zM19.03,7.39l1.42,-1.42c-0.43,-0.51 -0.9,-0.99 -1.41,-1.41l-1.42,1.42" +
+            "C16.07,4.74 14.12,4 12,4c-4.97,0 -9,4.03 -9,9s4.02,9 9,9 9,-4.03 9,-9c0,-2.12 -0.74,-4.07 -1.97,-5.61z" +
+            "M12,20c-3.87,0 -7,-3.13 -7,-7s3.13,-7 7,-7 7,3.13 7,7 -3.13,7 -7,7z",
+    )
+}
+
+/** Material "Alarm": the quick action that sets one. */
+val AlarmIcon: ImageVector by lazy {
+    materialIcon(
+        name = "Alarm",
+        pathData = "M22,5.72l-4.6,-3.86 -1.29,1.53 4.6,3.86L22,5.72zM7.88,3.39L6.6,1.86 2,5.71l1.29,1.53 4.59,-3.85z" +
+            "M12.5,8L11,8v6l4.75,2.85 0.75,-1.23 -4,-2.37L12.5,8zM12,4c-4.97,0 -9,4.03 -9,9s4.02,9 9,9" +
+            "c4.97,0 9,-4.03 9,-9s-4.03,-9 -9,-9zM12,20c-3.87,0 -7,-3.13 -7,-7s3.13,-7 7,-7 7,3.13 7,7 -3.13,7 -7,7z",
+    )
+}
+
+/** Material "Message": the quick action that texts a number. */
+val MessageIcon: ImageVector by lazy {
+    materialIcon(
+        name = "Message",
+        pathData = "M20,2H4c-1.1,0 -1.99,0.9 -1.99,2L2,22l4,-4h14c1.1,0 2,-0.9 2,-2V4c0,-1.1 -0.9,-2 -2,-2z" +
+            "M18,14H6v-2h12v2zM18,11H6V9h12v2zM18,8H6V6h12v2z",
+    )
+}
+
+/** Material "Link": the quick action that opens a web address. */
+val LinkIcon: ImageVector by lazy {
+    materialIcon(
+        name = "Link",
+        pathData = "M3.9,12c0,-1.71 1.39,-3.1 3.1,-3.1h4L11,7L7,7c-2.76,0 -5,2.24 -5,5s2.24,5 5,5h4v-1.9L7,15.1" +
+            "c-1.71,0 -3.1,-1.39 -3.1,-3.1zM8,13h8v-2L8,11v2zM17,7h-4v1.9h4c1.71,0 3.1,1.39 3.1,3.1s-1.39,3.1 -3.1,3.1h-4L13,17h4" +
+            "c2.76,0 5,-2.24 5,-5s-2.24,-5 -5,-5z",
     )
 }
 

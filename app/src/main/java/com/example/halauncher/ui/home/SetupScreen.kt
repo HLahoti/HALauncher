@@ -67,10 +67,12 @@ import com.example.halauncher.ui.components.overlayTopSpacing
  *
  * @param isDefaultHome whether HALauncher is already the device's default home app.
  * @param contactsAccess where the contacts permission stands.
+ * @param calendarAccess where the calendar permission stands.
  * @param filesAccess where file access stands.
  * @param isOnboarding whether this is the first-run walkthrough, with the hands-on tour to follow.
  * @param onSetDefaultHome opens the system prompt to make HALauncher the default home app.
  * @param onGrantContacts asks for the contacts permission.
+ * @param onGrantCalendar asks for the calendar permission.
  * @param onGrantFiles asks for file access.
  * @param onDone closes setup and returns to the home screen.
  */
@@ -78,10 +80,12 @@ import com.example.halauncher.ui.components.overlayTopSpacing
 fun SetupScreen(
     isDefaultHome: Boolean,
     contactsAccess: AccessState,
+    calendarAccess: AccessState,
     filesAccess: AccessState,
     isOnboarding: Boolean,
     onSetDefaultHome: () -> Unit,
     onGrantContacts: () -> Unit,
+    onGrantCalendar: () -> Unit,
     onGrantFiles: () -> Unit,
     onDone: () -> Unit,
 ) {
@@ -122,9 +126,9 @@ fun SetupScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(horizontal = SettingsPanelConfig.CardPadding),
                 )
-                // All three side by side in landscape, so the page fits without scrolling.
+                // Two side by side in landscape, so the page needs little scrolling.
                 CardRows(
-                    columns = if (isLandscape()) 3 else 1,
+                    columns = if (isLandscape()) 2 else 1,
                     cards = listOf(
                         { modifier ->
                             SetupItem(
@@ -143,6 +147,16 @@ fun SetupScreen(
                                 deniedMessage = stringResource(R.string.setup_contacts_denied),
                                 access = contactsAccess,
                                 onAction = onGrantContacts,
+                                modifier = modifier,
+                            )
+                        },
+                        { modifier ->
+                            PermissionItem(
+                                title = stringResource(R.string.setup_calendar_title),
+                                description = stringResource(R.string.setup_calendar_desc),
+                                deniedMessage = stringResource(R.string.setup_calendar_denied),
+                                access = calendarAccess,
+                                onAction = onGrantCalendar,
                                 modifier = modifier,
                             )
                         },

@@ -1,6 +1,8 @@
 package com.example.halauncher.ui.home
 
+import android.content.Context
 import android.content.res.Resources
+import android.text.format.DateFormat
 import android.graphics.drawable.Drawable
 import android.widget.Toast
 import androidx.annotation.PluralsRes
@@ -39,6 +41,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -77,7 +80,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -91,6 +96,7 @@ import com.example.halauncher.data.FileThumbnailCache
 import com.example.halauncher.data.ShortcutIconCache
 import com.example.halauncher.model.AccessState
 import com.example.halauncher.model.ContactEntry
+import com.example.halauncher.model.EventEntry
 import com.example.halauncher.model.FileEntry
 import com.example.halauncher.model.LaunchableElement
 import com.example.halauncher.model.SearchCategory
@@ -107,6 +113,9 @@ import com.example.halauncher.ui.components.liquidGlass
 import com.example.halauncher.ui.components.overlayTopSpacing
 import com.example.halauncher.ui.components.rememberDrawablePainter
 import com.example.halauncher.util.Haptics
+import com.example.halauncher.util.QuickActionTarget
+import com.example.halauncher.util.QuickCommand
+import com.example.halauncher.util.intent
 import java.text.NumberFormat
 import kotlin.math.abs
 import kotlin.random.Random
@@ -133,6 +142,9 @@ fun SearchOverlay(
     onEntryPicked: (SearchEntry) -> Unit = {},
     calcResult: String? = null,
     onCalcResultSelected: (String) -> Unit = {},
+    quickActions: List<QuickActionTarget> = emptyList(),
+    onQuickActionRun: () -> Unit = {},
+    commandHints: List<QuickCommand> = emptyList(),
     permissions: SearchPermissions = SearchPermissions(),
     indexedCounts: Map<SearchCategory, Int> = emptyMap(),
     leftHanded: Boolean = false,
@@ -142,6 +154,9 @@ fun SearchOverlay(
     val isPicking = pickTitle != null
     // Calculator answers only make sense while finding, not while choosing an app for a button.
     val activeCalcResult = calcResult.takeIf { !isPicking }
+    // Nor do quick actions ("timer 5m").
+    val activeQuickActions = if (isPicking) emptyList() else quickActions
+    val activeCommandHints = if (isPicking) emptyList() else commandHints
     val context = LocalContext.current
     val resources = LocalResources.current
     val focusRequester = remember { FocusRequester() }
@@ -175,6 +190,7 @@ fun SearchOverlay(
         val readable = when (category) {
             SearchCategory.APP -> true
             SearchCategory.CONTACT -> permissions.contacts.isGranted
+            SearchCategory.EVENT -> permissions.calendar.isGranted
             SearchCategory.FILE, SearchCategory.FOLDER -> permissions.files.isGranted
             SearchCategory.SHORTCUT, SearchCategory.SETTING -> true
         }
@@ -331,10 +347,17 @@ fun SearchOverlay(
                 )
             }
             // A plain TextField with its fill and underline cleared, so the glass is the surface.
+            // It keeps its own cursor: text set from outside (a command hint typing "timer ")
+            // puts the cursor at the end, ready for the rest, rather than where it was.
+            var fieldValue by remember { mutableStateOf(TextFieldValue(query, TextRange(query.length))) }
+            val shownValue = if (fieldValue.text == query) fieldValue else TextFieldValue(query, TextRange(query.length))
             val searchField = @Composable { fieldModifier: Modifier ->
                 TextField(
-                    value = query,
-                    onValueChange = onQueryChange,
+                    value = shownValue,
+                    onValueChange = { value ->
+                        fieldValue = value
+                        if (value.text != query) onQueryChange(value.text)
+                    },
                     modifier = fieldModifier
                         .liquidGlass(searchFieldShape, tint = SearchConfig.FIELD_GLASS_TINT)
                         .focusRequester(focusRequester),
@@ -359,12 +382,21 @@ fun SearchOverlay(
                     keyboardActions = KeyboardActions(
                         // Go acts on the top result, the same as tapping it. The calc answer, when
                         // it's there, sits above everything else, so Go copies it to the clipboard.
+                        // A quick action comes next: one the query can only mean ("timer 5m") runs
+                        // ahead of the results; a free-text one ("maps coffee") only when nothing
+                        // else matched, as it may just be a search.
                         onGo = {
                             activeCalcResult?.let {
                                 onCalcResultSelected(it)
                                 return@KeyboardActions
                             }
-                            val entry = results.firstOrNull() ?: return@KeyboardActions
+                            val entry = results.firstOrNull()
+                            val action = activeQuickActions.firstOrNull()?.takeIf { it.action.isExact || entry == null }
+                            if (action != null) {
+                                runQuickAction(context, action, onQuickActionRun)
+                                return@KeyboardActions
+                            }
+                            if (entry == null) return@KeyboardActions
                             when {
                                 isPicking -> onEntryPicked(entry)
                                 context.launchSafely(entry, resources.getString(R.string.open_app, entry.name)) ->
@@ -508,6 +540,26 @@ fun SearchOverlay(
                             )
                         }
                     }
+                    activeQuickActions.forEachIndexed { index, target ->
+                        item(key = quickActionKey(index), span = { GridItemSpan(maxLineSpan) }) {
+                            QuickActionRow(
+                                target = target,
+                                onRun = { runQuickAction(context, it, onQuickActionRun) },
+                                enabled = menuEntryId == null,
+                                modifier = Modifier.alpha(dimAlpha),
+                            )
+                        }
+                    }
+                    activeCommandHints.forEach { hint ->
+                        item(key = commandHintKey(hint), span = { GridItemSpan(maxLineSpan) }) {
+                            CommandHintRow(
+                                command = hint,
+                                onType = onQueryChange,
+                                enabled = menuEntryId == null,
+                                modifier = Modifier.alpha(dimAlpha),
+                            )
+                        }
+                    }
                     items(results.frequent, key = { it.id }) { entry ->
                         resultItem(entry)
                     }
@@ -527,7 +579,7 @@ fun SearchOverlay(
                             resultItem(entry)
                         }
                     }
-                    if (results.isEmpty && activeCalcResult == null && !results.isSearchingDisk && query.isNotBlank()) {
+                    if (results.isEmpty && activeCalcResult == null && activeQuickActions.isEmpty() && activeCommandHints.isEmpty() && !results.isSearchingDisk && query.isNotBlank()) {
                         item(key = NO_RESULTS_KEY, span = { GridItemSpan(maxLineSpan) }) {
                             SectionLabel(stringResource(R.string.no_results), Modifier.alpha(dimAlpha))
                         }
@@ -541,6 +593,26 @@ fun SearchOverlay(
                                 query = query,
                                 result = activeCalcResult,
                                 onCopy = onCalcResultSelected,
+                                enabled = menuEntryId == null,
+                                modifier = Modifier.alpha(dimAlpha),
+                            )
+                        }
+                    }
+                    activeQuickActions.forEachIndexed { index, target ->
+                        item(key = quickActionKey(index)) {
+                            QuickActionRow(
+                                target = target,
+                                onRun = { runQuickAction(context, it, onQuickActionRun) },
+                                enabled = menuEntryId == null,
+                                modifier = Modifier.alpha(dimAlpha),
+                            )
+                        }
+                    }
+                    activeCommandHints.forEach { hint ->
+                        item(key = commandHintKey(hint)) {
+                            CommandHintRow(
+                                command = hint,
+                                onType = onQueryChange,
                                 enabled = menuEntryId == null,
                                 modifier = Modifier.alpha(dimAlpha),
                             )
@@ -561,7 +633,7 @@ fun SearchOverlay(
                             resultItem(entry)
                         }
                     }
-                    if (results.isEmpty && activeCalcResult == null && !results.isSearchingDisk && query.isNotBlank()) {
+                    if (results.isEmpty && activeCalcResult == null && activeQuickActions.isEmpty() && activeCommandHints.isEmpty() && !results.isSearchingDisk && query.isNotBlank()) {
                         item(key = NO_RESULTS_KEY) { SectionLabel(stringResource(R.string.no_results), Modifier.alpha(dimAlpha)) }
                     }
                 }
@@ -610,6 +682,16 @@ private const val MORE_RESULTS_KEY = "section-more"
 private const val NO_RESULTS_KEY = "section-none"
 private const val CALC_RESULT_KEY = "section-calc"
 
+private fun quickActionKey(index: Int) = "section-quick-$index"
+
+private fun commandHintKey(command: QuickCommand) = "section-hint-${command.name}"
+
+/** Starts [target]'s action in its app; once it's started, [onRun] (search closes). */
+private fun runQuickAction(context: Context, target: QuickActionTarget, onRun: () -> Unit) {
+    val title = quickActionTitle(context.resources, target.action, DateFormat.is24HourFormat(context))
+    if (context.launchSafely(target.action.intent, title)) onRun()
+}
+
 private fun suggestionsKey(kind: SuggestionKind) = "section-suggested-${kind.name}"
 
 private val SuggestionKind.label: Int
@@ -617,6 +699,7 @@ private val SuggestionKind.label: Int
         SuggestionKind.FAVOURITES -> R.string.favourites
         SuggestionKind.RECENTLY_UPDATED -> R.string.recently_updated
         SuggestionKind.RECENTLY_ADDED -> R.string.recently_added
+        SuggestionKind.UPCOMING -> R.string.upcoming
     }
 
 @Composable
@@ -653,10 +736,12 @@ private fun IndexStatus(count: Int, @PluralsRes summary: Int) {
  */
 data class SearchPermissions(
     val contacts: AccessState = AccessState.GRANTED,
+    val calendar: AccessState = AccessState.GRANTED,
     val files: AccessState = AccessState.GRANTED,
     /** Whether "All" still shows its summary (something's missing and it hasn't been dismissed). */
     val showSummary: Boolean = false,
     val onRequestContacts: () -> Unit = {},
+    val onRequestCalendar: () -> Unit = {},
     val onRequestFiles: () -> Unit = {},
     val onReview: () -> Unit = {},
     val onDismissSummary: () -> Unit = {},
@@ -682,6 +767,18 @@ private fun SearchPermissionNotice(
                 modifier = modifier,
             )
         }
+        SearchCategory.EVENT -> if (!permissions.calendar.isGranted) {
+            val denied = permissions.calendar == AccessState.DENIED
+            PermissionNotice(
+                icon = SearchCategory.EVENT.icon,
+                message = stringResource(
+                    if (denied) R.string.permission_calendar_denied else R.string.permission_calendar_not_requested,
+                ),
+                actionLabel = stringResource(if (denied) R.string.permission_action_turn_on else R.string.permission_action_allow),
+                onAction = permissions.onRequestCalendar,
+                modifier = modifier,
+            )
+        }
         SearchCategory.FILE -> if (!permissions.files.isGranted) {
             val denied = permissions.files == AccessState.DENIED
             PermissionNotice(
@@ -697,18 +794,15 @@ private fun SearchPermissionNotice(
         // No tab of their own: the Apps and Files tabs' notices cover them.
         SearchCategory.APP, SearchCategory.SHORTCUT, SearchCategory.FOLDER, SearchCategory.SETTING -> Unit
         null -> {
-            val contactsOff = !permissions.contacts.isGranted
-            val filesOff = !permissions.files.isGranted
-            if (permissions.showSummary && (contactsOff || filesOff)) {
+            val off = listOfNotNull(
+                R.string.permissions_off_contacts.takeIf { !permissions.contacts.isGranted },
+                R.string.permissions_off_calendar.takeIf { !permissions.calendar.isGranted },
+                R.string.permissions_off_files.takeIf { !permissions.files.isGranted },
+            )
+            if (permissions.showSummary && off.isNotEmpty()) {
                 PermissionNotice(
                     icon = Icons.Default.Info,
-                    message = stringResource(
-                        when {
-                            contactsOff && filesOff -> R.string.permissions_off_both
-                            contactsOff -> R.string.permissions_off_contacts
-                            else -> R.string.permissions_off_files
-                        },
-                    ),
+                    message = stringResource(off.singleOrNull() ?: R.string.permissions_off_several),
                     actionLabel = stringResource(R.string.permissions_review),
                     onAction = permissions.onReview,
                     onDismiss = permissions.onDismissSummary,
@@ -839,7 +933,7 @@ private fun EntryRowContent(
                     color = ThemeConfig.Foreground.copy(alpha = SearchConfig.RESULT_DETAIL_ALPHA),
                     style = MaterialTheme.typography.bodyMedium,
                     maxLines = 1,
-                    overflow = TextOverflow.StartEllipsis,
+                    overflow = entry.detailOverflow,
                 )
             }
         }
@@ -877,6 +971,12 @@ private fun EntryGridCellContent(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
+            // An event's place and end would crowd out its start in a cell this narrow, so just the
+            // start shows, with a pin standing in for the place (the list shows both in full).
+            if (entry is EventEntry && SearchConfig.SHOW_DETAIL_IN_GRID) {
+                EventGridDetail(entry)
+                return@Column
+            }
             // One line, shortened the same way as a list row's: whole when it fits, else as much of
             // the end as fits.
             entry.detail?.takeIf { SearchConfig.SHOW_DETAIL_IN_GRID }?.let { detail ->
@@ -886,9 +986,44 @@ private fun EntryGridCellContent(
                     style = MaterialTheme.typography.labelSmall,
                     textAlign = TextAlign.Center,
                     maxLines = 1,
-                    overflow = TextOverflow.StartEllipsis,
+                    overflow = entry.detailOverflow,
                 )
             }
+        }
+    }
+}
+
+/**
+ * Where a result's secondary line is cut when it doesn't fit: from the start for a file's folder (the
+ * nearest folders matter most), from the end for an event (its day and time come first).
+ */
+private val SearchEntry.detailOverflow: TextOverflow
+    get() = if (this is EventEntry) TextOverflow.Ellipsis else TextOverflow.StartEllipsis
+
+/** A grid cell's line for [event]: when it starts, then a small pin if it has a location. */
+@Composable
+private fun EventGridDetail(event: EventEntry) {
+    val color = ThemeConfig.Foreground.copy(alpha = SearchConfig.RESULT_DETAIL_ALPHA)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(SearchConfig.EventPinGap),
+    ) {
+        Text(
+            text = event.startTime,
+            color = color,
+            style = MaterialTheme.typography.labelSmall,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
+        )
+        if (event.location != null) {
+            Icon(
+                imageVector = Icons.Default.Place,
+                contentDescription = stringResource(R.string.event_has_location, event.location),
+                tint = color,
+                modifier = Modifier.size(SearchConfig.EventPinSize),
+            )
         }
     }
 }
@@ -934,6 +1069,7 @@ private fun LayoutToggle(
                     // Shortcuts have no tab of their own; they're in the apps'.
                     SearchCategory.APP, SearchCategory.SHORTCUT, SearchCategory.SETTING -> R.string.show_apps_as_grid
                     SearchCategory.CONTACT -> R.string.show_contacts_as_grid
+                    SearchCategory.EVENT -> R.string.show_events_as_grid
                     SearchCategory.FILE, SearchCategory.FOLDER -> R.string.show_files_as_grid
                 },
             ),
