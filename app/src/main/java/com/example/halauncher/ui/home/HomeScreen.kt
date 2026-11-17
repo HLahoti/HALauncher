@@ -115,7 +115,6 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     val results by viewModel.searchResults.collectAsStateWithLifecycle()
     val searchCategories by viewModel.availableCategories.collectAsStateWithLifecycle()
     val categoryFilter by viewModel.categoryFilter.collectAsStateWithLifecycle()
-    val showPermissionsPrompt by viewModel.showPermissionsPrompt.collectAsStateWithLifecycle()
     val indexedCounts by viewModel.indexedCounts.collectAsStateWithLifecycle()
     val installedApps by viewModel.installedApps.collectAsStateWithLifecycle()
     val pinnedItems by viewModel.pinnedItems.collectAsStateWithLifecycle()
@@ -542,12 +541,9 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 contacts = contactsAccess,
                 calendar = calendarAccess,
                 files = filesAccess,
-                showSummary = showPermissionsPrompt,
                 onRequestContacts = requestContactsAccess,
                 onRequestCalendar = requestCalendarAccess,
                 onRequestFiles = requestFilesAccess,
-                onReview = viewModel::openSetup,
-                onDismissSummary = viewModel::dismissPermissionsPrompt,
             ),
             indexedCounts = indexedCounts,
             leftHanded = leftHanded,

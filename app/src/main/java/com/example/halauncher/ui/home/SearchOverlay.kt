@@ -64,7 +64,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
@@ -1088,20 +1087,16 @@ private fun IndexStatus(count: Int, @PluralsRes summary: Int) {
 
 /**
  * Where search's permissions stand, and what to do about them. Each tab whose source can't be read
- * says so in a [PermissionNotice] with a link to grant it; "All" sums up whatever's missing, with a
- * link to the setup page, until dismissed.
+ * says so in a [PermissionNotice] with a link to grant it. "All" says nothing about them: it searches
+ * whatever can be read.
  */
 data class SearchPermissions(
     val contacts: AccessState = AccessState.GRANTED,
     val calendar: AccessState = AccessState.GRANTED,
     val files: AccessState = AccessState.GRANTED,
-    /** Whether "All" still shows its summary (something's missing and it hasn't been dismissed). */
-    val showSummary: Boolean = false,
     val onRequestContacts: () -> Unit = {},
     val onRequestCalendar: () -> Unit = {},
     val onRequestFiles: () -> Unit = {},
-    val onReview: () -> Unit = {},
-    val onDismissSummary: () -> Unit = {},
 )
 
 /** Whether [SearchPermissionNotice] has anything to show on the [categoryFilter] tab. */
@@ -1110,12 +1105,11 @@ private fun hasPermissionNotice(permissions: SearchPermissions, categoryFilter: 
         SearchCategory.CONTACT -> !permissions.contacts.isGranted
         SearchCategory.EVENT -> !permissions.calendar.isGranted
         SearchCategory.FILE -> !permissions.files.isGranted
-        SearchCategory.APP, SearchCategory.SHORTCUT, SearchCategory.FOLDER, SearchCategory.SETTING -> false
-        null -> permissions.showSummary &&
-            !(permissions.contacts.isGranted && permissions.calendar.isGranted && permissions.files.isGranted)
+        // "All" and the Apps tab need no permission of their own (folders go with files).
+        null, SearchCategory.APP, SearchCategory.SHORTCUT, SearchCategory.FOLDER, SearchCategory.SETTING -> false
     }
 
-/** The permission notice for the [categoryFilter] tab, if its source (or, on "All", any) is missing. */
+/** The permission notice for the [categoryFilter] tab, if its source can't be read. */
 @Composable
 private fun SearchPermissionNotice(
     permissions: SearchPermissions,
@@ -1159,25 +1153,8 @@ private fun SearchPermissionNotice(
                 modifier = modifier,
             )
         }
-        // No tab of their own: the Apps and Files tabs' notices cover them.
-        SearchCategory.APP, SearchCategory.SHORTCUT, SearchCategory.FOLDER, SearchCategory.SETTING -> Unit
-        null -> {
-            val off = listOfNotNull(
-                R.string.permissions_off_contacts.takeIf { !permissions.contacts.isGranted },
-                R.string.permissions_off_calendar.takeIf { !permissions.calendar.isGranted },
-                R.string.permissions_off_files.takeIf { !permissions.files.isGranted },
-            )
-            if (permissions.showSummary && off.isNotEmpty()) {
-                PermissionNotice(
-                    icon = Icons.Default.Info,
-                    message = stringResource(off.singleOrNull() ?: R.string.permissions_off_several),
-                    actionLabel = stringResource(R.string.permissions_review),
-                    onAction = permissions.onReview,
-                    onDismiss = permissions.onDismissSummary,
-                    modifier = modifier,
-                )
-            }
-        }
+        // "All" has none; the Apps tab needs no permission, and folders go with the Files tab's notice.
+        null, SearchCategory.APP, SearchCategory.SHORTCUT, SearchCategory.FOLDER, SearchCategory.SETTING -> Unit
     }
 }
 

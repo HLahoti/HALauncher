@@ -137,11 +137,6 @@
     <string name="permission_files_denied">File access is denied, so your files can\'t be found here.</string>
     <string name="permission_action_allow">Allow access</string>
     <string name="permission_action_turn_on">Turn it on</string>
-    <string name="permissions_off_several">Some permissions are off, so search can\'t find everything.</string>
-    <string name="permissions_off_contacts">Contacts access is off, so people won\'t show up in search.</string>
-    <string name="permissions_off_calendar">Calendar access is off, so events won\'t show up in search.</string>
-    <string name="permissions_off_files">File access is off, so your files won\'t show up in search.</string>
-    <string name="permissions_review">Review permissions</string>
     <string name="dismiss">Dismiss</string>
     <string name="lock_admin_label">HALauncher: lock screen</string>
     <string name="lock_admin_description">Lets HALauncher lock your screen when you double-tap an empty area of the home screen. It can\'t read your screen, wipe data or change your password.</string>

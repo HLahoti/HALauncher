@@ -441,14 +441,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
      */
     val availableCategories: StateFlow<List<SearchCategory>> = _availableCategories.asStateFlow()
 
-    private val _showPermissionsPrompt = MutableStateFlow(false)
-    /**
-     * Whether search's "All" view should point out that contacts, events or files aren't being
-     * searched (any of those permissions missing, and the notice not dismissed). The Contacts, Events
-     * and Files tabs always say so while their own permission is missing, dismissed or not.
-     */
-    val showPermissionsPrompt: StateFlow<Boolean> = _showPermissionsPrompt.asStateFlow()
-
     /**
      * Frequent-layer matches at once on every change; then, if nothing has changed for
      * [SearchLayersConfig.DISK_SEARCH_DELAY_MS] (the user paused and opened nothing; longer under
@@ -691,7 +683,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             combine(_pinKeys, _installedApps) { keys, _ -> keys }.collectLatest { refreshPinnedShortcuts(it) }
         }
-        refreshPermissionsPrompt()
         // The first time the launcher ever opens, walk the user through setup (making it the default
         // home, and the permissions search uses); the tour follows once setup is finished. On an
         // upgrade from a build that only had the how-to guide, setup counts as unseen, so it's offered
@@ -770,7 +761,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     /** The launcher came back to the foreground, e.g. from the "All files access" screen. */
     fun onResume() {
         refreshPermissionStatus()
-        refreshPermissionsPrompt()
         publishCategories()
         resyncIfAccessChanged()
     }
@@ -792,16 +782,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private fun calendarAccessState() = AccessState.of(calendarProvider.hasPermission(), hasRequestedCalendar())
 
     private fun filesAccessState() = AccessState.of(fileProvider.hasAccess(), hasRequestedFiles())
-
-    fun dismissPermissionsPrompt() {
-        prefs.edit { putBoolean(KEY_DISMISSED_PERMISSIONS_PROMPT, true) }
-        refreshPermissionsPrompt()
-    }
-
-    private fun refreshPermissionsPrompt() {
-        val missing = !contactProvider.hasPermission() || !calendarProvider.hasPermission() || !fileProvider.hasAccess()
-        _showPermissionsPrompt.value = missing && !prefs.getBoolean(KEY_DISMISSED_PERMISSIONS_PROMPT, false)
-    }
 
     private fun hasAccess(category: SearchCategory): Boolean = when (category) {
         SearchCategory.APP, SearchCategory.SETTING -> true
@@ -1264,7 +1244,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         const val KEY_ASKED_CONTACTS = "asked_contacts_permission"
         const val KEY_ASKED_CALENDAR = "asked_calendar_permission"
         const val KEY_ASKED_FILES = "asked_files_access"
-        const val KEY_DISMISSED_PERMISSIONS_PROMPT = "dismissed_permissions_prompt"
     }
 
     /**
