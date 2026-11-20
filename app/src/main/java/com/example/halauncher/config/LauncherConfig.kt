@@ -9,6 +9,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.halauncher.model.SearchCategory
+import com.example.halauncher.model.SearchFilter
 
 /*
  * Every tunable look-and-feel value in the launcher, in one place.
@@ -626,6 +627,59 @@ object CategoryFilterConfig {
         dampingRatio = 0.8f,
         stiffness = Spring.StiffnessMediumLow,
     )
+}
+
+/** The suggested filter chips over the search field (see FilterSuggester). */
+object FilterSuggestionConfig {
+    /** How many chips show at most. */
+    const val MAX_CHIPS = 3
+
+    /**
+     * How much more a new chip must score than the weakest one showing to take its place, so the
+     * row doesn't reshuffle on every keystroke or when the disk results arrive.
+     */
+    const val REPLACE_MARGIN = 0.5
+
+    /** Weight of how many matches a chip covers (log-scaled), next to how high they rank. */
+    const val VOLUME_WEIGHT = 0.15
+
+    /** Added when a word of the query hints at the chip's kind ("wifi" for Settings). */
+    const val INTENT_BOOST = 3.0
+
+    /** A typed word this long or longer counts when it starts a hint word ("blue" for "bluetooth"). */
+    const val INTENT_MIN_PREFIX = 3
+
+    /** Words that hint at each filter. Lower case. */
+    val INTENT_WORDS: Map<SearchFilter, Set<String>> = mapOf(
+        SearchFilter.SETTINGS to setOf(
+            "settings", "setting", "wifi", "bluetooth", "display", "brightness", "battery",
+            "sound", "volume", "network", "notifications", "location", "privacy", "storage",
+            "hotspot", "airplane", "wallpaper", "ringtone", "vpn", "password", "security",
+        ),
+        SearchFilter.SHORTCUTS to setOf("shortcut", "shortcuts"),
+        SearchFilter.CONTACTS to setOf("contact", "contacts"),
+        SearchFilter.EVENTS to setOf("meeting", "event", "events", "today", "tomorrow", "birthday", "appointment", "calendar"),
+        SearchFilter.FILES to setOf("file", "files", "doc", "docx", "document", "documents", "apk", "zip"),
+        SearchFilter.FOLDERS to setOf("folder", "folders", "directory", "downloads"),
+        SearchFilter.IMAGES to setOf(
+            "image", "images", "photo", "photos", "picture", "pictures", "pic", "pics", "screenshot",
+            "screenshots", "jpg", "jpeg", "png", "img",
+        ),
+        SearchFilter.VIDEOS to setOf("video", "videos", "movie", "movies", "clip", "recording", "mp4", "vid"),
+        SearchFilter.PDFS to setOf("pdf", "pdfs"),
+    )
+
+    /** Height of a chip. */
+    val ChipHeight = 32.dp
+
+    /** Size of a chip's icon. */
+    val ChipIconSize = 16.dp
+
+    /** Space inside a chip, either side of its icon and label. */
+    val ChipPadding = 12.dp
+
+    /** Gap between the icon and the label, and between chips. */
+    val ChipGap = 6.dp
 }
 
 /** The small copies of app icons the launcher keeps in memory and on disk (AppIconCache). */

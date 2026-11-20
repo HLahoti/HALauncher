@@ -115,6 +115,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     val results by viewModel.searchResults.collectAsStateWithLifecycle()
     val searchCategories by viewModel.availableCategories.collectAsStateWithLifecycle()
     val categoryFilter by viewModel.categoryFilter.collectAsStateWithLifecycle()
+    val searchKind by viewModel.searchKind.collectAsStateWithLifecycle()
     val indexedCounts by viewModel.indexedCounts.collectAsStateWithLifecycle()
     val installedApps by viewModel.installedApps.collectAsStateWithLifecycle()
     val pinnedItems by viewModel.pinnedItems.collectAsStateWithLifecycle()
@@ -503,6 +504,9 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
             categoryFilter = categoryFilter,
             onQueryChange = viewModel::onSearchQueryChanged,
             onCategoryFilterChange = viewModel::onCategoryFilterChanged,
+            searchKind = searchKind,
+            onFilterChipPicked = viewModel::onFilterChipPicked,
+            onSearchKindCleared = viewModel::clearSearchKind,
             onEntryOpened = viewModel::onEntryOpened,
             gridCategories = searchGridCategories,
             onGridChange = viewModel::setSearchAsGrid,

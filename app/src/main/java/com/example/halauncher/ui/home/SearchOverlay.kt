@@ -33,6 +33,11 @@ import android.graphics.drawable.Drawable
 import android.widget.Toast
 import androidx.annotation.ArrayRes
 import androidx.annotation.PluralsRes
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
@@ -135,6 +140,7 @@ import com.example.halauncher.model.FileEntry
 import com.example.halauncher.model.LaunchableElement
 import com.example.halauncher.model.SearchCategory
 import com.example.halauncher.model.SearchEntry
+import com.example.halauncher.model.SearchFilter
 import com.example.halauncher.model.ShortcutEntry
 import com.example.halauncher.ui.components.ClickToLaunch
 import com.example.halauncher.ui.components.GridLayoutIcon
@@ -167,6 +173,9 @@ fun SearchOverlay(
     onCategoryFilterChange: (SearchCategory?) -> Unit,
     onEntryOpened: (SearchEntry) -> Unit,
     modifier: Modifier = Modifier,
+    searchKind: SearchFilter? = null,
+    onFilterChipPicked: (SearchFilter) -> Unit = {},
+    onSearchKindCleared: () -> Unit = {},
     gridCategories: Set<SearchCategory?> = emptySet(),
     onGridChange: (SearchCategory?, Boolean) -> Unit = { _, _ -> },
     contactPhotos: ContactPhotoCache? = null,
@@ -535,6 +544,24 @@ fun SearchOverlay(
                             layoutToggle(Modifier)
                         }
                     }
+                }
+                // The suggested filter chips, while something's typed. Picking an app for a button
+                // has none. In landscape the keyboard leaves room for about a row of results, which
+                // the chips would take, so they wait for it to go down (as the status line does).
+                AnimatedVisibility(
+                    visible = !isPicking && !isQueryBlank && !(isLandscape && imeVisible) &&
+                        (searchKind != null || results.filterChips.isNotEmpty()),
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically(),
+                ) {
+                    FilterChipsRow(
+                        chips = results.filterChips,
+                        kind = searchKind,
+                        onPicked = onFilterChipPicked,
+                        onCleared = onSearchKindCleared,
+                        alignEnd = !leftHanded,
+                        modifier = Modifier.padding(top = CategoryFilterConfig.VerticalSpacing),
+                    )
                 }
                 if (showsCategoryBar) {
                     controlsRow { searchField(Modifier.weight(1f)) }

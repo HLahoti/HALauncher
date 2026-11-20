@@ -198,17 +198,25 @@ class SearchIndex(private val database: SearchDatabase, private val codecs: Sear
 
     /**
      * Entries whose name or keywords match the FTS [matchExpression] (see FtsQuery), optionally limited to
-     * [categories], as undecoded [Hit]s. Returns at most [limit], shortest names first: those are
-     * the likelier strong matches, and the caller ranks them properly afterwards.
+     * [categories] and to names matching one of the LIKE patterns in [nameLike] ("%.pdf"), as undecoded
+     * [Hit]s. Returns at most [limit], shortest names first: those are the likelier strong matches, and
+     * the caller ranks them properly afterwards.
      */
     @WorkerThread
-    fun matchHits(matchExpression: String, categories: Collection<SearchCategory>?, limit: Int): List<Hit> {
+    fun matchHits(
+        matchExpression: String,
+        categories: Collection<SearchCategory>?,
+        limit: Int,
+        nameLike: Collection<String> = emptyList(),
+    ): List<Hit> {
         val sql = buildString {
             append("SELECT docid, $COL_ENTRY_ID, $COL_NAME, $COL_CATEGORY FROM $ENTRIES WHERE $ENTRIES MATCH ?")
             if (categories != null) append(" AND $COL_CATEGORY IN (${categories.joinToString(",") { "?" }})")
+            // Checked only on the rows the full-text match found, so it costs next to nothing.
+            if (nameLike.isNotEmpty()) append(" AND (${nameLike.joinToString(" OR ") { "$COL_NAME LIKE ?" }})")
             append(" ORDER BY length($COL_NAME) LIMIT ").append(limit)
         }
-        val args = (listOf(matchExpression) + categories.orEmpty().map { it.name }).toTypedArray()
+        val args = (listOf(matchExpression) + categories.orEmpty().map { it.name } + nameLike).toTypedArray()
         return database.readableDatabase.rawQuery(sql, args).use { cursor ->
             val hits = ArrayList<Hit>(cursor.count)
             while (cursor.moveToNext()) {

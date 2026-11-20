@@ -11,6 +11,7 @@ import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.unit.dp
 import com.example.halauncher.R
 import com.example.halauncher.model.SearchCategory
+import com.example.halauncher.model.SearchFilter
 
 /**
  * The icon shown for every search result of this category. The `when` is exhaustive, so
@@ -40,7 +41,32 @@ val SearchCategory.labelRes: Int
         SearchCategory.SETTING -> R.string.category_setting
     }
 
-// material-icons-core has no app-grid, event, file, shortcut, folder, timer, alarm, message or link
+/** A filter chip's icon: its tab's or kind's, or the file kind's own (an image, a video camera, a PDF). */
+val SearchFilter.icon: ImageVector
+    get() = when (this) {
+        SearchFilter.IMAGES -> ImageIcon
+        SearchFilter.VIDEOS -> VideoIcon
+        SearchFilter.PDFS -> PdfIcon
+        else -> (category ?: tab).icon
+    }
+
+/** A filter chip's name: a tab's own name ("Contacts"), or the kind's ("Settings", "PDFs"). */
+@get:StringRes
+val SearchFilter.labelRes: Int
+    get() = when (this) {
+        SearchFilter.APPS -> R.string.tab_apps
+        SearchFilter.CONTACTS -> R.string.tab_contacts
+        SearchFilter.EVENTS -> R.string.tab_events
+        SearchFilter.FILES -> R.string.tab_files
+        SearchFilter.SETTINGS -> R.string.filter_chip_settings
+        SearchFilter.SHORTCUTS -> R.string.filter_chip_shortcuts
+        SearchFilter.FOLDERS -> R.string.filter_chip_folders
+        SearchFilter.IMAGES -> R.string.filter_chip_images
+        SearchFilter.VIDEOS -> R.string.filter_chip_videos
+        SearchFilter.PDFS -> R.string.filter_chip_pdfs
+    }
+
+// material-icons-core has no app-grid, event, file, shortcut, folder, image, video, PDF, timer, alarm, message or link
 // glyph, so these reproduce the Material ones rather than pulling in the large extended icon set.
 
 private val AppsIcon: ImageVector by lazy {
@@ -146,6 +172,36 @@ val ListLayoutIcon: ImageVector by lazy {
 }
 
 /** A 24dp Material-style filled icon from SVG path data (tinted by Icon at draw time). */
+/** Material "Image": the Images filter. */
+private val ImageIcon: ImageVector by lazy {
+    materialIcon(
+        name = "Image",
+        pathData = "M21,19V5c0,-1.1 -0.9,-2 -2,-2H5c-1.1,0 -2,0.9 -2,2v14c0,1.1 0.9,2 2,2h14c1.1,0 2,-0.9 2,-2z" +
+            "M8.5,13.5l2.5,3.01L14.5,12l4.5,6H5l3.5,-4.5z",
+    )
+}
+
+/** Material "Videocam": the Videos filter. */
+private val VideoIcon: ImageVector by lazy {
+    materialIcon(
+        name = "Videocam",
+        pathData = "M17,10.5V7c0,-0.55 -0.45,-1 -1,-1H4c-0.55,0 -1,0.45 -1,1v10c0,0.55 0.45,1 1,1h12" +
+            "c0.55,0 1,-0.45 1,-1v-3.5l4,4v-11l-4,4z",
+    )
+}
+
+/** Material "PictureAsPdf": the PDFs filter. */
+private val PdfIcon: ImageVector by lazy {
+    materialIcon(
+        name = "PictureAsPdf",
+        pathData = "M20,2H8c-1.1,0 -2,0.9 -2,2v12c0,1.1 0.9,2 2,2h12c1.1,0 2,-0.9 2,-2V4c0,-1.1 -0.9,-2 -2,-2z" +
+            "M11.5,9.5c0,0.83 -0.67,1.5 -1.5,1.5H9v2H7.5V7H10c0.83,0 1.5,0.67 1.5,1.5v1z" +
+            "M16.5,11.5c0,0.83 -0.67,1.5 -1.5,1.5h-2.5V7H15c0.83,0 1.5,0.67 1.5,1.5v3z" +
+            "M20.5,8.5H19v1h1.5V11H19v2h-1.5V7h3v1.5zM9,9.5h1v-1H9v1zM4,6H2v14c0,1.1 0.9,2 2,2h14v-2H4V6z" +
+            "M14,11.5h1v-3h-1v3z",
+    )
+}
+
 private fun materialIcon(name: String, pathData: String): ImageVector =
     ImageVector.Builder(
         name = name,

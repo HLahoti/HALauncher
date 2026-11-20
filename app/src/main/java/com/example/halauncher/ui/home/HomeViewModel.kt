@@ -38,7 +38,9 @@ import com.example.halauncher.model.EventEntry
 import com.example.halauncher.model.HomeTextColor
 import com.example.halauncher.model.SearchCategory
 import com.example.halauncher.model.SearchEntry
+import com.example.halauncher.model.SearchFilter
 import com.example.halauncher.model.ShortcutEntry
+import com.example.halauncher.search.FilterSuggester
 import com.example.halauncher.search.SearchEngine
 import com.example.halauncher.search.Trie
 import com.example.halauncher.search.index.AppEntryCodec
@@ -125,6 +127,10 @@ data class SearchResults(
      * they show real entries before the user has opened any. Each group is non-empty.
      */
     val suggestions: List<Suggestions> = emptyList(),
+    /** How many more disk matches each filter would keep than made [more]. */
+    val unlisted: Map<SearchFilter, Int> = emptyMap(),
+    /** The filter chips to suggest for these results, best first (see FilterSuggester). */
+    val filterChips: List<SearchFilter> = emptyList(),
 ) {
     val isEmpty: Boolean get() = frequent.isEmpty() && more.isEmpty() && suggestions.isEmpty()
 
@@ -426,6 +432,18 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     /** The category search is limited to, or null for all of them. */
     val categoryFilter: StateFlow<SearchCategory?> = _categoryFilter.asStateFlow()
 
+    private val _searchKind = MutableStateFlow<SearchFilter?>(null)
+    /**
+     * A kind listed under the [categoryFilter] tab (Settings, under Apps; PDFs, under Files) that a
+     * filter chip narrowed search to, or null. Only ever set while something's typed; it goes with the query, or when the
+     * tab changes.
+     */
+    val searchKind: StateFlow<SearchFilter?> = _searchKind.asStateFlow()
+
+    /** The chips last suggested, and on which tab, so the next answer can keep them in place. */
+    private var lastFilterChips: List<SearchFilter> = emptyList()
+    private var lastFilterChipsTab: SearchCategory? = null
+
     private val _indexedCounts = MutableStateFlow<Map<SearchCategory, Int>>(emptyMap())
     /**
      * How many entries each category has in the index, as of the last index update; categories
@@ -457,15 +475,24 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         combine(
             _searchQuery,
             _categoryFilter,
+            _searchKind,
             frequentLayer,
             frequentLayerVersion,
-        ) { query, category, layer, version ->
-            SearchInput(query, category, layer, version)
+        ) { query, category, kind, layer, version ->
+            SearchInput(query, category, kind, layer, version)
         }.transformLatest { input ->
             val cursor = frequentCursor?.takeIf { it.trie === input.layer }
                 ?: input.layer.cursor().also { frequentCursor = it }
             val frequent = searchEngine.quickSearch(cursor, input.query, input.category)
             val blank = input.query.isBlank()
+            // A chip's kind (Settings, PDFs) narrows the tab's results once they're found, after each
+            // app has its shortcuts added, so the Shortcuts chip keeps the shortcuts of the apps found.
+            val kind = input.kind.takeIf { !blank }
+            fun List<SearchEntry>.ofKind() = if (kind == null) this else filter(kind::matches)
+            // Each answer carries the filter chips for it, worked out from what it already holds: no
+            // search of their own. They answer every keystroke with the frequent layer's matches,
+            // and again once the disk answers.
+            suspend fun emitResults(results: SearchResults) = emit(results.copy(filterChips = filterChipsFor(input, kind, results)))
             // With nothing typed the disk layer normally stays out of it (only recents show). But
             // with the Apps category selected, list every app after the recents, so someone who
             // just wants to browse all their apps can.
@@ -474,17 +501,17 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             // and recently updated contacts, what's coming up, the newest files), so they show real
             // entries even before the user has opened any.
             if (blank && input.category != null && input.category in SUGGESTING_CATEGORIES) {
-                emit(SearchResults(frequent = frequent, isSearchingDisk = true))
+                emitResults(SearchResults(frequent = frequent, isSearchingDisk = true))
                 val shownIds = frequent.mapTo(mutableSetOf()) { it.id }
                 val suggestions = withContext(Dispatchers.IO) { loadSuggestions(input.category, shownIds) }
-                emit(SearchResults(frequent = frequent, suggestions = suggestions))
+                emitResults(SearchResults(frequent = frequent, suggestions = suggestions))
                 return@transformLatest
             }
             if (blank && !listAll) {
-                emit(SearchResults(frequent = frequent))
+                emitResults(SearchResults(frequent = frequent))
                 return@transformLatest
             }
-            emit(SearchResults(frequent = frequent, isSearchingDisk = true))
+            emitResults(SearchResults(frequent = frequent.ofKind(), isSearchingDisk = true))
             // Once enough is typed, in the tabs that list shortcuts (All and Apps), each app found
             // also lists its shortcuts under it, so "chrome" finds "New incognito tab". The
             // frequent layer's apps get theirs straight away rather than after the pause.
@@ -493,7 +520,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 input.query.trim().length >= SearchLayersConfig.APP_SHORTCUTS_MIN_QUERY_LENGTH
             val shownFrequent = if (withShortcuts) {
                 withContext(Dispatchers.IO) { searchEngine.withAppShortcuts(frequent) }
-                    .also { if (it.size != frequent.size) emit(SearchResults(frequent = it, isSearchingDisk = true)) }
+                    .also { if (it.size != frequent.size) emitResults(SearchResults(frequent = it.ofKind(), isSearchingDisk = true)) }
             } else {
                 frequent
             }
@@ -512,16 +539,20 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 if (blank) {
                     searchEngine.listAll(input.category, excludeIds = shownIds).also {
                         Log.d(PERF_TAG, "listAll ${input.category}: ${it.size} in ${SystemClock.elapsedRealtime() - started} ms")
-                    }
+                    }.let { SearchEngine.DiskMatches(it) }
                 } else {
-                    searchEngine.deepSearch(input.query, input.category, excludeIds = shownIds)
+                    // A kind is searched for on its own (a file kind by its names' extensions in the
+                    // query itself), except shortcuts: they also come with the apps found.
+                    val categories = kind?.searchedCategories ?: input.category?.let(SearchCategory::listedUnder)
+                    val matches = searchEngine.deepMatches(input.query, categories, excludeIds = shownIds, nameLike = kind?.nameSuffixes.orEmpty())
+                    val entries = matches.entries
                         .let { if (withShortcuts) searchEngine.withAppShortcuts(it, excludeIds = shownIds) else it }
-                        .also {
-                            Log.d(PERF_TAG, "deepSearch '${input.query}' ${input.category}: ${it.size} in ${SystemClock.elapsedRealtime() - started} ms")
-                        }
+                        .ofKind()
+                    Log.d(PERF_TAG, "deepSearch '${input.query}' ${input.category}/$kind: ${entries.size} in ${SystemClock.elapsedRealtime() - started} ms")
+                    SearchEngine.DiskMatches(entries, matches.unlisted)
                 }
             }
-            emit(SearchResults(frequent = shownFrequent, more = more))
+            emitResults(SearchResults(frequent = shownFrequent.ofKind(), more = more.entries, unlisted = more.unlisted))
         }.map(SearchResults::exclusive).stateIn(viewModelScope, SharingStarted.Eagerly, SearchResults())
 
     /**
@@ -564,9 +595,34 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private data class SearchInput(
         val query: String,
         val category: SearchCategory?,
+        val kind: SearchFilter?,
         val layer: Trie<SearchEntry>,
         val layerVersion: Int,
     )
+
+    /**
+     * The filter chips for [results] of [input]: none while nothing's typed, while picking an app, or
+     * once a chip's [kind] is narrowing search (the row shows that chip instead). Keeps the chips
+     * last suggested on the same tab in place, unless clearly beaten.
+     */
+    private fun filterChipsFor(input: SearchInput, kind: SearchFilter?, results: SearchResults): List<SearchFilter> {
+        if (input.query.isBlank() || kind != null || _searchPurpose.value != SearchPurpose.FIND) {
+            lastFilterChips = emptyList()
+            return emptyList()
+        }
+        val previous = if (lastFilterChipsTab == input.category) lastFilterChips else emptyList()
+        return FilterSuggester.suggest(
+            tab = input.category,
+            query = input.query,
+            listed = results.frequent + results.more,
+            unlisted = results.unlisted,
+            previous = previous,
+            provisional = results.isSearchingDisk,
+        ).also {
+            lastFilterChips = it
+            lastFilterChipsTab = input.category
+        }
+    }
 
     /**
      * The query parsed as an arithmetic expression ("5+3" → "8"), or null when the query doesn't
@@ -904,7 +960,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         val categories = SearchCategory.entries.filter { it.hasOwnTab && (it in indexed || !hasAccess(it) || it == filter) }
         _availableCategories.value = categories
         // The default stays even before its category is indexed, so it isn't lost at startup.
-        if (filter !in categories && filter != _defaultSearchCategory.value) _categoryFilter.value = null
+        if (filter !in categories && filter != _defaultSearchCategory.value) {
+            _categoryFilter.value = null
+            _searchKind.value = null
+        }
     }
 
     /**
@@ -941,6 +1000,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun onSearchQueryChanged(query: String) {
         _searchQuery.value = query
+        // The chips go with the query, and so does the one picked.
+        if (query.isBlank()) _searchKind.value = null
     }
 
     /**
@@ -958,6 +1019,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         _isSettingsOpen.value = false
         _searchPurpose.value = SearchPurpose.FIND
         _categoryFilter.value = _defaultSearchCategory.value
+        _searchKind.value = null
         _isSearchOpen.value = true
         // Whatever changed since it was last flushed is about to be searched.
         indexUpdater.flushNow()
@@ -1046,6 +1108,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         closeSettings()
         openSearch()
         _categoryFilter.value = null
+        _searchKind.value = null
         _searchQuery.value = example
     }
 
@@ -1202,9 +1265,27 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     fun onCategoryFilterChanged(category: SearchCategory?) {
         // Picking an app for a button stays limited to apps.
         if (_searchPurpose.value != SearchPurpose.FIND) return
-        if (_categoryFilter.value == category) return
+        if (_categoryFilter.value == category && _searchKind.value == null) return
+        // Choosing a tab, even the one a chip narrowed, shows all of it.
+        _searchKind.value = null
         _categoryFilter.value = category
         advanceTour(TourStep.FILTER)
+    }
+
+    /**
+     * The user tapped a suggested filter chip: a whole tab's (Contacts) switches to it; a kind's
+     * (Settings, PDFs) switches to its tab, narrowed to that kind.
+     */
+    fun onFilterChipPicked(chip: SearchFilter) {
+        if (_searchPurpose.value != SearchPurpose.FIND || _searchQuery.value.isBlank()) return
+        _searchKind.value = chip.takeIf { !it.isTab }
+        _categoryFilter.value = chip.tab
+        advanceTour(TourStep.FILTER)
+    }
+
+    /** Takes off the chip narrowing search to a kind, back to its whole tab. */
+    fun clearSearchKind() {
+        _searchKind.value = null
     }
 
     fun closeSearch() {
@@ -1212,6 +1293,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         _searchPurpose.value = SearchPurpose.FIND
         _searchQuery.value = ""
         _categoryFilter.value = _defaultSearchCategory.value
+        _searchKind.value = null
         // Leaving search finishes the tour's step for closing it, and passes any others in search.
         _tourStep.value?.takeIf { it.inSearch }?.let(::advanceTour)
     }
@@ -1255,6 +1337,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             _isSettingsOpen.value = false
             _searchPurpose.value = purpose
             _categoryFilter.value = SearchCategory.APP
+            _searchKind.value = null
             _isSearchOpen.value = true
             indexUpdater.flushNow()
         }

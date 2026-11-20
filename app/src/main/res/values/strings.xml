@@ -93,6 +93,15 @@
     <string name="filter_pill_open">Choose a filter</string>
     <!-- A screen-reader action on the filter pill. %1$s is a tab's name. -->
     <string name="filter_show">Show %1$s</string>
+    <!-- Suggested filter chips over the search field: kinds of result listed under another tab. -->
+    <string name="filter_chip_settings">Settings</string>
+    <string name="filter_chip_shortcuts">Shortcuts</string>
+    <string name="filter_chip_folders">Folders</string>
+    <string name="filter_chip_images">Images</string>
+    <string name="filter_chip_videos">Videos</string>
+    <string name="filter_chip_pdfs">PDFs</string>
+    <!-- Spoken for the chip narrowing search to one kind; tapping it takes the filter off. %1$s: e.g. "Settings". -->
+    <string name="filter_chip_clear">Remove filter: %1$s</string>
     <string name="category_file">File</string>
     <string name="category_shortcut">Shortcut</string>
     <string name="category_folder">Folder</string>

@@ -6,6 +6,7 @@ import com.example.halauncher.data.SearchEntryProvider
 import com.example.halauncher.model.AppInfo
 import com.example.halauncher.model.SearchCategory
 import com.example.halauncher.model.SearchEntry
+import com.example.halauncher.model.SearchFilter
 import com.example.halauncher.model.ShortcutEntry
 import com.example.halauncher.search.index.IndexChange
 import com.example.halauncher.search.index.InteractionLog
@@ -185,29 +186,54 @@ class SearchEngine(
      * Disk-layer matches for [query], ranked, leaving out [excludeIds] (what the frequent layer
      * already showed). A blank query has none: with nothing typed, only the frequent layer shows.
      * A [category] is a search tab, as in [quickSearch].
-     *
-     * Candidates are ranked by name and usage first; only the [SearchLayersConfig.DISK_RESULT_LIMIT]
-     * that make the cut have their payloads read and decoded.
      */
     @WorkerThread
-    fun deepSearch(query: String, category: SearchCategory?, excludeIds: Set<String>): List<SearchEntry> {
-        val terms = searchTerms(query)
-        val match = FtsQuery.prefixMatch(terms) ?: return emptyList()
+    fun deepSearch(query: String, category: SearchCategory?, excludeIds: Set<String>): List<SearchEntry> =
+        deepMatches(query, category?.let(SearchCategory::listedUnder), excludeIds).entries
 
-        val hits = index.matchHits(match, category?.let(SearchCategory::listedUnder), SearchLayersConfig.DISK_CANDIDATE_LIMIT)
+    /** What [deepMatches] found: the ranked [entries], and how many more matches each filter would keep that didn't make them. */
+    data class DiskMatches(
+        val entries: List<SearchEntry> = emptyList(),
+        val unlisted: Map<SearchFilter, Int> = emptyMap(),
+    )
+
+    /**
+     * Disk-layer matches for [query] among [categories] (all of them when null) and, for a file kind,
+     * with names matching one of [nameLike] (see [SearchFilter.nameSuffixes]), ranked, leaving out
+     * [excludeIds]. A blank query has none.
+     *
+     * Candidates are ranked by name and usage first; only the [SearchLayersConfig.DISK_RESULT_LIMIT]
+     * that make the cut have their payloads read and decoded. The rest are only counted, per filter,
+     * from the category and name each hit already carries: the filter chips use the counts.
+     */
+    @WorkerThread
+    fun deepMatches(
+        query: String,
+        categories: Collection<SearchCategory>?,
+        excludeIds: Set<String>,
+        nameLike: Collection<String> = emptyList(),
+    ): DiskMatches {
+        val terms = searchTerms(query)
+        val match = FtsQuery.prefixMatch(terms) ?: return DiskMatches()
+
+        val hits = index.matchHits(match, categories, SearchLayersConfig.DISK_CANDIDATE_LIMIT, nameLike)
             .filter { it.id !in excludeIds }
         val now = clock()
         val histories = interactions.historiesFor(hits.map { it.id }, now)
         val context = RankingContext(query = query, terms = terms, nowMillis = now)
-        val best = hits
+        val ranked = hits
             .map { hit ->
                 val usage = histories[hit.id] ?: UsageHistory.NEVER_OPENED
                 hit to ranker.score(context, RankingCandidate(hit.name, hit.category, usage))
             }
             .sortedWith(compareByDescending<Pair<SearchIndex.Hit, Double>> { it.second }.thenBy { it.first.name })
-            .take(SearchLayersConfig.DISK_RESULT_LIMIT)
             .map { it.first }
-        return index.decode(best)
+        val best = ranked.take(SearchLayersConfig.DISK_RESULT_LIMIT)
+        val rest = ranked.drop(SearchLayersConfig.DISK_RESULT_LIMIT)
+        val unlisted = SearchFilter.entries
+            .associateWith { filter -> rest.count { filter.matches(it.category, it.name) } }
+            .filterValues { it > 0 }
+        return DiskMatches(index.decode(best), unlisted)
     }
 
     /**
