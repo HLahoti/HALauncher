@@ -261,6 +261,20 @@ class SearchIndex(private val database: SearchDatabase, private val codecs: Sear
             query("$COL_CATEGORY = ?", arrayOf(category.name), orderBy = "$COL_NAME COLLATE NOCASE", limit = limit)
         }
 
+    /**
+     * Every stored entry of [categories] whose name matches one of the LIKE patterns in [nameLike]
+     * (any name when empty), A–Z, at most [limit].
+     */
+    @WorkerThread
+    fun all(categories: Collection<SearchCategory>, nameLike: Collection<String>, limit: Int): List<SearchEntry> {
+        val where = buildString {
+            append("$COL_CATEGORY IN (${categories.joinToString(",") { "?" }})")
+            if (nameLike.isNotEmpty()) append(" AND (${nameLike.joinToString(" OR ") { "$COL_NAME LIKE ?" }})")
+        }
+        val args = (categories.map { it.name } + nameLike).toTypedArray()
+        return query(where, args, orderBy = "$COL_NAME COLLATE NOCASE", limit = limit)
+    }
+
     /** The stored entries with these ids; ids not in the index are left out. */
     @WorkerThread
     fun byIds(ids: Collection<String>): Map<String, SearchEntry> =

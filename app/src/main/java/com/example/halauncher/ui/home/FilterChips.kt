@@ -38,8 +38,9 @@ import com.example.halauncher.ui.components.liquidGlass
 
 /**
  * The suggested filter chips over the search field: the kinds of result that would narrow what's
- * listed (see FilterSuggester), each a glass pill with its icon and name. While a chip's [kind]
- * narrows search it's the only one, lit, with a cross: tapping it takes the filter off.
+ * listed (see FilterSuggester), or those a "!name" typed calls up (see TypedFilter), each a glass
+ * pill with its icon and name. While a chip's [kind] narrows search it leads, lit, with a cross:
+ * tapping it takes the filter off.
  *
  * The chips sit at the side of the filter pill ([alignEnd] for right-handed, the start for left).
  */
@@ -53,7 +54,8 @@ fun FilterChipsRow(
     modifier: Modifier = Modifier,
     alignEnd: Boolean = true,
 ) {
-    val shown = if (kind != null) listOf(kind) else chips
+    // The chip narrowing search leads, lit; any others ("!" calling up more) follow.
+    val shown = listOfNotNull(kind) + chips.filter { it != kind }
     LazyRow(
         modifier = modifier
             .fillMaxWidth()

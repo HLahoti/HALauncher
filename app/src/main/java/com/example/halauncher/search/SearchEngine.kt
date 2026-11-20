@@ -246,6 +246,15 @@ class SearchEngine(
     fun listAll(category: SearchCategory?, excludeIds: Set<String>): List<SearchEntry> =
         index.all(category, SearchLayersConfig.DISK_CANDIDATE_LIMIT).filter { it.id !in excludeIds }
 
+    /**
+     * Every entry of [kind] (a kind listed under a tab, such as PDFs), A–Z, leaving out [excludeIds]:
+     * what a kind's chip lists with nothing else typed.
+     */
+    @WorkerThread
+    fun listAll(kind: SearchFilter, excludeIds: Set<String>): List<SearchEntry> =
+        index.all(listOfNotNull(kind.category), kind.nameSuffixes, SearchLayersConfig.DISK_CANDIDATE_LIMIT)
+            .filter { it.id !in excludeIds }
+
     /** The indexed entries with these [ids], in the same order; ids not in the index are left out. */
     @WorkerThread
     fun entriesByIds(ids: List<String>): List<SearchEntry> {

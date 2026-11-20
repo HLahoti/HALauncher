@@ -142,6 +142,7 @@ import com.example.halauncher.model.SearchCategory
 import com.example.halauncher.model.SearchEntry
 import com.example.halauncher.model.SearchFilter
 import com.example.halauncher.model.ShortcutEntry
+import com.example.halauncher.search.TypedFilter
 import com.example.halauncher.ui.components.ClickToLaunch
 import com.example.halauncher.ui.components.GridLayoutIcon
 import com.example.halauncher.ui.components.ListLayoutIcon
@@ -436,18 +437,28 @@ fun SearchOverlay(
                     else -> null
                 }
             }
-            val goKey = goTarget?.key?.takeIf { !isQueryBlank && !isPicking }
+            // A "!name" being typed is calling up a filter: Go picks its first chip, as Return does
+            // after "/pdf" in Spotlight, rather than open a result.
+            // With only a "!name" that names nothing, there's nothing for Go to do.
+            val typedFilter = TypedFilter.parse(query).takeIf { !isPicking && it.typed != null }
+            val typedChip = results.filterChips.firstOrNull()?.takeIf { typedFilter != null }
+            val goDisabled = typedFilter != null && typedChip == null && typedFilter.rest.isBlank()
+            val goKey = goTarget?.key?.takeIf { !isQueryBlank && !isPicking && typedChip == null && !goDisabled }
             // Go does what tapping [goTarget] would.
             val runGo = {
-                when (val target = goTarget) {
-                    is GoTarget.Calc -> onCalcResultSelected(target.result)
-                    is GoTarget.Action -> runQuickAction(context, target.target, onQuickActionRun)
-                    is GoTarget.Entry -> when {
-                        isPicking -> onEntryPicked(target.entry)
-                        context.launchSafely(target.entry, resources.getString(R.string.open_app, target.entry.name)) ->
-                            onEntryOpened(target.entry)
+                if (typedChip != null) {
+                    onFilterChipPicked(typedChip)
+                } else if (!goDisabled) {
+                    when (val target = goTarget) {
+                        is GoTarget.Calc -> onCalcResultSelected(target.result)
+                        is GoTarget.Action -> runQuickAction(context, target.target, onQuickActionRun)
+                        is GoTarget.Entry -> when {
+                            isPicking -> onEntryPicked(target.entry)
+                            context.launchSafely(target.entry, resources.getString(R.string.open_app, target.entry.name)) ->
+                                onEntryOpened(target.entry)
+                        }
+                        null -> Unit
                     }
-                    null -> Unit
                 }
             }
             var goPending by remember { mutableStateOf(false) }
@@ -495,7 +506,7 @@ fun SearchOverlay(
                     keyboardActions = KeyboardActions(
                         onGo = {
                             // Picking ignores quick actions, so it never needs to wait for them.
-                            if (actionsAreCurrent || isPicking || activeCalcResult != null) runGo() else goPending = true
+                            if (actionsAreCurrent || isPicking || activeCalcResult != null || typedChip != null) runGo() else goPending = true
                         },
                     ),
                 )
@@ -545,12 +556,13 @@ fun SearchOverlay(
                         }
                     }
                 }
-                // The suggested filter chips, while something's typed. Picking an app for a button
-                // has none. In landscape the keyboard leaves room for about a row of results, which
-                // the chips would take, so they wait for it to go down (as the status line does).
+                // The filter chips: those suggested while something's typed, and the one narrowing
+                // search, which stays (lit) with nothing typed too. Picking an app for a button has
+                // none. In landscape the keyboard leaves room for about a row of results, which the
+                // chips would take, so they wait for it to go down (as the status line does).
                 AnimatedVisibility(
-                    visible = !isPicking && !isQueryBlank && !(isLandscape && imeVisible) &&
-                        (searchKind != null || results.filterChips.isNotEmpty()),
+                    visible = !isPicking && !(isLandscape && imeVisible) &&
+                        (searchKind != null || (!isQueryBlank && results.filterChips.isNotEmpty())),
                     enter = fadeIn() + expandVertically(),
                     exit = fadeOut() + shrinkVertically(),
                 ) {

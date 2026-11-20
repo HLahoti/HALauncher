@@ -50,6 +50,7 @@
         <item>Search apps, people, events and files at once</item>
         <item>Do quick maths, like 24*7 or sqrt(2)</item>
         <item>Swipe sideways to change what\'s searched</item>
+        <item>Type ! and a kind, like !pdf, to filter by it</item>
     </string-array>
     <string-array name="search_hints_apps">
         <item>Type an app\'s name, or any word in it</item>
@@ -71,6 +72,7 @@
     <string-array name="search_hints_files">
         <item>Find files and folders by name</item>
         <item>Hold a file to share it or open it with another app</item>
+        <item>Type !images, !videos or !pdf to see just those</item>
     </string-array>
     <!-- A tip beside the count above the results: "41 items indexed · Try …". %1$s is the tip. -->
     <string name="status_hint_beside">· %1$s</string>
@@ -313,6 +315,8 @@
     <string name="tips_do_title">Do things</string>
     <string name="tips_do_body">Type a command and press Go, or tap its row. It opens in the app you use for it.</string>
     <string name="tips_bare_body">Use a contact\'s name too, like “call Mom”. Or just type a phone number, email address or website to call, write to or open it.</string>
+    <string name="tips_filter_title">Narrow it down</string>
+    <string name="tips_filter_body">Chips over the search field suggest a kind of result to narrow what\'s found, like Settings, Images or PDFs. Tap one to see just those, and tap it again to see everything. Or type ! and a kind\'s name, like !pdf, to call up its chip, then press Go.</string>
     <string name="tips_maths_title">Quick maths</string>
     <string name="tips_maths_body">Type a sum and see the answer as you type. Tap it to copy.</string>
     <string name="tips_move_title">Getting around</string>

@@ -669,6 +669,29 @@ object FilterSuggestionConfig {
         SearchFilter.PDFS to setOf("pdf", "pdfs"),
     )
 
+    /**
+     * What a word typed in search starts with to call up a filter chip by name, as in "!pdf" (see
+     * TypedFilter). "!" rather than Spotlight's "/": it's on the first page of most phone keyboards.
+     */
+    const val FILTER_PREFIX = "!"
+
+    /**
+     * The names "!name" in search calls each filter's chip up by (see TypedFilter), along with the
+     * chip's own name in the user's language. Lower case; a start of any of them matches ("!im").
+     */
+    val FILTER_NAMES: Map<SearchFilter, List<String>> = mapOf(
+        SearchFilter.APPS to listOf("apps", "app"),
+        SearchFilter.CONTACTS to listOf("contacts", "contact", "people"),
+        SearchFilter.EVENTS to listOf("events", "event", "calendar"),
+        SearchFilter.FILES to listOf("files", "file", "documents"),
+        SearchFilter.SETTINGS to listOf("settings", "setting"),
+        SearchFilter.SHORTCUTS to listOf("shortcuts", "shortcut"),
+        SearchFilter.FOLDERS to listOf("folders", "folder"),
+        SearchFilter.IMAGES to listOf("images", "image", "photos", "photo", "pictures", "pics"),
+        SearchFilter.VIDEOS to listOf("videos", "video", "movies"),
+        SearchFilter.PDFS to listOf("pdfs", "pdf"),
+    )
+
     /** Height of a chip. */
     val ChipHeight = 32.dp
 

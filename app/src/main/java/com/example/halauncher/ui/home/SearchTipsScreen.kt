@@ -104,6 +104,11 @@ fun SearchTipsScreen(commands: List<QuickCommand>, onTry: (String) -> Unit, onDo
                             }
                         },
                         { modifier ->
+                            TipCard(R.string.tips_filter_title, R.string.tips_filter_body, modifier) {
+                                Examples(FILTER_EXAMPLES, onTry)
+                            }
+                        },
+                        { modifier ->
                             TipCard(R.string.tips_maths_title, R.string.tips_maths_body, modifier) {
                                 Examples(MATHS_EXAMPLES, onTry)
                             }
@@ -213,5 +218,7 @@ private fun ExampleChip(example: String, onTry: (String) -> Unit) {
 
 /** Things to find on any phone: Settings screens and a common folder. */
 private val FIND_EXAMPLES = listOf("wifi", "brightness", "download")
+
+private val FILTER_EXAMPLES = listOf("!pdf", "!images", "!settings")
 
 private val MATHS_EXAMPLES = listOf("24*7", "sqrt(2)", "(120+45)/3")
