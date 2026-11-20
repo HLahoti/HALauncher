@@ -69,6 +69,17 @@ class QuickActionsTest {
         assertEquals(listOf(Alarm(12, 0)), parse("alarm 12pm"))
     }
 
+    @Test fun `alarm without a separator`() {
+        assertEquals(listOf(Alarm(7, 30)), parse("alarm 730"))
+        assertEquals(listOf(Alarm(7, 30)), parse("alarm 0730"))
+        assertEquals(listOf(Alarm(19, 45)), parse("alarm 1945"))
+        assertEquals(listOf(Alarm(0, 5)), parse("alarm 0005"))
+        assertEquals(listOf(Alarm(19, 30)), parse("alarm 730pm"))
+        assertEquals(listOf(Alarm(6, 15)), parse("alarm 615 am"))
+        assertEquals(listOf(Alarm(0, 30)), parse("alarm 1230am"))
+        assertEquals(listOf(AlarmOff(7, 30)), parse("alarm off 730"))
+    }
+
     @Test fun `alarm phrased other ways`() {
         assertEquals(listOf(Alarm(6, 45)), parse("wake me up at 6:45"))
         assertEquals(listOf(Alarm(8, 0)), parse("set an alarm for 8"))
@@ -78,6 +89,10 @@ class QuickActionsTest {
         assertEquals(emptyList<QuickAction>(), parse("alarm 25:00"))
         assertEquals(emptyList<QuickAction>(), parse("alarm 7:75"))
         assertEquals(emptyList<QuickAction>(), parse("alarm 13pm"))
+        assertEquals(emptyList<QuickAction>(), parse("alarm 2500"))
+        assertEquals(emptyList<QuickAction>(), parse("alarm 775"))
+        assertEquals(emptyList<QuickAction>(), parse("alarm 1330pm"))
+        assertEquals(emptyList<QuickAction>(), parse("alarm 73000"))
         assertEquals(emptyList<QuickAction>(), parse("alarm clock"))
     }
 

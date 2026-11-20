@@ -41,7 +41,7 @@
     <!-- Tips shown beside the status line above search's results while nothing is typed, one per
          visit, picked from the list for the tab showing. -->
     <!-- Added to search_hints_all only when some app can do what they say. -->
-    <string name="search_hint_timer">Try “timer 10m” or “alarm 7:30”</string>
+    <string name="search_hint_timer">Try “timer 10m” or “alarm 730”</string>
     <string name="search_hint_call_contact">Try “call Mom” to ring a contact</string>
     <string name="search_hint_call_number">Type a number to call or text it</string>
     <!-- What screen readers call the search field, which shows no placeholder. -->

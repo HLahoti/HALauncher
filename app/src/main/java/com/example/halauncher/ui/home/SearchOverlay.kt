@@ -248,7 +248,7 @@ fun SearchOverlay(
     }
     // Beside the count: while a command's word is being typed ("tim"), how to finish it, tapped to
     // type the word; otherwise, with nothing typed, the tab's tip.
-    // Commands sharing the word ("alarm 7:30am", "alarm off") are shown together.
+    // Commands sharing the word ("alarm 730am", "alarm off") are shown together.
     val commandHint = activeCommandHints.firstOrNull()
         ?.let { first -> activeCommandHints.filter { it.word == first.word } }
     val statusHint: StatusHint? = when {

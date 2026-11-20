@@ -97,7 +97,7 @@ sealed interface QuickAction {
 enum class QuickCommand(val word: String, val example: String) {
     TIMER("timer", "timer 10m"),
     TIMER_STOP("timer", "timer stop"),
-    ALARM("alarm", "alarm 7:30am"),
+    ALARM("alarm", "alarm 730am"),
     ALARM_OFF("alarm", "alarm off"),
     CALL("call", "call 555 0100"),
     TEXT("text", "text 555 0100"),
@@ -160,7 +160,8 @@ object QuickActions {
     private val whitespace = Regex("""\s+""")
     // Longer unit names first: alternatives are tried in order, so "h" would stop "hours" at its first letter.
     private val durationPart = Regex("""(\d+(?:\.\d+)?)\s*(hours?|hrs?|h|minutes?|mins?|m|seconds?|secs?|s)?""")
-    private val clockTime = Regex("""^(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?$""")
+    // The separator is optional, so "730" and "1945" read as 7:30 and 19:45.
+    private val clockTime = Regex("""^(\d{1,2})(?:[:.]?(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?$""")
     private val phoneNumber = Regex("""^\+?[\d\s\-().]+$""")
     private val emailAddress = Regex("""^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$""")
     private val webAddress = Regex(
@@ -290,8 +291,9 @@ object QuickActions {
     }
 
     /**
-     * "7", "7:30", "7.30pm", "7 am", "19:45" as (hour, minute) on a 24-hour clock. Without am/pm
-     * the hour is taken as written ("7" is 07:00), as clock apps do. Null for anything else.
+     * "7", "7:30", "730", "7.30pm", "730pm", "7 am", "19:45", "1945" as (hour, minute) on a 24-hour
+     * clock. Without am/pm the hour is taken as written ("7" is 07:00), as clock apps do. Null for
+     * anything else.
      */
     internal fun parseClockTime(text: String): Pair<Int, Int>? {
         val match = clockTime.matchEntire(text.trim()) ?: return null
