@@ -258,6 +258,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val pinsWatcher = pinnedAppsStore.watch { _pinKeys.value = pinnedAppsStore.load() }
 
     /**
+     * Shortcuts on their way to the sphere: being pinned with the system, or saved but not yet
+     * looked up for [pinnedItems]. They take up room already, so quick taps can't overfill it.
+     * Declared before init, which already looks pins up.
+     */
+    private val pendingShortcutPins = HashSet<String>()
+
+    /**
      * The shortcuts pinned to the sphere or chosen for a button that still exist, by id, with their
      * icons loaded; see [refreshPinnedShortcuts].
      */
@@ -921,6 +928,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         } else {
             withContext(Dispatchers.IO) { shortcutProvider.loadPinned(ids) }.associateBy { it.id }
         }
+        // Looked up now (or found gone): no longer pending.
+        pendingShortcutPins.removeAll(ids.toSet())
     }
 
     /** The launcher came back to the foreground, e.g. from the "All files access" screen. */
@@ -1342,7 +1351,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     fun togglePinned(entry: SearchEntry) {
         val key = PinnedAppsStore.keyOf(entry) ?: return
         val pinning = key !in _pinKeys.value
-        if (pinning && pinnedItems.value.size >= PinPickerConfig.MAX_PINNED) return
+        if (pinning && pinsTaken() >= PinPickerConfig.MAX_PINNED) return
         if (pinning && entry is ShortcutEntry) {
             pinShortcut(entry, key)
             return
@@ -1358,25 +1367,37 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
      * meanwhile, it's released again.
      */
     private fun pinShortcut(shortcut: ShortcutEntry, key: String) {
-        if (key in shortcutsBeingPinned) return
-        shortcutsBeingPinned += key
+        if (key in pendingShortcutPins) return
+        pendingShortcutPins += key
         viewModelScope.launch {
-            try {
-                if (!withContext(Dispatchers.IO) { shortcutProvider.pin(shortcut) }) return@launch
-                if (key in _pinKeys.value) return@launch
-                if (pinnedItems.value.size >= PinPickerConfig.MAX_PINNED) {
-                    if (key !in shortcutKeysInUse()) withContext(Dispatchers.IO) { shortcutProvider.unpin(shortcut) }
-                    return@launch
-                }
+            val pinned = withContext(Dispatchers.IO) { shortcutProvider.pin(shortcut) }
+            // Counting this one: more than the sphere holds means the sphere filled up meanwhile.
+            val fits = pinsTaken() <= PinPickerConfig.MAX_PINNED
+            if (pinned && fits && key !in _pinKeys.value) {
+                // Stays pending until [refreshPinnedShortcuts] has looked it up.
                 pinnedAppsStore.save(_pinKeys.updateAndGet { it + key })
-            } finally {
-                shortcutsBeingPinned -= key
+                return@launch
+            }
+            pendingShortcutPins -= key
+            if (pinned && !fits && key !in shortcutKeysInUse()) {
+                withContext(Dispatchers.IO) { shortcutProvider.unpin(shortcut) }
             }
         }
     }
 
-    /** Shortcuts on their way to the sphere, so a second tap meanwhile doesn't pin one twice. */
-    private val shortcutsBeingPinned = HashSet<String>()
+    /**
+     * How many places on the sphere are taken: what [pinnedItems] shows (worked out from its
+     * sources, so it's never a step behind) plus [pendingShortcutPins].
+     */
+    private fun pinsTaken(): Int {
+        val installed = _installedApps.value.mapTo(HashSet()) { it.key }
+        val shortcuts = pinnedShortcuts.value
+        val keys = _pinKeys.value
+        val shown = keys.count { key ->
+            if (PinnedAppsStore.appKeyOfShortcutKey(key) != null) key in shortcuts || key in pendingShortcutPins else key in installed
+        }
+        return shown + pendingShortcutPins.count { it !in keys }
+    }
 
     /**
      * Puts the pins in [order] (their keys, as arranged in the picker), saving immediately. Pins

@@ -856,8 +856,17 @@ object PinPickerConfig {
     /** Opacity of apps that can't be pinned because the sphere is full. */
     const val DISABLED_ALPHA = 0.4f
 
-    /** Left padding of the title in the header pill. */
+    /** Side padding of the title in the header pill. */
     val HeaderStartPadding = 20.dp
+
+    /** Padding above and below the title and count in the header pill. */
+    val HeaderVerticalPadding = 12.dp
+
+    /** Size of the round Done button beside the search field: the field's height. */
+    val DoneButtonSize = 56.dp
+
+    /** Size of the tick on it. */
+    val DoneIconSize = 24.dp
 
     /** Opacity of the empty checkbox on unpinned apps. */
     const val UNCHECKED_ALPHA = 0.6f

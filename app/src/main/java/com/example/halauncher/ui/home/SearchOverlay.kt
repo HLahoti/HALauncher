@@ -74,18 +74,14 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Place
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -150,7 +146,9 @@ import com.example.halauncher.ui.components.icon
 import com.example.halauncher.ui.components.ignoreLongPress
 import com.example.halauncher.ui.components.isLandscape
 import com.example.halauncher.ui.components.launchSafely
-import com.example.halauncher.ui.components.liquidGlass
+import com.example.halauncher.ui.components.GlassCircleButton
+import com.example.halauncher.ui.components.GlassSearchField
+import com.example.halauncher.ui.components.searchBarBottomGap
 import com.example.halauncher.ui.components.overlayTopSpacing
 import com.example.halauncher.ui.components.rememberDrawablePainter
 import com.example.halauncher.util.Haptics
@@ -217,8 +215,6 @@ fun SearchOverlay(
     // app, or search without the bar, stays a list.
     val showGrid = showsCategoryBar && categoryFilter in gridCategories
     val isLandscape = isLandscape()
-    val searchFieldShape = RoundedCornerShape(percent = 50)
-    val placeholderColor = ThemeConfig.Foreground.copy(alpha = SearchConfig.PLACEHOLDER_ALPHA)
     // While nothing's typed, the status line above the results carries a tip for the tab showing, so
     // what search can do gets found; a different one each time search comes in (picked while it's
     // hidden, so it never changes in view). The field itself stays empty. Picking an app for a button
@@ -474,34 +470,16 @@ fun SearchOverlay(
             var fieldValue by remember { mutableStateOf(TextFieldValue(query, TextRange(query.length))) }
             val shownValue = if (fieldValue.text == query) fieldValue else TextFieldValue(query, TextRange(query.length))
             val searchField = @Composable { fieldModifier: Modifier ->
-                TextField(
+                GlassSearchField(
                     value = shownValue,
                     onValueChange = { value ->
                         fieldValue = value
                         if (value.text != query) onQueryChange(value.text)
                     },
-                    modifier = fieldModifier
-                        .liquidGlass(searchFieldShape, tint = SearchConfig.FIELD_GLASS_TINT)
-                        .focusRequester(focusRequester),
-                    shape = searchFieldShape,
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color.Transparent,
-                        unfocusedContainerColor = Color.Transparent,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent,
-                        focusedTextColor = ThemeConfig.Foreground,
-                        unfocusedTextColor = ThemeConfig.Foreground,
-                        cursorColor = ThemeConfig.Foreground,
-                        focusedLeadingIconColor = ThemeConfig.Foreground,
-                        unfocusedLeadingIconColor = ThemeConfig.Foreground,
-                        focusedPlaceholderColor = placeholderColor,
-                        unfocusedPlaceholderColor = placeholderColor,
-                    ),
-                    placeholder = placeholder?.let { { Text(it, maxLines = 1, overflow = TextOverflow.Ellipsis) } },
-                    // With no placeholder, the icon names the field for screen readers (the field reads
-                    // out what's inside it).
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = fieldLabel) },
-                    singleLine = true,
+                    modifier = fieldModifier.focusRequester(focusRequester),
+                    placeholder = placeholder,
+                    // With no placeholder, the icon names the field for screen readers.
+                    leadingIconDescription = fieldLabel,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
                     keyboardActions = KeyboardActions(
                         onGo = {
@@ -525,7 +503,7 @@ fun SearchOverlay(
                 Column(
                     modifier = controlsModifier
                         .fillMaxWidth()
-                        .padding(bottom = if (imeVisible) SearchConfig.KeyboardGap else SearchConfig.BottomSpacing),
+                        .padding(bottom = searchBarBottomGap(imeVisible)),
                 ) {
                 // One row: the field, then the filter pill and the grid/list toggle, or the mirror
                 // image in left-handed mode.
@@ -1469,42 +1447,27 @@ private fun LayoutToggle(
 ) {
     val context = LocalContext.current
     val haptics = remember(context) { Haptics(context) }
-    Box(
-        modifier = modifier
-            .size(SearchConfig.LayoutToggleSize)
-            .liquidGlass(CircleShape)
-            .then(
-                if (asGrid) {
-                    Modifier.background(
-                        ThemeConfig.Foreground.copy(alpha = CategoryFilterConfig.THUMB_SHEEN_ALPHA),
-                        CircleShape,
-                    )
-                } else {
-                    Modifier
-                },
-            )
-            .toggleable(value = asGrid, role = Role.Switch) {
-                haptics.tick()
-                onChange(it)
+    GlassCircleButton(
+        icon = if (asGrid) GridLayoutIcon else ListLayoutIcon,
+        contentDescription = stringResource(
+            when (category) {
+                null -> R.string.show_all_as_grid
+                // Shortcuts have no tab of their own; they're in the apps'.
+                SearchCategory.APP, SearchCategory.SHORTCUT, SearchCategory.SETTING -> R.string.show_apps_as_grid
+                SearchCategory.CONTACT -> R.string.show_contacts_as_grid
+                SearchCategory.EVENT -> R.string.show_events_as_grid
+                SearchCategory.FILE, SearchCategory.FOLDER -> R.string.show_files_as_grid
             },
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = if (asGrid) GridLayoutIcon else ListLayoutIcon,
-            contentDescription = stringResource(
-                when (category) {
-                    null -> R.string.show_all_as_grid
-                    // Shortcuts have no tab of their own; they're in the apps'.
-                    SearchCategory.APP, SearchCategory.SHORTCUT, SearchCategory.SETTING -> R.string.show_apps_as_grid
-                    SearchCategory.CONTACT -> R.string.show_contacts_as_grid
-                    SearchCategory.EVENT -> R.string.show_events_as_grid
-                    SearchCategory.FILE, SearchCategory.FOLDER -> R.string.show_files_as_grid
-                },
-            ),
-            tint = ThemeConfig.Foreground,
-            modifier = Modifier.size(SearchConfig.LayoutToggleIconSize),
-        )
-    }
+        ),
+        size = SearchConfig.LayoutToggleSize,
+        iconSize = SearchConfig.LayoutToggleIconSize,
+        highlighted = asGrid,
+        action = Modifier.toggleable(value = asGrid, role = Role.Switch) {
+            haptics.tick()
+            onChange(it)
+        },
+        modifier = modifier,
+    )
 }
 
 /**
