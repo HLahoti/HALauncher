@@ -4,13 +4,12 @@
          shown in Settings > About. Rewrite both with every release (see PLAY_STORE_CHECKLIST.md).
          While release_notes_version isn't the app's versionName, About leaves the list out rather
          than show another release's notes. -->
-    <string name="release_notes_version" translatable="false">1.9</string>
+    <string name="release_notes_version" translatable="false">1.10</string>
     <string-array name="release_notes">
-        <item>Search has a new look: the search bar sits at the bottom, under your thumb, on frosted glass over your results. A filter button beside it shows where you are; press it and slide to apps, people, events or files, or tap it to leave the choices open.</item>
-        <item>Type what you want done: \"timer 10m\", \"alarm 7:30\", \"call Mom\", \"text Sam\", \"email Priya\", \"maps coffee\" or \"event Lunch with Sam\", then press Go. Timers and alarms are set without opening the clock, and \"alarm off\" and \"timer stop\" are there for when plans change. Each row says which app it will open.</item>
-        <item>Calendar events turn up in search, with an Events tab for what\'s coming up. Hold one to join its video call or get directions.</item>
-        <item>Hints beside the result count show how to finish a command as you type it, and Search tips in settings lists everything search can do, with examples to try.</item>
-        <item>Permissions are only asked for when you tap to allow them, from the tab that needs them.</item>
-        <item>App backups, caches and the trash are always left out of file search, so the \"Reduce index size\" setting is gone.</item>
+        <item>Pin app shortcuts to the sphere, like a new incognito tab or Compose in Gmail: search for them in the sphere\'s editor, or hold one in search and choose Pin to home.</item>
+        <item>The sphere\'s editor has a search bar at the bottom, like search\'s, with a round Done button beside it, both within reach of your thumb.</item>
+        <item>The clock, camera and browser buttons can open an app you choose, and any button or the date can open one of an app\'s shortcuts. Hold one to choose; until you do, the clock, camera and browser open your phone\'s defaults.</item>
+        <item>As you type, chips above the search bar suggest filters that fit, like Contacts, Settings or PDFs. Type \"!\" and a name to call one up yourself: \"!pdf\" lists your PDFs.</item>
+        <item>Alarm times work without a colon: \"alarm 730\".</item>
     </string-array>
 </resources>
