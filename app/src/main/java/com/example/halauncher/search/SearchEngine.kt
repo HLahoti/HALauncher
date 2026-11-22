@@ -76,6 +76,10 @@ class SearchEngine(
         return loaded
     }
 
+    /** Every indexed app shortcut, grouped by app (A–Z within each): what the pin picker offers. */
+    @WorkerThread
+    fun allShortcuts(): List<ShortcutEntry> = loadShortcutsByApp().values.flatten()
+
     /**
      * [entries] with each app in it followed by its shortcuts: up to
      * [SearchLayersConfig.SHORTCUTS_PER_MATCHED_APP] of them, the most used first, then A–Z. So

@@ -21,7 +21,8 @@ import com.example.halauncher.model.ShortcutEntry
  * permission, but only the default home app may read them, so this returns nothing on any other.
  *
  * The launcher's own shortcuts (res/xml/shortcuts.xml, such as its settings) are included too, and
- * so are the shortcuts pinned to the sphere through "Add to home screen" (see PinShortcutActivity).
+ * so are the shortcuts pinned to the sphere, through "Add to home screen" (see PinShortcutActivity)
+ * or from the launcher itself ([pin]).
  *
  * Work apps' shortcuts are read from the work profile (see [WorkProfiles]) and kept apart from the
  * personal copy's: named "… (work)", badged, and opened in the work profile.
@@ -114,6 +115,36 @@ class ShortcutProvider(
             .distinctBy { it.id }
             .toList()
             .mapNotNull { entry -> (icons.load(entry) ?: findApp(entry.appKey)?.icon)?.let { entry.copy(icon = it) } }
+    }
+
+    /**
+     * Pins [entry] to this launcher, so it can go on the sphere (which only shows pinned shortcuts,
+     * see [loadPinned]) and its app knows it's on the home screen. Its other pinned shortcuts stay
+     * pinned. True if it's pinned now (or already was); false if it's gone, or shortcuts can't be
+     * read (not the default home app).
+     */
+    @WorkerThread
+    fun pin(entry: ShortcutEntry): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N_MR1 || !hasAccess()) return false
+        val profile = entry.workProfile ?: Process.myUserHandle()
+        fun pinnedIds() = query(ShortcutQuery().setPackage(entry.packageName).setQueryFlags(ShortcutQuery.FLAG_MATCH_PINNED), profile)
+            .map { it.id }
+        val alreadyPinned = pinnedIds()
+        if (entry.shortcutId in alreadyPinned) return true
+        try {
+            launcherApps?.pinShortcuts(entry.packageName, alreadyPinned + entry.shortcutId, profile)
+        } catch (e: SecurityException) {
+            // No longer the default home app, or the work profile is gone.
+            return false
+        } catch (e: IllegalStateException) {
+            // The user's storage is still locked.
+            return false
+        } catch (e: IllegalArgumentException) {
+            // The app was uninstalled meanwhile.
+            return false
+        }
+        // An id the app no longer has is quietly ignored, so check it took.
+        return entry.shortcutId in pinnedIds()
     }
 
     /**

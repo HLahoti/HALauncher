@@ -93,7 +93,7 @@ fun hasEntryMenu(entry: SearchEntry, actions: SearchEntryActions): Boolean =
         is AppInfo, is FileEntry, is FolderEntry -> true
         is ContactEntry -> entry.phoneNumber != null || entry.id in actions.recentIds
         is EventEntry -> entry.meetingUrl != null || entry.placeToNavigate != null || entry.id in actions.recentIds
-        is ShortcutEntry -> entry.id in actions.pinKeys || entry.id in actions.recentIds
+        is ShortcutEntry -> !actions.locked && (entry.id in actions.pinKeys || actions.canPinMore) || entry.id in actions.recentIds
         else -> entry.id in actions.recentIds
     }
 
@@ -147,10 +147,12 @@ private fun entryMenuItems(
             val path = storagePath(entry.path)
             add(EntryMenuItem(R.string.action_copy_path) { context.copy(entry.name, path, R.string.path_copied, entry.name) })
         }
-        // A shortcut added through "Add to home screen" can come off the sphere from here too.
-        // Others, and Settings screens, have nothing worth a menu of their own.
-        is ShortcutEntry -> if (!actions.locked && entry.id in actions.pinKeys) {
-            add(EntryMenuItem(R.string.action_unpin) { actions.onTogglePinned(entry) })
+        // A shortcut can go on the sphere, or come off it, as an app can.
+        is ShortcutEntry -> if (!actions.locked) {
+            val pinned = entry.id in actions.pinKeys
+            if (pinned || actions.canPinMore) {
+                add(EntryMenuItem(if (pinned) R.string.action_unpin else R.string.action_pin) { actions.onTogglePinned(entry) })
+            }
         }
         else -> Unit
     }

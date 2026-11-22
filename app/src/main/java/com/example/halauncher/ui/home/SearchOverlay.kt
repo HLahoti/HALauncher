@@ -1617,7 +1617,7 @@ private fun rememberContactPhoto(entry: SearchEntry, contactPhotos: ContactPhoto
  * loaded it in the background. Null for anything that isn't a shortcut with an icon.
  */
 @Composable
-private fun rememberShortcutIcon(entry: SearchEntry, shortcutIcons: ShortcutIconCache?): Drawable? {
+internal fun rememberShortcutIcon(entry: SearchEntry, shortcutIcons: ShortcutIconCache?): Drawable? {
     val shortcut = entry as? ShortcutEntry
     var icon by remember(shortcut, shortcutIcons) { mutableStateOf(shortcut?.let { shortcutIcons?.cached(it) }) }
     LaunchedEffect(shortcut, shortcutIcons) {

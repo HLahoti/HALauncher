@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridItemInfo
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -26,7 +27,14 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Icon
@@ -42,6 +50,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,6 +61,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -61,6 +71,7 @@ import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.toOffset
@@ -71,9 +82,11 @@ import com.example.halauncher.config.PinPickerConfig
 import com.example.halauncher.config.SearchConfig
 import com.example.halauncher.config.ThemeConfig
 import com.example.halauncher.data.PinnedAppsStore
+import com.example.halauncher.data.ShortcutIconCache
 import com.example.halauncher.model.AppInfo
 import com.example.halauncher.model.SearchEntry
 import com.example.halauncher.model.ShortcutEntry
+import com.example.halauncher.search.normalizeForSearch
 import com.example.halauncher.ui.components.isLandscape
 import com.example.halauncher.ui.components.liquidGlass
 import com.example.halauncher.ui.components.overlayTopSpacing
@@ -88,11 +101,17 @@ import com.example.halauncher.util.Haptics
  * they're made. Once [PinPickerConfig.MAX_PINNED] are pinned, unpinned apps are disabled until one
  * is unpinned.
  *
+ * A search field filters the list by name. While something's typed, the app shortcuts that match
+ * it (by their name or their app's) are listed after the apps, to pin as well; reordering waits
+ * until the field is cleared, since only some of the pins are showing.
+ *
  * With [mirrored] (left-handed mode), each row is flipped: drag handle and checkbox on the left,
  * name and icon on the right.
  *
  * @param pinned what's pinned and can be shown, in pin order (see HomeViewModel.pinnedItems).
  * @param onReorder the pins' keys (PinnedAppsStore.keyOf) in their new order.
+ * @param shortcuts every app shortcut, offered while searching.
+ * @param shortcutIcons where those shortcuts' icons load from.
  */
 @Composable
 fun PinnedAppsPicker(
@@ -102,11 +121,24 @@ fun PinnedAppsPicker(
     onReorder: (List<String>) -> Unit,
     onDone: () -> Unit,
     mirrored: Boolean = false,
+    shortcuts: List<ShortcutEntry> = emptyList(),
+    shortcutIcons: ShortcutIconCache? = null,
 ) {
     val pinnedApps = pinned
-    val otherApps = remember(apps, pinned) {
-        val pinnedKeys = pinned.mapTo(HashSet(), ::pinKey)
-        apps.filter { it.key !in pinnedKeys }
+    var query by rememberSaveable { mutableStateOf("") }
+    val folded = remember(query) { normalizeForSearch(query.trim()) }
+    val filtering = folded.isNotEmpty()
+    val matches = { entry: SearchEntry ->
+        normalizeForSearch(entry.name).contains(folded) ||
+            (entry is ShortcutEntry && normalizeForSearch(entry.appName).contains(folded))
+    }
+    val pinnedKeys = remember(pinned) { pinned.mapTo(HashSet(), ::pinKey) }
+    val otherApps = remember(apps, pinnedKeys, folded) {
+        apps.filter { it.key !in pinnedKeys && (!filtering || matches(it)) }
+    }
+    // Only while searching: listing every shortcut of every app would bury the apps.
+    val otherShortcuts = remember(shortcuts, pinnedKeys, folded) {
+        if (!filtering) emptyList() else shortcuts.filter { it.id !in pinnedKeys && matches(it) }
     }
     val pinnedCount = pinnedApps.size
     val isFull = pinnedCount >= PinPickerConfig.MAX_PINNED
@@ -125,7 +157,10 @@ fun PinnedAppsPicker(
     LaunchedEffect(pinnedApps) {
         if (!reorder.isDragging) reorder.order = null
     }
-    val shownPinned = reorder.order ?: pinnedApps
+    val shownPinned = if (filtering) pinnedApps.filter(matches) else reorder.order ?: pinnedApps
+    // Each new search starts from the top of its results.
+    LaunchedEffect(folded) { gridState.scrollToItem(0) }
+    val focusManager = LocalFocusManager.current
 
     val startDrag = { app: SearchEntry ->
         if (reorder.start(pinKey(app), currentPinnedApps)) haptics.longPress()
@@ -194,6 +229,20 @@ fun PinnedAppsPicker(
                 }
             }
             Spacer(Modifier.height(SearchConfig.ResultsSpacing))
+            PickerSearchField(
+                query = query,
+                onQueryChange = { query = it },
+                onDone = { focusManager.clearFocus() },
+            )
+            Spacer(Modifier.height(SearchConfig.ResultsSpacing))
+            if (filtering && shownPinned.isEmpty() && otherApps.isEmpty() && otherShortcuts.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.no_results),
+                    color = ThemeConfig.Foreground.copy(alpha = SearchConfig.SECTION_LABEL_ALPHA),
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(SearchConfig.ResultRowPadding),
+                )
+            }
             LazyVerticalGrid(columns = GridCells.Fixed(columns), state = gridState, modifier = Modifier.fillMaxWidth()) {
                 // Pinned apps come first so their indices match their place in the order.
                 itemsIndexed(shownPinned, key = { _, app -> pinKey(app) }) { index, app ->
@@ -221,7 +270,8 @@ fun PinnedAppsPicker(
                         isPinned = true,
                         enabled = true,
                         onToggle = { onToggle(app) },
-                        modifier = placement.semantics {
+                        shortcutIcons = shortcutIcons,
+                        modifier = if (filtering) Modifier.animateItem() else placement.semantics {
                             customActions = listOfNotNull(
                                 CustomAccessibilityAction(moveUpLabel) { moveBy(index, -1); true }
                                     .takeIf { index > 0 },
@@ -229,8 +279,8 @@ fun PinnedAppsPicker(
                                     .takeIf { index < shownPinned.lastIndex },
                             )
                         },
-                        // Up and down in one column; any direction across two.
-                        dragHandle = Modifier.pointerInput(pinKey(app), columns) {
+                        // Up and down in one column; any direction across two. Not while searching.
+                        dragHandle = if (filtering) null else Modifier.pointerInput(pinKey(app), columns) {
                             if (columns == 1) {
                                 detectVerticalDragGestures(
                                     onDragStart = { startDrag(app) },
@@ -266,10 +316,80 @@ fun PinnedAppsPicker(
                         modifier = Modifier.animateItem(),
                     )
                 }
+                if (otherShortcuts.isNotEmpty()) {
+                    item(key = SHORTCUTS_HEADER_KEY, span = { GridItemSpan(maxLineSpan) }) {
+                        Text(
+                            text = stringResource(R.string.pin_picker_shortcuts),
+                            color = ThemeConfig.Foreground.copy(alpha = SearchConfig.SECTION_LABEL_ALPHA),
+                            style = MaterialTheme.typography.labelMedium,
+                            modifier = Modifier
+                                .animateItem()
+                                .padding(SearchConfig.ResultRowPadding)
+                                .semantics { heading() },
+                        )
+                    }
+                }
+                items(otherShortcuts, key = { it.id }) { shortcut ->
+                    PickerRow(
+                        app = shortcut,
+                        mirrored = mirrored,
+                        isPinned = false,
+                        enabled = !isFull,
+                        onToggle = { onToggle(shortcut) },
+                        shortcutIcons = shortcutIcons,
+                        modifier = Modifier.animateItem(),
+                    )
+                }
             }
         }
     }
 }
+
+/** The picker's search field: a glass pill like search's, with a clear button once something's typed. */
+@Composable
+private fun PickerSearchField(query: String, onQueryChange: (String) -> Unit, onDone: () -> Unit) {
+    val placeholderColor = ThemeConfig.Foreground.copy(alpha = SearchConfig.SECTION_LABEL_ALPHA)
+    val shape = RoundedCornerShape(percent = 50)
+    TextField(
+        value = query,
+        onValueChange = onQueryChange,
+        modifier = Modifier
+            .fillMaxWidth()
+            .liquidGlass(shape, tint = SearchConfig.FIELD_GLASS_TINT),
+        shape = shape,
+        colors = TextFieldDefaults.colors(
+            focusedContainerColor = Color.Transparent,
+            unfocusedContainerColor = Color.Transparent,
+            focusedIndicatorColor = Color.Transparent,
+            unfocusedIndicatorColor = Color.Transparent,
+            focusedTextColor = ThemeConfig.Foreground,
+            unfocusedTextColor = ThemeConfig.Foreground,
+            cursorColor = ThemeConfig.Foreground,
+            focusedLeadingIconColor = ThemeConfig.Foreground,
+            unfocusedLeadingIconColor = ThemeConfig.Foreground,
+            focusedTrailingIconColor = ThemeConfig.Foreground,
+            unfocusedTrailingIconColor = ThemeConfig.Foreground,
+            focusedPlaceholderColor = placeholderColor,
+            unfocusedPlaceholderColor = placeholderColor,
+        ),
+        placeholder = { Text(stringResource(R.string.pin_picker_search), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        // The placeholder names the field; the icon only decorates it.
+        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+        trailingIcon = if (query.isEmpty()) null else {
+            {
+                IconButton(onClick = { onQueryChange("") }) {
+                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.clear_search))
+                }
+            }
+        },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        keyboardActions = KeyboardActions(onSearch = { onDone() }),
+    )
+}
+
+/** Keys the "Shortcuts" heading; pin keys are package names or start "shortcut:", so never this. */
+private const val SHORTCUTS_HEADER_KEY = "#shortcuts"
 
 /**
  * Drag-to-reorder for the pinned apps at the start of the picker's grid, which occupy indices
@@ -341,7 +461,7 @@ private class PinReorderState(
 private fun pinKey(entry: SearchEntry): String = PinnedAppsStore.keyOf(entry) ?: entry.id
 
 /**
- * One app or pinned shortcut: tapping the row toggles its pin. [dragHandle], if given, shows a handle wearing it.
+ * One app or shortcut: tapping the row toggles its pin. [dragHandle], if given, shows a handle wearing it.
  * [mirrored] lays the row out the other way round, right-aligned.
  */
 @Composable
@@ -353,6 +473,7 @@ private fun PickerRow(
     modifier: Modifier = Modifier,
     mirrored: Boolean = false,
     dragHandle: Modifier? = null,
+    shortcutIcons: ShortcutIconCache? = null,
 ) {
     val ambientDirection = LocalLayoutDirection.current
     val rowDirection = when {
@@ -371,8 +492,9 @@ private fun PickerRow(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(SearchConfig.ResultIconTextGap),
             ) {
-                // Pins always have an icon (a shortcut without one gets its app's); keeps the gap if not.
-                val icon = app.icon
+                // Pins always have an icon (a shortcut without one gets its app's); a shortcut found by
+                // searching loads its own. Keeps the gap if there's none.
+                val icon = app.icon ?: rememberShortcutIcon(app, shortcutIcons)
                 if (icon != null) {
                     Image(
                         painter = rememberDrawablePainter(icon),

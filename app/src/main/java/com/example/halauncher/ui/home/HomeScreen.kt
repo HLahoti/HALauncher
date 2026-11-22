@@ -87,7 +87,7 @@ import com.example.halauncher.R
 import com.example.halauncher.config.ClockConfig
 import com.example.halauncher.config.HomeScreenConfig
 import com.example.halauncher.config.PinPickerConfig
-import com.example.halauncher.model.AppInfo
+import com.example.halauncher.model.SearchEntry
 import com.example.halauncher.model.HomeTextColor
 import com.example.halauncher.model.LaunchableElement
 import com.example.halauncher.ui.components.ClickToLaunch
@@ -152,6 +152,10 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     val galleryApp by viewModel.galleryApp.collectAsStateWithLifecycle()
     val messagesApp by viewModel.messagesApp.collectAsStateWithLifecycle()
     val calendarApp by viewModel.calendarApp.collectAsStateWithLifecycle()
+    val clockApp by viewModel.clockApp.collectAsStateWithLifecycle()
+    val cameraApp by viewModel.cameraApp.collectAsStateWithLifecycle()
+    val browserApp by viewModel.browserApp.collectAsStateWithLifecycle()
+    val pickerShortcuts by viewModel.pickerShortcuts.collectAsStateWithLifecycle()
     val searchPurpose by viewModel.searchPurpose.collectAsStateWithLifecycle()
     val calcResult by viewModel.calcResult.collectAsStateWithLifecycle()
     val quickActions by viewModel.quickActions.collectAsStateWithLifecycle()
@@ -349,7 +353,14 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                     .windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout))
                     .padding(start = HomeScreenConfig.StartMargin)
                 val clockAndDate = @Composable {
-                    TimeDisplay(time)
+                    TimeDisplay(
+                        time = time,
+                        app = clockApp,
+                        locked = settingsLocked,
+                        onChoose = viewModel::openClockAppPicker,
+                        onOpened = viewModel::onEntryOpened,
+                        onRemove = viewModel::clearClockApp,
+                    )
                     DateDisplay(
                         date = date,
                         app = calendarApp,
@@ -364,9 +375,11 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                         Column { clockAndDate() }
                         Spacer(Modifier.width(HomeScreenConfig.QuickActionsSpacing))
                         QuickActionsGrid(
+                            cameraApp,
                             galleryApp,
                             messagesApp,
                             moneyApp,
+                            browserApp,
                             moneySymbol,
                             settingsLocked,
                             viewModel,
@@ -382,9 +395,11 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                         clockAndDate()
                         Spacer(Modifier.height(HomeScreenConfig.QuickActionsSpacing))
                         QuickActionsGrid(
+                            cameraApp,
                             galleryApp,
                             messagesApp,
                             moneyApp,
+                            browserApp,
                             moneySymbol,
                             settingsLocked,
                             viewModel,
@@ -423,6 +438,8 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 onReorder = viewModel::reorderPinned,
                 mirrored = leftHanded,
                 onDone = viewModel::closePinPicker,
+                shortcuts = pickerShortcuts,
+                shortcutIcons = viewModel.shortcutIcons,
             )
         }
 
@@ -518,6 +535,9 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 SearchPurpose.PICK_GALLERY_APP -> stringResource(R.string.pick_gallery_app_title)
                 SearchPurpose.PICK_MESSAGES_APP -> stringResource(R.string.pick_messages_app_title)
                 SearchPurpose.PICK_CALENDAR_APP -> stringResource(R.string.pick_calendar_app_title)
+                SearchPurpose.PICK_CLOCK_APP -> stringResource(R.string.pick_clock_app_title)
+                SearchPurpose.PICK_CAMERA_APP -> stringResource(R.string.pick_camera_app_title)
+                SearchPurpose.PICK_BROWSER_APP -> stringResource(R.string.pick_browser_app_title)
                 SearchPurpose.FIND -> null
             },
             onEntryPicked = viewModel::onEntryPicked,
@@ -583,45 +603,67 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     }
 }
 
+/**
+ * The time. Tapping opens the chosen clock app (or shortcut), else the alarms in the device's clock
+ * app; long-press chooses, changes or removes what it opens, like the date.
+ */
 @Composable
-private fun TimeDisplay(time: String) {
+private fun TimeDisplay(
+    time: String,
+    app: SearchEntry?,
+    locked: Boolean,
+    onChoose: () -> Unit,
+    onOpened: (SearchEntry) -> Unit,
+    onRemove: () -> Unit,
+) {
     val context = LocalContext.current
-    val label = stringResource(R.string.open_alarms)
     // Resolving the clock app queries PackageManager, so do it once rather than every minute.
     val alarmIntents = remember(context) { IntentFactory.alarmIntents(context) }
-    val palette = LocalHomePalette.current
-    val element = remember(time, label, alarmIntents, palette) {
-        LaunchableElement(
-            displayContent = {
-                Text(
-                    text = time,
-                    color = palette.foreground,
-                    style = TextStyle(
-                        fontSize = ClockConfig.TimeFontSize,
-                        fontWeight = FontWeight.Bold,
-                        shadow = palette.textShadow,
-                    ),
-                )
-            },
-            launchIntent = alarmIntents.first(),
-            actionLabel = label,
-            fallbackIntents = alarmIntents.drop(1),
+    ChosenAppButton(
+        app = app,
+        defaultIntent = alarmIntents.first(),
+        fallbackIntents = alarmIntents.drop(1),
+        // Opening the alarms is useful as it is, so the clock doesn't insist on a choice.
+        askUntilChosen = false,
+        namedDescriptionRes = R.string.clock_app_named,
+        notSetDescriptionRes = R.string.clock_app_default,
+        defaultDescriptionRes = R.string.clock_app_default,
+        defaultOpenLabelRes = R.string.open_alarms,
+        optionsLabelRes = R.string.clock_app_options,
+        chooseLabelRes = R.string.choose_clock_app,
+        locked = locked,
+        onChoose = onChoose,
+        onOpened = onOpened,
+        onRemove = onRemove,
+        spokenText = time,
+    ) {
+        val palette = LocalHomePalette.current
+        Text(
+            text = time,
+            color = palette.foreground,
+            style = TextStyle(
+                fontSize = ClockConfig.TimeFontSize,
+                fontWeight = FontWeight.Bold,
+                shadow = palette.textShadow,
+            ),
         )
     }
-    ClickToLaunch(element)
 }
 
 /**
  * The quick actions, in a 3×2 grid of universal needs: camera / gallery, calls / messages,
  * payments / internet. Gallery, messages and payments open the app the user chose, and until one
- * is chosen they ask for it; the rest open the device's default app for their category. Search
+ * is chosen they ask for it. Camera and internet open what the user chose too, but until then the
+ * device's default camera and browser; calls always open the default dialer. Search
  * opens on swipe up.
  */
 @Composable
 private fun QuickActionsGrid(
-    galleryApp: AppInfo?,
-    messagesApp: AppInfo?,
-    moneyApp: AppInfo?,
+    cameraApp: SearchEntry?,
+    galleryApp: SearchEntry?,
+    messagesApp: SearchEntry?,
+    moneyApp: SearchEntry?,
+    browserApp: SearchEntry?,
     moneySymbol: String,
     locked: Boolean,
     viewModel: HomeViewModel,
@@ -630,11 +672,25 @@ private fun QuickActionsGrid(
     val palette = LocalHomePalette.current
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(HomeScreenConfig.QuickActionSpacing)) {
         Row(horizontalArrangement = Arrangement.spacedBy(HomeScreenConfig.QuickActionSpacing)) {
-            QuickActionButton(
-                ImageVector.vectorResource(R.drawable.ic_camera),
-                R.string.open_camera,
-                remember { IntentFactory.cameraIntent() },
-            )
+            ChosenAppButton(
+                app = cameraApp,
+                defaultIntent = remember { IntentFactory.cameraIntent() },
+                // The default camera is what most want, so it opens until something else is chosen.
+                askUntilChosen = false,
+                namedDescriptionRes = R.string.camera_app_named,
+                notSetDescriptionRes = R.string.camera_app_default,
+                defaultDescriptionRes = R.string.camera_app_default,
+                defaultOpenLabelRes = R.string.open_camera,
+                optionsLabelRes = R.string.camera_app_options,
+                chooseLabelRes = R.string.choose_camera_app,
+                locked = locked,
+                modifier = QuickActionButtonShape,
+                onChoose = viewModel::openCameraAppPicker,
+                onOpened = viewModel::onEntryOpened,
+                onRemove = viewModel::clearCameraApp,
+            ) {
+                QuickActionGlyph(ImageVector.vectorResource(R.drawable.ic_camera))
+            }
             ChosenAppButton(
                 app = galleryApp,
                 defaultIntent = remember { IntentFactory.galleryIntent() },
@@ -701,11 +757,25 @@ private fun QuickActionsGrid(
                     ),
                 )
             }
-            QuickActionButton(
-                ImageVector.vectorResource(R.drawable.ic_internet),
-                R.string.open_internet,
-                remember { IntentFactory.internetIntent() },
-            )
+            ChosenAppButton(
+                app = browserApp,
+                defaultIntent = remember { IntentFactory.internetIntent() },
+                // Likewise the default browser.
+                askUntilChosen = false,
+                namedDescriptionRes = R.string.browser_app_named,
+                notSetDescriptionRes = R.string.browser_app_default,
+                defaultDescriptionRes = R.string.browser_app_default,
+                defaultOpenLabelRes = R.string.open_internet,
+                optionsLabelRes = R.string.browser_app_options,
+                chooseLabelRes = R.string.choose_browser_app,
+                locked = locked,
+                modifier = QuickActionButtonShape,
+                onChoose = viewModel::openBrowserAppPicker,
+                onOpened = viewModel::onEntryOpened,
+                onRemove = viewModel::clearBrowserApp,
+            ) {
+                QuickActionGlyph(ImageVector.vectorResource(R.drawable.ic_internet))
+            }
         }
     }
 }
@@ -756,12 +826,14 @@ private fun QuickActionGlyph(icon: ImageVector) {
 
 /**
  * A home-screen target whose app the user can choose (payments, gallery, messages, the date's
- * calendar). Tapping opens the chosen app. With none chosen, both tap and long-press ask the user to
+ * calendar, the clock, the camera, the browser), or one of that app's shortcuts ("New message"). Tapping opens the chosen app. With none chosen, both tap and long-press ask the user to
  * choose one, so a new user discovers the button is theirs to set rather than it quietly opening
  * some default. Once chosen, long-press (firmer haptic) opens a menu to change or remove the app.
  *
  * While [locked] nothing can be chosen, so it only opens: the chosen app, else [defaultIntent] (the
- * device's default for the category; null for payments, which has none, so the button does nothing).
+ * device's default for the category, else the first of [fallbackIntents] that works; null for
+ * payments, which has none, so the button does nothing). With [askUntilChosen] off (the clock, camera and browser),
+ * tapping opens that default even while unchosen, and only long-press chooses.
  *
  * The description, labels and menu wording come from the given string resources ([notSetDescriptionRes]
  * while unchosen and choosable, [defaultDescriptionRes] while unchosen and locked); [glyph] draws the
@@ -771,7 +843,7 @@ private fun QuickActionGlyph(icon: ImageVector) {
  */
 @Composable
 private fun ChosenAppButton(
-    app: AppInfo?,
+    app: SearchEntry?,
     defaultIntent: Intent?,
     @StringRes namedDescriptionRes: Int,
     @StringRes notSetDescriptionRes: Int,
@@ -781,17 +853,20 @@ private fun ChosenAppButton(
     @StringRes chooseLabelRes: Int,
     locked: Boolean,
     onChoose: () -> Unit,
-    onOpened: (AppInfo) -> Unit,
+    onOpened: (SearchEntry) -> Unit,
     onRemove: () -> Unit,
     modifier: Modifier = Modifier,
     spokenText: String? = null,
+    fallbackIntents: List<Intent> = emptyList(),
+    askUntilChosen: Boolean = true,
     glyph: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
     val haptics = remember(context) { Haptics(context) }
     var menuOpen by remember { mutableStateOf(false) }
-    // Unchosen and not locked: every interaction leads to choosing.
-    val choosing = app == null && !locked
+    // Unchosen and not locked: every interaction leads to choosing (unless it has a default worth
+    // opening meanwhile, the clock's alarms).
+    val choosing = app == null && !locked && askUntilChosen
     val appDescription = when {
         app != null -> stringResource(namedDescriptionRes, app.name)
         choosing -> stringResource(notSetDescriptionRes)
@@ -806,7 +881,7 @@ private fun ChosenAppButton(
     // Long-press chooses directly while unchosen, else opens the menu; nothing while locked.
     val longPressLabel = when {
         locked -> null
-        choosing -> stringResource(chooseLabelRes)
+        app == null -> stringResource(chooseLabelRes)
         else -> stringResource(optionsLabelRes)
     }
 
@@ -815,11 +890,11 @@ private fun ChosenAppButton(
         when {
             app != null -> if (context.launchSafely(app, openLabel)) onOpened(app)
             choosing -> onChoose()
-            defaultIntent != null -> context.launchSafely(defaultIntent, openLabel)
+            defaultIntent != null -> context.launchSafely(listOf(defaultIntent) + fallbackIntents, openLabel)
         }
     }
     val longPress = {
-        if (choosing) onChoose() else menuOpen = true
+        if (app == null) onChoose() else menuOpen = true
     }
 
     Box {
@@ -880,10 +955,10 @@ private fun ChosenAppButton(
 @Composable
 private fun DateDisplay(
     date: String,
-    app: AppInfo?,
+    app: SearchEntry?,
     locked: Boolean,
     onChoose: () -> Unit,
-    onOpened: (AppInfo) -> Unit,
+    onOpened: (SearchEntry) -> Unit,
     onRemove: () -> Unit,
 ) {
     ChosenAppButton(

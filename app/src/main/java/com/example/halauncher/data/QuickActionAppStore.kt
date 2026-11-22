@@ -4,16 +4,17 @@ import android.content.Context
 import androidx.core.content.edit
 
 /**
- * Which app the user assigned to each assignable home-screen button (by package name), kept in
- * the launcher's preferences so it survives restarts. An assigned app that's since been
- * uninstalled is simply not found, and the button asks for a new one.
+ * Which app or app shortcut the user assigned to each assignable home-screen button (by its
+ * AppInfo.key or ShortcutEntry id), kept in the launcher's preferences so it survives restarts. An
+ * assigned app that's since been uninstalled (or shortcut removed) is simply not found, and the
+ * button asks for a new one.
  */
 class QuickActionAppStore(context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     fun load(slot: String): String? = prefs.getString(slot, null)
 
-    fun save(slot: String, packageName: String) = prefs.edit { putString(slot, packageName) }
+    fun save(slot: String, key: String) = prefs.edit { putString(slot, key) }
 
     fun clear(slot: String) = prefs.edit { remove(slot) }
 
@@ -31,5 +32,14 @@ class QuickActionAppStore(context: Context) {
 
         /** The date on the home screen, which opens a calendar. */
         const val CALENDAR_SLOT = "calendar"
+
+        /** The clock on the home screen, which opens the alarms until something else is chosen. */
+        const val CLOCK_SLOT = "clock"
+
+        /** The camera button, which opens the default camera until something else is chosen. */
+        const val CAMERA_SLOT = "camera"
+
+        /** The browser button, which opens the default browser until something else is chosen. */
+        const val BROWSER_SLOT = "browser"
     }
 }

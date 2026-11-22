@@ -13,25 +13,40 @@
     <string name="money_app_options">Payments app options</string>
     <string name="change_app">Change app</string>
     <string name="remove">Remove</string>
-    <string name="pick_money_app_title">Choose an app for the %1$s button</string>
+    <string name="pick_money_app_title">Choose an app or shortcut for the %1$s button</string>
     <string name="gallery_app_not_set">Gallery app, not chosen yet</string>
     <string name="gallery_app_default">Gallery app: device default</string>
     <string name="gallery_app_named">Gallery app: %1$s</string>
     <string name="choose_gallery_app">Choose a gallery app</string>
     <string name="gallery_app_options">Gallery app options</string>
-    <string name="pick_gallery_app_title">Choose an app for the gallery button</string>
+    <string name="pick_gallery_app_title">Choose an app or shortcut for the gallery button</string>
     <string name="messages_app_not_set">Messages app, not chosen yet</string>
     <string name="messages_app_default">Messages app: device default</string>
     <string name="messages_app_named">Messages app: %1$s</string>
     <string name="choose_messages_app">Choose a messages app</string>
     <string name="messages_app_options">Messages app options</string>
-    <string name="pick_messages_app_title">Choose an app for the messages button</string>
+    <string name="pick_messages_app_title">Choose an app or shortcut for the messages button</string>
     <string name="calendar_app_not_set">Calendar app, not chosen yet</string>
     <string name="calendar_app_default">Calendar app: device default</string>
     <string name="calendar_app_named">Calendar app: %1$s</string>
     <string name="choose_calendar_app">Choose a calendar app</string>
     <string name="calendar_app_options">Calendar app options</string>
-    <string name="pick_calendar_app_title">Choose an app for the date</string>
+    <string name="pick_calendar_app_title">Choose an app or shortcut for the date</string>
+    <string name="clock_app_default">Clock: opens alarms</string>
+    <string name="clock_app_named">Clock app: %1$s</string>
+    <string name="choose_clock_app">Choose a clock app</string>
+    <string name="clock_app_options">Clock app options</string>
+    <string name="pick_clock_app_title">Choose an app or shortcut for the clock</string>
+    <string name="camera_app_default">Camera app: device default</string>
+    <string name="camera_app_named">Camera app: %1$s</string>
+    <string name="choose_camera_app">Choose a camera app</string>
+    <string name="camera_app_options">Camera app options</string>
+    <string name="pick_camera_app_title">Choose an app or shortcut for the camera button</string>
+    <string name="browser_app_default">Browser: device default</string>
+    <string name="browser_app_named">Browser: %1$s</string>
+    <string name="choose_browser_app">Choose a browser</string>
+    <string name="browser_app_options">Browser options</string>
+    <string name="pick_browser_app_title">Choose an app or shortcut for the browser button</string>
     <string name="choose_app">Choose %1$s</string>
     <string name="open_app">Open %1$s</string>
     <string name="search_apps">Search apps, files and more</string>
@@ -277,6 +292,11 @@
     <string name="pinned_apps">Pinned apps</string>
     <string name="pin_apps">Pin apps</string>
     <string name="edit_pinned_apps">Edit pinned apps</string>
+    <string name="clear_search">Clear search</string>
+    <!-- Placeholder of the search field at the top of the pinned apps list. -->
+    <string name="pin_picker_search">Search apps and shortcuts</string>
+    <!-- Heading over the app shortcuts that match a search in the pinned apps list. -->
+    <string name="pin_picker_shortcuts">Shortcuts</string>
     <string name="done">Done</string>
     <string name="next">Next</string>
     <!-- A work-profile app's name, e.g. "Chrome (work)". -->

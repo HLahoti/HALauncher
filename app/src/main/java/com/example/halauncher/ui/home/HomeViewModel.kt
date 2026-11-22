@@ -102,17 +102,26 @@ import kotlinx.coroutines.withContext
 enum class SearchPurpose {
     FIND,
 
-    /** Choosing the money button's app: apps only, and tapping a result assigns it. */
+    /** Choosing the money button's app: an app or one of its shortcuts; tapping a result assigns it. */
     PICK_MONEY_APP,
 
-    /** Choosing the gallery button's app: apps only, and tapping a result assigns it. */
+    /** Choosing the gallery button's app: an app or one of its shortcuts; tapping a result assigns it. */
     PICK_GALLERY_APP,
 
-    /** Choosing the messages button's app: apps only, and tapping a result assigns it. */
+    /** Choosing the messages button's app: an app or one of its shortcuts; tapping a result assigns it. */
     PICK_MESSAGES_APP,
 
-    /** Choosing the app the date opens: apps only, and tapping a result assigns it. */
+    /** Choosing the app the date opens: an app or one of its shortcuts; tapping a result assigns it. */
     PICK_CALENDAR_APP,
+
+    /** Choosing the app the clock opens: an app or one of its shortcuts; tapping a result assigns it. */
+    PICK_CLOCK_APP,
+
+    /** Choosing the camera button's app: an app or one of its shortcuts; tapping a result assigns it. */
+    PICK_CAMERA_APP,
+
+    /** Choosing the browser button's app: an app or one of its shortcuts; tapping a result assigns it. */
+    PICK_BROWSER_APP,
 }
 
 /**
@@ -248,7 +257,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     /** Pins saved elsewhere (the "Add to home screen" activity) show up here. Held, as prefs hold it weakly. */
     private val pinsWatcher = pinnedAppsStore.watch { _pinKeys.value = pinnedAppsStore.load() }
 
-    /** The pinned shortcuts that still exist, by id, with their icons loaded; see [refreshPinnedShortcuts]. */
+    /**
+     * The shortcuts pinned to the sphere or chosen for a button that still exist, by id, with their
+     * icons loaded; see [refreshPinnedShortcuts].
+     */
     private val pinnedShortcuts = MutableStateFlow<Map<String, ShortcutEntry>>(emptyMap())
 
     /**
@@ -271,15 +283,49 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val gallerySlot = QuickActionSlot(QuickActionAppStore.GALLERY_SLOT, SearchPurpose.PICK_GALLERY_APP)
     private val messagesSlot = QuickActionSlot(QuickActionAppStore.MESSAGES_SLOT, SearchPurpose.PICK_MESSAGES_APP)
     private val calendarSlot = QuickActionSlot(QuickActionAppStore.CALENDAR_SLOT, SearchPurpose.PICK_CALENDAR_APP)
+    private val clockSlot = QuickActionSlot(QuickActionAppStore.CLOCK_SLOT, SearchPurpose.PICK_CLOCK_APP)
+    private val cameraSlot = QuickActionSlot(QuickActionAppStore.CAMERA_SLOT, SearchPurpose.PICK_CAMERA_APP)
+    private val browserSlot = QuickActionSlot(QuickActionAppStore.BROWSER_SLOT, SearchPurpose.PICK_BROWSER_APP)
 
-    /** The app the payments button opens, or null if none is chosen (or it's been uninstalled). */
-    val moneyApp: StateFlow<AppInfo?> = moneySlot.app
-    /** The app the gallery button opens, or null if none is chosen (or it's been uninstalled). */
-    val galleryApp: StateFlow<AppInfo?> = gallerySlot.app
-    /** The app the messages button opens, or null if none is chosen (or it's been uninstalled). */
-    val messagesApp: StateFlow<AppInfo?> = messagesSlot.app
-    /** The app the date opens, or null if none is chosen (or it's been uninstalled). */
-    val calendarApp: StateFlow<AppInfo?> = calendarSlot.app
+    private val slots = listOf(moneySlot, gallerySlot, messagesSlot, calendarSlot, clockSlot, cameraSlot, browserSlot)
+
+    /**
+     * The app (or app shortcut) the payments button opens, or null if none is chosen (or it's
+     * been uninstalled, or the shortcut removed). Likewise the next three.
+     */
+    val moneyApp: StateFlow<SearchEntry?> = moneySlot.app
+    val galleryApp: StateFlow<SearchEntry?> = gallerySlot.app
+    val messagesApp: StateFlow<SearchEntry?> = messagesSlot.app
+    /** What the date opens. */
+    val calendarApp: StateFlow<SearchEntry?> = calendarSlot.app
+    /** What the clock opens (its alarms in the device's clock app while none is chosen). */
+    val clockApp: StateFlow<SearchEntry?> = clockSlot.app
+    /** What the camera button opens (the device's default camera while none is chosen). */
+    val cameraApp: StateFlow<SearchEntry?> = cameraSlot.app
+    /** What the browser button opens (the device's default browser while none is chosen). */
+    val browserApp: StateFlow<SearchEntry?> = browserSlot.app
+
+    /** The keys chosen for the buttons and the date, as one flow. */
+    private val slotKeys: Flow<Set<String>> =
+        combine(slots.map { it.chosen }) { chosen -> chosen.filterNotNullTo(HashSet()) }
+
+    /**
+     * Every shortcut key the launcher holds on to: pinned to the sphere or chosen for a button. The
+     * launcher keeps these pinned with the system, so they stay put even if their app drops them
+     * from its own list.
+     */
+    private fun shortcutKeysInUse(): Set<String> =
+        (_pinKeys.value + slots.mapNotNull { it.chosen.value })
+            .filterTo(HashSet()) { PinnedAppsStore.appKeyOfShortcutKey(it) != null }
+
+    /**
+     * Unpins [shortcut] from the launcher once neither the sphere nor a button uses it. Callers find
+     * it before letting go of its key: dropping the last shortcut key empties [pinnedShortcuts] at once.
+     */
+    private fun releaseShortcutIfUnused(shortcut: ShortcutEntry) {
+        if (shortcut.id in shortcutKeysInUse()) return
+        viewModelScope.launch(Dispatchers.IO) { shortcutProvider.unpin(shortcut) }
+    }
 
     private val _searchPurpose = MutableStateFlow(SearchPurpose.FIND)
     val searchPurpose: StateFlow<SearchPurpose> = _searchPurpose.asStateFlow()
@@ -796,7 +842,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         // Pinned shortcuts are looked up again when the pins change, and when the apps do (one
         // uninstalled takes its shortcuts with it).
         viewModelScope.launch {
-            combine(_pinKeys, _installedApps) { keys, _ -> keys }.collectLatest { refreshPinnedShortcuts(it) }
+            combine(_pinKeys, slotKeys, _installedApps) { pins, chosen, _ -> pins + chosen }
+                .collectLatest { refreshPinnedShortcuts(it) }
         }
         // The first time the launcher ever opens, walk the user through setup (making it the default
         // home, and the permissions search uses); the tour follows once setup is finished. On an
@@ -860,10 +907,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             indexUpdater.requestSync(listOf(SearchCategory.EVENT), urgent = false)
         }
         // An app may have removed, renamed or re-iconed a pinned shortcut while the launcher was away.
-        if (started) viewModelScope.launch { refreshPinnedShortcuts(_pinKeys.value) }
+        if (started) viewModelScope.launch { refreshPinnedShortcuts(shortcutKeysInUse().toList()) }
     }
 
-    /** Looks up the shortcuts among [keys] as they are now, icons and all, for [pinnedItems]. */
+    /**
+     * Looks up the shortcuts among [keys] as they are now, icons and all, for [pinnedItems] and
+     * the buttons.
+     */
     private suspend fun refreshPinnedShortcuts(keys: List<String>) {
         val ids = keys.filter { PinnedAppsStore.appKeyOfShortcutKey(it) != null }
         pinnedShortcuts.value = if (ids.isEmpty()) {
@@ -1063,16 +1113,31 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     /** Opens app-only search so the user can choose the app the date opens. */
     fun openCalendarAppPicker() = calendarSlot.openPicker()
 
-    /** The user chose [entry] while search was open for picking; assigns it and closes search. */
+    /** Opens app search so the user can choose what the clock opens. */
+    fun openClockAppPicker() = clockSlot.openPicker()
+
+    /** Opens app search so the user can choose what the camera button opens. */
+    fun openCameraAppPicker() = cameraSlot.openPicker()
+
+    /** Opens app search so the user can choose what the browser button opens. */
+    fun openBrowserAppPicker() = browserSlot.openPicker()
+
+    /**
+     * The user chose [entry] (an app, or one of its shortcuts) while search was open for picking;
+     * assigns it and closes search.
+     */
     fun onEntryPicked(entry: SearchEntry) {
         val slot = when (_searchPurpose.value) {
             SearchPurpose.PICK_MONEY_APP -> moneySlot
             SearchPurpose.PICK_GALLERY_APP -> gallerySlot
             SearchPurpose.PICK_MESSAGES_APP -> messagesSlot
             SearchPurpose.PICK_CALENDAR_APP -> calendarSlot
+            SearchPurpose.PICK_CLOCK_APP -> clockSlot
+            SearchPurpose.PICK_CAMERA_APP -> cameraSlot
+            SearchPurpose.PICK_BROWSER_APP -> browserSlot
             SearchPurpose.FIND -> null
         }
-        if (entry is AppInfo) slot?.assign(entry.key)
+        slot?.assign(entry)
         closeSearch()
     }
 
@@ -1087,13 +1152,32 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     /** Forgets the chosen calendar app; the date goes back to asking for one. */
     fun clearCalendarApp() = calendarSlot.clear()
 
+    /** Forgets the clock's chosen app; it goes back to opening the alarms. */
+    fun clearClockApp() = clockSlot.clear()
+
+    /** Forgets the camera button's choice; it goes back to the default camera. */
+    fun clearCameraApp() = cameraSlot.clear()
+
+    /** Forgets the browser button's choice; it goes back to the default browser. */
+    fun clearBrowserApp() = browserSlot.clear()
+
     fun openPinPicker() {
         if (_settingsLocked.value) return
         advanceTour(TourStep.SPHERE)
         closeSearch()
         _isSettingsOpen.value = false
         _isPinPickerOpen.value = true
+        viewModelScope.launch {
+            _pickerShortcuts.value = withContext(Dispatchers.IO) {
+                if (shortcutProvider.hasAccess()) searchEngine.allShortcuts() else emptyList()
+            }
+        }
     }
+
+    private val _pickerShortcuts = MutableStateFlow<List<ShortcutEntry>>(emptyList())
+
+    /** Every app shortcut, for the pin picker's search; loaded as the picker opens. */
+    val pickerShortcuts: StateFlow<List<ShortcutEntry>> = _pickerShortcuts.asStateFlow()
 
     fun closePinPicker() {
         _isPinPickerOpen.value = false
@@ -1250,19 +1334,49 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Pins [entry] (an app, at the end) or unpins it (an app or shortcut), saving immediately.
+     * Pins [entry] (an app or shortcut, at the end) or unpins it, saving immediately.
      * Pinning does nothing once [PinPickerConfig.MAX_PINNED] pins are shown; the picker and menus
-     * don't offer it then either. An unpinned shortcut is released by the launcher too, so its app
-     * knows it's gone from the home screen.
+     * don't offer it then either. An unpinned shortcut is released by the launcher too (unless a
+     * button still uses it), so its app knows it's gone from the home screen.
      */
     fun togglePinned(entry: SearchEntry) {
         val key = PinnedAppsStore.keyOf(entry) ?: return
         val pinning = key !in _pinKeys.value
         if (pinning && pinnedItems.value.size >= PinPickerConfig.MAX_PINNED) return
+        if (pinning && entry is ShortcutEntry) {
+            pinShortcut(entry, key)
+            return
+        }
         val updated = _pinKeys.updateAndGet { keys -> if (pinning) keys + key else keys - key }
         pinnedAppsStore.save(updated)
-        if (!pinning && entry is ShortcutEntry) viewModelScope.launch(Dispatchers.IO) { shortcutProvider.unpin(entry) }
+        if (!pinning && entry is ShortcutEntry) releaseShortcutIfUnused(entry)
     }
+
+    /**
+     * Pins [shortcut] (keyed [key]) to the launcher, then puts it on the sphere at the end. The
+     * sphere shows it once [refreshPinnedShortcuts] has looked it up. If the sphere filled up
+     * meanwhile, it's released again.
+     */
+    private fun pinShortcut(shortcut: ShortcutEntry, key: String) {
+        if (key in shortcutsBeingPinned) return
+        shortcutsBeingPinned += key
+        viewModelScope.launch {
+            try {
+                if (!withContext(Dispatchers.IO) { shortcutProvider.pin(shortcut) }) return@launch
+                if (key in _pinKeys.value) return@launch
+                if (pinnedItems.value.size >= PinPickerConfig.MAX_PINNED) {
+                    if (key !in shortcutKeysInUse()) withContext(Dispatchers.IO) { shortcutProvider.unpin(shortcut) }
+                    return@launch
+                }
+                pinnedAppsStore.save(_pinKeys.updateAndGet { it + key })
+            } finally {
+                shortcutsBeingPinned -= key
+            }
+        }
+    }
+
+    /** Shortcuts on their way to the sphere, so a second tap meanwhile doesn't pin one twice. */
+    private val shortcutsBeingPinned = HashSet<String>()
 
     /**
      * Puts the pins in [order] (their keys, as arranged in the picker), saving immediately. Pins
@@ -1345,20 +1459,24 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * One customisable quick-action button's chosen app: which app is assigned (persisted in
-     * [quickActionAppStore] under [slot]), whether it's currently installed, and opening the app
-     * picker to change it. [purpose] tells [onEntryPicked] which slot a chosen app belongs to.
+     * One customisable quick-action button's chosen app or app shortcut: which is assigned
+     * (persisted in [quickActionAppStore] under [slot]), whether it's still there, and opening the
+     * picker to change it. [purpose] tells [onEntryPicked] which slot a chosen entry belongs to.
      */
     private inner class QuickActionSlot(private val slot: String, private val purpose: SearchPurpose) {
-        private val chosen = MutableStateFlow(quickActionAppStore.load(slot))
+        /** The assigned key: an AppInfo.key, or a ShortcutEntry id. */
+        val chosen = MutableStateFlow(quickActionAppStore.load(slot))
 
-        /** The assigned app while it's installed (tracking install/uninstall); null if none or gone. */
-        val app: StateFlow<AppInfo?> =
-            combine(chosen, _installedApps) { wanted, apps ->
-                wanted?.let { key -> apps.firstOrNull { it.key == key } }
+        /**
+         * The assigned app while it's installed (tracking install/uninstall), or the assigned
+         * shortcut while it exists; null if none or gone.
+         */
+        val app: StateFlow<SearchEntry?> =
+            combine(chosen, _installedApps, pinnedShortcuts) { wanted, apps, shortcuts ->
+                wanted?.let { key -> shortcuts[key] ?: apps.firstOrNull { it.key == key } }
             }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-        /** Opens app-only search to choose this slot's app; a no-op while settings are locked. */
+        /** Opens app search to choose this slot's app or shortcut; a no-op while settings are locked. */
         fun openPicker() {
             if (_settingsLocked.value) return
             _isPinPickerOpen.value = false
@@ -1370,17 +1488,32 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             indexUpdater.flushNow()
         }
 
-        /** Remembers the app keyed [key] (AppInfo.key, so a work app stays the work copy). */
-        fun assign(key: String) {
-            quickActionAppStore.save(slot, key)
-            chosen.value = key
+        /**
+         * Remembers [entry]: an app by its AppInfo.key (so a work app stays the work copy), or a
+         * shortcut by its id, once it's pinned with the system so it can't vanish from under the
+         * button. Anything else is ignored.
+         */
+        fun assign(entry: SearchEntry) {
+            when (entry) {
+                is AppInfo -> set(entry.key)
+                is ShortcutEntry -> viewModelScope.launch {
+                    if (withContext(Dispatchers.IO) { shortcutProvider.pin(entry) }) set(entry.id)
+                }
+                else -> Unit
+            }
         }
 
-        /** Forgets the chosen app; a no-op while settings are locked. */
+        /** Forgets the chosen app or shortcut; a no-op while settings are locked. */
         fun clear() {
             if (_settingsLocked.value) return
-            quickActionAppStore.clear(slot)
-            chosen.value = null
+            set(null)
+        }
+
+        private fun set(key: String?) {
+            val previous = chosen.value?.takeIf { it != key }?.let { pinnedShortcuts.value[it] }
+            if (key == null) quickActionAppStore.clear(slot) else quickActionAppStore.save(slot, key)
+            chosen.value = key
+            previous?.let(::releaseShortcutIfUnused)
         }
     }
 
